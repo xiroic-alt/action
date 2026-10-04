@@ -82,7 +82,8 @@
       </div>
 
       <!-- 右上角关闭 (不用去底部栏找) -->
-      <div class="iv-close" @click="ivClose"><text class="iv-close-t">✕</text></div>
+      <!-- 左上角返回/关闭: 用与应用内一致的「‹ 返回」(✕ 字形本机字体没有, 显示为空白); 深色胶囊白底也看得清 -->
+      <div class="iv-back" @click="ivClose"><text class="iv-back-t">‹ 返回</text></div>
 
       <!-- 首次提示, 4 秒后自动消失 -->
       <div v-if="viewer.hint" class="iv-hint">
@@ -92,9 +93,9 @@
       <!-- 底部悬浮工具栏 -->
       <div class="iv-bar">
         <div class="iv-panel">
-          <div class="iv-btn" @click="ivZoomOut"><text class="iv-btn-t">−</text></div>
+          <div class="iv-btn" @click="ivZoomOut"><text class="iv-btn-t">-</text></div>
           <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
-          <div class="iv-btn" @click="ivZoomIn"><text class="iv-btn-t">＋</text></div>
+          <div class="iv-btn" @click="ivZoomIn"><text class="iv-btn-t">+</text></div>
           <div class="iv-sep"></div>
           <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">复位</text></div>
           <text v-if="viewer.sizeText !== ''" class="iv-size">{{ viewer.sizeText }}</text>
@@ -420,8 +421,8 @@ export default {
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
 .iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
-.iv-close { position: absolute; left: 902px; top: 12px; width: 44px; height: 44px; border-radius: 22px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
-.iv-close-t { font-size: 22px; color: #ffffff; }
+.iv-back { position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 16px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
+.iv-back-t { font-size: 19px; color: #ffffff; }
 .iv-hint { position: absolute; left: 0px; bottom: 68px; width: 960px; flex-direction: column; align-items: center; }
 .iv-hint-t { font-size: 16px; color: #ffffff; background-color: rgba(0,0,0,0.62); padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; border-radius: 16px; }
 /* 工具栏: 深色面板打底 —— 白底照片上白半透明按钮会看不见(实测反馈), 全部改成深底浅字 */
@@ -429,7 +430,7 @@ export default {
 .iv-panel { flex-direction: row; justify-content: center; align-items: center; padding-left: 10px; padding-right: 14px; padding-top: 6px; padding-bottom: 6px; border-radius: 20px; background-color: rgba(0,0,0,0.70); }
 .iv-btn { width: 62px; height: 40px; margin-right: 8px; border-radius: 12px; background-color: rgba(255,255,255,0.22); flex-direction: row; justify-content: center; align-items: center; }
 .iv-btn-wide { width: 88px; }
-.iv-btn-t { font-size: 21px; color: #ffffff; }
+.iv-btn-t { font-size: 26px; color: #ffffff; }
 .iv-pill { height: 40px; padding-left: 18px; padding-right: 18px; margin-right: 8px; border-radius: 12px; background-color: #fb7299; flex-direction: row; justify-content: center; align-items: center; }
 .iv-pill-t { font-size: 20px; color: #ffffff; }
 .iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.30); margin-right: 8px; }
