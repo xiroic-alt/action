@@ -1396,15 +1396,15 @@ function mapDynamicItem(it) {
   if (draw.items && draw.items.length) pics = dynPics(draw.items)
   if (pics.length === 0 && opus.pics && opus.pics.length) pics = dynPics(opus.pics)
   if (pics.length === 0 && desc.pics && desc.pics.length) pics = dynPics(desc.pics)
-  // 现场诊断: 前三张卡片把正文/图片字段的真实形态写进设备日志 (一次性, 便于核对)
-  if (dynDbg < 3) {
+  // 现场诊断: 前 5 条把原始 modules 结构打进设备日志 (一次性取证, 定位正文字段)
+  if (dynDbg < 5) {
     dynDbg++
     try {
-      log('动态', '结构#' + dynDbg + ' ' + kind
-        + ' descText=' + String(desc.text || '').length
-        + ' nodes=' + ((desc.rich_text_nodes || []).length)
-        + ' opusTitle=' + (typeof opus.title) + ' opusSum=' + (typeof opus.summary)
-        + ' drawText=' + (typeof draw.text) + ' segs=' + segs.length + ' pics=' + pics.length)
+      log('动态', '原始#' + dynDbg + ' ' + kind + ' md键=' + Object.keys(md).join('/')
+        + ' major键=' + Object.keys(major).join('/')
+        + ' desc键=' + Object.keys(desc).join('/')
+        + ' segs=' + segs.length + ' pics=' + pics.length)
+      log('动态', 'raw#' + dynDbg + ' ' + String(JSON.stringify(md)).slice(0, 420))
     } catch (e0) {}
   }
   // 转发: 正文是转发语, 原动态在 it.orig

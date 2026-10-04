@@ -38,7 +38,8 @@
             <text class="dbadge">{{ kindName(d.kind) }}</text>
           </div>
 
-          <richtext :class="['dtext', d.expanded ? 'dtext-open' : '']" @click="toggle(d)">
+          <!-- 无正文时不要渲染空 richtext: lines:3 仍会占 3 行高度 -> 卡片里一大片空白 -->
+          <richtext v-if="d.segs && d.segs.length > 0" :class="['dtext', d.expanded ? 'dtext-open' : '']" @click="toggle(d)">
             <template v-for="(seg, si) in d.segs">
               <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
               <span v-else-if="seg.t === 2" :key="'h' + si" class="dhl">{{ seg.v }}</span>
