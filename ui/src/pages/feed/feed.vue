@@ -12,7 +12,7 @@
     </div>
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
-    <div class="fstatus" v-if="status !== ''"><text class="fstatus-t">{{ status }}</text></div>
+    <div class="fstatus" v-if="status !== ''" @click="retry"><text class="fstatus-t">{{ status }}</text></div>
 
     <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true">
       <div class="fwrap">
@@ -190,10 +190,13 @@ export default {
         const self = this
         this.$page.onNewOptions = function () { self.load(true) }
       }
-      if (this._started) return
+      // 二次进入: 上次没拿到数据(超时/失败)就自动再试一次
+      if (this._started) { if (this.items.length === 0) this.load(true); return }
       this._started = true
       this.load(true)
     },
+    // 接口偶发不返回(实测有 1 分钟不 resolve 的情况) -> 给用户一个明确的重试入口
+    retry() { this._gen++; this.loading = false; this.status = '加载中…'; this.load(true) },
     back() { try { this.$page.finish() } catch (e) {} },
     kindName(k) { return KIND_NAME[k] || '动态' },
     setCat(k) {
@@ -204,12 +207,17 @@ export default {
     async load(reset) {
       if (this.loading) return
       if (!reset && !this.hasMore) return
+      const self = this
       this.loading = true
       if (reset) this.status = '加载中…'
       try { log('动态页', 'load 开始 reset=' + reset) } catch (e0) {}
       const gen = ++this._gen
+      // 看门狗: 12 秒不回来就当超时, 绝不让页面永远停在「加载中…」
+      const watchdog = new Promise(function (res, rej) {
+        setTimer(self, 12000, function () { rej(new Error('加载超时，点这里重试')) })
+      })
       try {
-        const r = await getDynamicFeed(reset ? '' : this.offset)
+        const r = await Promise.race([getDynamicFeed(reset ? '' : this.offset), watchdog])
         if (gen !== this._gen) return
         const add = r.items || []
         for (let i = 0; i < add.length; i++) {
