@@ -64,13 +64,19 @@
         </div>
         <!-- 交互行: 点赞/投币/收藏/三连/稍后再看 (状态高亮; 均可再点取消, 投币除外) -->
         <div v-if="detail" class="actrow">
-          <!-- 原来这里是 class="act act-comment" —— 两个类在样式里都不存在, 等于一个 0 尺寸的 div,
-               命中区为 0 所以「评论」按钮点不动. 用 .act-btn 给它真实尺寸 -->
-          <div class="act-btn act-comment" @click="switchTab('comment')">
-            <image class="act-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="act-text">评论 {{ total > 0 ? total : '' }}</text>
-          </div>
           <div :class="['act-btn', detail.reqLike ? 'act-on' : '']" @click="doLike">
+--- FILE: bilibili/ui/src/pages/page/page.vue
+--- OLD
+        <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页) -->
+        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" @click="switchTab('comment')">
+          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
+        </div>
+--- NEW
+        <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页);
+             宽度随评论数位数变化 —— 固定 96px + overflow:hidden 会把 5~6 位数的最后一位截掉 -->
+        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" :style="{ width: commentTabW + 'px' }" @click="switchTab('comment')">
+          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
+        </div>
             <text :class="['act-text', detail.reqLike ? 'act-text-on' : '']">{{ detail.reqLike ? '已赞' : '点赞' }}</text>
           </div>
           <div :class="['act-btn', detail.reqCoin ? 'act-on' : '']" @click="openCoinPicker">
@@ -470,6 +476,11 @@ export default {
     // 状态行是否成功态: 成功才配一个勾图标 (失败/加载中不配)
     actOk() { return this.actStatus !== '' && this.actStatus.indexOf('失败') < 0 && this.actStatus.indexOf('中') < 0 },
     cOk() { return this.cStatus !== '' && this.cStatus.indexOf('失败') < 0 && this.cStatus.indexOf('中') < 0 && this.cStatus.indexOf('需要') < 0 },
+    // 评论 tab 宽度: 基础 72px + 每位数字 12px (19px 字号下 "评论 28176" 也放得下, 不再截断末尾)
+    commentTabW() {
+      const n = this.total > 0 ? String(Math.floor(this.total)).length : 0
+      return 72 + n * 12
+    },
     coverSrc() {
       return this.detail && this.detail.pic ? this.detail.pic : ''
     },
@@ -595,18 +606,16 @@ export default {
           const d = await getVideoDetail(this.bvid)
           if (gen !== this.generation) return
           this.detail = d
+          // 评论数直接用详情接口的 stat.reply: 一进页面 tab 上就有数字, 不需要额外请求.
+          // (评论列表本身仍然「进评论 tab 才加载」—— 后台预取当年会拖死整个应用)
+          if (!this.cLoaded && d.replyCount > 0) this.total = d.replyCount
           // 评论后台预取已关闭 (真机实测问题):
           //   打开视频详情页后会短暂卡死 —— 进程状态 State=S / Threads=48 / 无残留 curl,
           //   与 HANDOVER §10.5 记录的「JS 线程僵住」一致; 僵住后任何点击都不再响应
           //   (评论 tab / 动作栏「评论」按钮都点不动 = 用户长期反馈的「评论区进不去」).
           //   对照实验: 首页静置 20s 后点击仍然生效, 只有详情页会僵 —— 触发点就在这段预取附近.
           //   评论改为「进评论页时加载」: 实测 <1s, 用户体验没有差别, 但不会拖死整个应用.
-          if (this.detail && this.detail.aid && !this.cLoaded && !this.cLoading) {
-            const self = this
-            setTimeout(function () {
-              try { self.cStatus = '进评论页后加载' } catch (e) {}
-            }, 400)
-          }
+          // (评论数现在来自详情接口, 这里不再需要「进评论页后加载」这类占位提示)
           if (d.pages.length > 1 && this.currentPage >= 1 && this.currentPage <= d.pages.length) {
             const p = d.pages[this.currentPage - 1]
             if (p && p.part) this.detail.title = d.title + '（' + p.part + '）'
@@ -1619,9 +1628,7 @@ export default {
   margin-left: 4px;
   margin-right: 4px;
 }
-.act-ic {
-  margin-right: 6px;
-}
+
 .act-on {
   background-color: #fb7299;
 }

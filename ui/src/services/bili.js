@@ -571,6 +571,10 @@ export async function getVideoDetail(bvid, noCache) {
     coinText: formatPlay(st.coin),
     favText: formatPlay(st.favorite),
     shareText: formatPlay(st.share),
+    // 评论数: 详情接口自带 (stat.reply). 页内评论 tab 的计数直接用它 ——
+    // 既不额外发请求 (当年评论后台预取会拖死整个应用, 已关), 又能一进页面就显示
+    replyCount: Number(st.reply) || 0,
+    replyText: formatPlay(st.reply),
     // 交互状态 (未登录时 req_user 缺失, 全 false)
     reqLike: ru.like === 1,
     reqCoin: (Number(ru.coin) || 0) > 0,
