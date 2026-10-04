@@ -66,7 +66,7 @@
     <!-- 搜索 -->
     <div v-else-if="activeTab === 'search'" class="tabbody">
       <div class="search-bar">
-        <div class="search-input" @click="openKeyboard">
+        <div class="search-input" :style="{ width: (keyword !== '' ? 700 : 760) + 'px' }" @click="openKeyboard">
           <text class="search-text">{{ keyword ? keyword : placeholder }}</text>
         </div>
         <!-- 清空: 系统输入法经常拿不到「删空后返回空串」的时机, 必须给显式出口,
@@ -228,7 +228,7 @@ const MI = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P2bP4P5P6'
+const BUILD_TAG = 'P8fix'
 export default {
   name: 'index',
   data() {

@@ -1033,7 +1033,7 @@ export async function getHistoryList(pn) {
       pubText: formatDate(h.view_at) ? '看于 ' + formatDate(h.view_at) : ''
     })
   }
-  return { items: items, hasMore: (body.data.has_more === 1) && items.length > 0 }
+  return { items: items, hasMore: hasMoreOf(body.data.has_more) && items.length > 0 }
 }
 
 /**
@@ -1068,7 +1068,7 @@ export async function getFavList(mediaId, pn) {
   }
   // has_more: data.has_more (1=还有) + total 对比兜底
   const total = body.data.info ? (body.data.info.total || 0) : 0
-  return { items: items, hasMore: body.data.has_more === 1 && items.length > 0 }
+  return { items: items, hasMore: hasMoreOf(body.data.has_more) && items.length > 0 }
 }
 
 /**
@@ -1276,7 +1276,7 @@ export async function getDynamicFeed(offset, type, fresh) {
   const out = {
     items: items,
     offset: body.data.offset || '',
-    hasMore: body.data.has_more === 1
+    hasMore: hasMoreOf(body.data.has_more)
   }
   cacheSet(key, out)
   return out
@@ -1286,6 +1286,10 @@ export async function getDynamicFeed(offset, type, fresh) {
 // 动态形态比视频复杂: 投稿(archive) / 图文(draw, 九宫格) / 纯文字(word) / 专栏(opus) / 转发(forward) / 直播(live_rcmd)
 // 正文必须按 desc.rich_text_nodes 保序渲染 —— 节点的 emoji.size (1=小 2=大) 决定字号,
 // 直接拼字符串会同时丢掉表情图片和字号大小, 这就是之前「文字大小/位置不对」的根因.
+// has_more 兼容: 文档写的是 bool (true/false), 个别接口给 1/0.
+// 0.9.58 之前只判 === 1 -> 动态页(首页动态 tab + 独立动态页)永远拿不到下一页
+function hasMoreOf(v) { return v === 1 || v === true || v === '1' }
+
 function dynHttps(u) {
   const s = String(u == null ? '' : u)
   if (s.indexOf('//') === 0) return 'https:' + s
@@ -1317,21 +1321,37 @@ function mapRichNodes(nodes) {
   }
   return segs
 }
-// 九宫格图: 按原图比例缩到 <=max 边长, 保序输出 (页面按 3 列切行)
-function dynPics(list, max) {
+// 正文节点 -> { segs, text }: 兼容字符串与对象两种形态.
+// 新版图文/专栏把正文放在 major.opus.summary = { text, rich_text_nodes } (对象),
+// 旧版 module_dynamic.desc.text 是纯字符串 —— 只读 desc 就会出现「只渲染照片, 字没了」.
+function textOf(node) {
+  if (node == null) return { segs: [], text: '' }
+  if (typeof node === 'string') return { segs: node ? [{ t: 0, v: node }] : [], text: node }
+  if (typeof node === 'number') return { segs: [{ t: 0, v: String(node) }], text: String(node) }
+  let segs = mapRichNodes(node.rich_text_nodes)
+  const t = node.text == null ? '' : String(node.text)
+  if (segs.length === 0 && t) segs = [{ t: 0, v: t }]
+  return { segs: segs, text: t }
+}
+let dynDbg = 0
+
+// 九宫格图: 统一输出正方形格子, 页面按 3 列切行.
+// 旧版按原图比例缩到 <=132px -> 一行 3 张只占 ~400px, 卡片右侧一大片空白
+// (用户反馈「4 张照片都放不到一行」「很大的空白」). 现在格子按「3 列铺满卡片」算.
+const GRID_CELL = 288        // (920 - 24 内边距 - 2*6 间距) / 3 ≈ 288, 3 列刚好铺满卡片
+const GRID_ONE_W = 430       // 单图动态: 一张大图 (cover 裁切, 点开看原图)
+const GRID_ONE_H = 300
+function dynPics(list, cell) {
   const out = []
   const arr = list || []
-  const ms = max || 132
+  const cs = cell || GRID_CELL
   for (let i = 0; i < arr.length && i < 9; i++) {
     const p = arr[i] || {}
     const src = dynHttps(p.src || p.url || '')
     if (!src) continue
-    let w = parseInt(p.width, 10) || 0
-    let h = parseInt(p.height, 10) || 0
-    if (!w || !h) { w = ms; h = ms }
-    const k = Math.min(ms / w, ms / h)
-    out.push({ src: src, w: Math.round(w * k), h: Math.round(h * k), full: src })
+    out.push({ src: src, w: cs, h: cs, full: src })
   }
+  if (out.length === 1) { out[0].w = GRID_ONE_W; out[0].h = GRID_ONE_H }
   return out
 }
 function dynArchive(arc) {
@@ -1367,10 +1387,26 @@ function mapDynamicItem(it) {
   const opus = major.opus || major.article || {}
   let segs = mapRichNodes(desc.rich_text_nodes)
   if (segs.length === 0 && desc.text) segs = [{ t: 0, v: String(desc.text) }]
+  // 正文兜底链: desc -> opus.summary -> opus.title -> draw.text -> archive.desc
+  if (segs.length === 0) { const a = textOf(opus.summary); if (a.segs.length) segs = a.segs }
+  if (segs.length === 0) { const b = textOf(opus.title); if (b.segs.length) segs = b.segs }
+  if (segs.length === 0) { const c = textOf(draw.text); if (c.segs.length) segs = c.segs }
+  if (segs.length === 0) { const d = textOf(major.archive && major.archive.desc); if (d.segs.length) segs = d.segs }
   let pics = []
   if (draw.items && draw.items.length) pics = dynPics(draw.items)
   if (pics.length === 0 && opus.pics && opus.pics.length) pics = dynPics(opus.pics)
   if (pics.length === 0 && desc.pics && desc.pics.length) pics = dynPics(desc.pics)
+  // 现场诊断: 前三张卡片把正文/图片字段的真实形态写进设备日志 (一次性, 便于核对)
+  if (dynDbg < 3) {
+    dynDbg++
+    try {
+      log('动态', '结构#' + dynDbg + ' ' + kind
+        + ' descText=' + String(desc.text || '').length
+        + ' nodes=' + ((desc.rich_text_nodes || []).length)
+        + ' opusTitle=' + (typeof opus.title) + ' opusSum=' + (typeof opus.summary)
+        + ' drawText=' + (typeof draw.text) + ' segs=' + segs.length + ' pics=' + pics.length)
+    } catch (e0) {}
+  }
   // 转发: 正文是转发语, 原动态在 it.orig
   let orig = null
   if (it.orig) {
@@ -1407,7 +1443,7 @@ function mapDynamicItem(it) {
     pics: pics,
     rows: [],
     archive: archive,
-    opus: opus.title ? { title: stripTags(opus.title), summary: stripTags(opus.summary || ''), url: opus.jump_url || '' } : null,
+    opus: (opus.title || opus.summary) ? { title: stripTags(textOf(opus.title).text || ''), summary: stripTags(textOf(opus.summary).text || ''), url: opus.jump_url || '' } : null,
     orig: orig,
     stat: {
       like: (st.like && st.like.count) || 0,

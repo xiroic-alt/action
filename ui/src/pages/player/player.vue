@@ -1,5 +1,8 @@
 <template>
-  <div class="page">
+  <!-- :key 绑 uiKey: 起播后整棵 UI 子树重建一次 = 一次完整的 surface 提交.
+       Weston 只在「真实输入」时抬升焦点 surface, 而 send_event 合成点击不经过 Weston,
+       所以只能靠重新提交 UI 让 app surface 重新排到视频面之上 (等效用户手点一下) -->
+  <div class="page" :key="'u' + uiKey">
     <!-- hole: 全带挖透, 视频由设备侧等比拟合全带 (信箱居中, 不裁切不变形),
          Weston 视频 surface 在 UI 之下透出 (references/transparent.md) -->
     <hole v-if="holeOn" class="hole" :style="holeStyle"></hole>
@@ -129,6 +132,7 @@ export default {
     // 视频面(waylandsink)层级修复用: hole 重建 + 尺寸抖 1px 会强制 wayland 重新提交层级
     holeOn: true,
     holeNudge: 0,
+    uiKey: 0,          // 起播后自增 -> UI 子树整体重建, 强制一次完整 surface 提交
     // seek 锁定窗: 期间丢弃「旧位置」的轮询读数, 进度条不再闪回去
     seekHoldMs: null,
     seekHoldUntil: 0,
@@ -385,6 +389,7 @@ export default {
         if (!self.opened) return
         self.holeOn = true
         self.holeNudge = self.holeNudge > 0 ? 0 : 1
+        self.uiKey++   // 完整重提交 UI (见模板注释)
       })
     },
 
