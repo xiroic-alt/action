@@ -2,7 +2,7 @@
   <div class="page">
     <!-- hole: 全带挖透, 视频由设备侧等比拟合全带 (信箱居中, 不裁切不变形),
          Weston 视频 surface 在 UI 之下透出 (references/transparent.md) -->
-    <hole class="hole"></hole>
+    <hole v-if="holeOn" class="hole" :style="holeStyle"></hole>
 
     <!-- 点击空白区域 显示/隐藏控制条; 控制条自身按钮拦截点击 -->
     <div class="stage" @click="toggleBar" @touchstart="markUserTouch">
@@ -126,6 +126,12 @@ export default {
       barVisible: true,
       lastUserTouchAt: 0,   // 最近一次用户真实触摸 (保活注入避让用)
       curMs: 0,
+    // 视频面(waylandsink)层级修复用: hole 重建 + 尺寸抖 1px 会强制 wayland 重新提交层级
+    holeOn: true,
+    holeNudge: 0,
+    // seek 锁定窗: 期间丢弃「旧位置」的轮询读数, 进度条不再闪回去
+    seekHoldMs: null,
+    seekHoldUntil: 0,
       durMs: 0,
       segList: (function () {
         var a = []
@@ -155,6 +161,11 @@ export default {
     fillStyle: function () { return { width: this.fillPct + '%' } },
     thumbStyle: function () { return { left: this.fillPct + '%' } },
     curText: function () { return fmtMs(this.curMs) },
+  holeStyle: function () {
+    // 抖 1px: 尺寸变化才触发 subsurface 重新提交, 纯 v-if 重建在部分固件上不生效
+    const n = this.holeNudge
+    return { width: (960 - n) + 'px', height: (266 - n) + 'px' }
+  },
     durText: function () { return fmtMs(this.durMs) }
   },
   methods: {
@@ -351,15 +362,30 @@ export default {
     // exec 不可用时退化为控制条 v-if 翻转强制 UI 重新合成.
     fixLayer: function () {
       var self = this
-      if (!player.keepAwakeSupported()) {
-        var was = this.barVisible
-        this.barVisible = !this.barVisible
-        setTimer(this, 120, function () { self.barVisible = was })
-        return
+      // 两条腿一起上 (0.9.58: 单独注入合成点击在真机上仍会漏, 用户进播放页还要手点一下):
+      //   1) 重建 <hole> 并把尺寸抖 1px -> 强制视频面(subsurface)重新提交层级
+      //   2) 仍然补一次合成点击 -> 能生效的固件上更快
+      this.restackHole()
+      if (player.keepAwakeSupported()) this.kickLayer()
+      const marks = [500, 1200, 2400, 4000]
+      for (var i = 0; i < marks.length; i++) {
+        setTimer(this, marks[i], function () {
+          if (!self.opened) return
+          self.restackHole()
+          if (player.keepAwakeSupported()) self.kickLayer()
+        })
       }
-      this.kickLayer()
-      setTimer(this, 800, function () { if (self.playing) self.kickLayer() })
-      setTimer(this, 2000, function () { if (self.playing) self.kickLayer() })
+    },
+
+    // 强制视频面重新排层: v-if 重建 + 尺寸 1px 抖动
+    restackHole: function () {
+      var self = this
+      this.holeOn = false
+      setTimer(this, 40, function () {
+        if (!self.opened) return
+        self.holeOn = true
+        self.holeNudge = self.holeNudge > 0 ? 0 : 1
+      })
     },
 
     // 合成一次点击 (让 UI 重新置顶), 随后把控制条恢复为显示态
@@ -439,7 +465,19 @@ export default {
         if (!self.opened) return
         var dur = player.getDuration()
         if (dur > 0) self.durMs = dur
-        self.curMs = player.getPosition()
+        var pos = player.getPosition()
+        // seek 后 native 还会吐 1~2 次旧位置, 直接采用会让进度条闪回去再闪过来
+        if (self.seekHoldMs !== null && self.seekHoldMs !== undefined) {
+          if (Date.now() > self.seekHoldUntil || Math.abs(pos - self.seekHoldMs) <= 800) {
+            self.seekHoldMs = null          // 已追上目标(或锁定窗超时) -> 交回轮询
+            try { log('播放器', 'seek 锁定解除, 丢弃 ' + (self.seekDropN || 0) + ' 次旧位置读数') } catch (e1) {}
+            self.seekDropN = 0
+          } else {
+            self.seekDropN = (self.seekDropN || 0) + 1
+            return                          // 锁定窗内: 丢弃旧读数, 保持显示的目标位置
+          }
+        }
+        self.curMs = pos
       })
     },
     stopPolling: function () {
@@ -520,6 +558,11 @@ export default {
       try {
         player.seek(t)
         this.curMs = t
+        // 锁定窗 1.6s: 期间只认「已追上目标(±800ms)」的读数 (P6 进度条回闪修复)
+        this.seekHoldMs = t
+        this.seekHoldUntil = Date.now() + 1600
+        this.seekDropN = 0
+        try { log('播放器', 'seek -> ' + Math.round(t / 1000) + 's (锁定 1.6s, 期间丢弃旧读数)') } catch (e2) {}
         if (this.statusText === '播放结束') this.statusText = ''
       } catch (e) {
         console.log('[player] seek error: ' + (e && e.message ? e.message : e))

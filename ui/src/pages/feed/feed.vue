@@ -406,13 +406,28 @@ export default {
       this.ivApply()
       this.ivScheduleUpgrade()
     },
-    ivApply() {
+    ivApply(silent) {
       const p = clampPan({ x: this.viewer.tx, y: this.viewer.ty }, this.viewer.scale)
-      // 值没变就不写: 平移到边界 / 缩放没变时省掉一次无意义的响应式更新
-      if (p.x !== this.viewer.tx) this.viewer.tx = p.x
-      if (p.y !== this.viewer.ty) this.viewer.ty = p.y
+      // 位置取整: 半像素位置会让合成器每帧重新采样整张图, 拖动时的「果冻/撕裂」就是它
+      const nx = Math.round(p.x)
+      const ny = Math.round(p.y)
+      if (nx !== this.viewer.tx) this.viewer.tx = nx
+      if (ny !== this.viewer.ty) this.viewer.ty = ny
+      if (silent) return
       const t = Math.round(this.viewer.scale * 100) + '%'
       if (t !== this.viewer.text) this.viewer.text = t
+    },
+    // 手势期间把样式写入合并成「一帧最多一次」:
+    // 逐 move 写 transform 会让合成器边写边扫 -> 画面半边新半边旧, 视觉上就是果冻效应
+    // (0.9.58 用户反馈「照片查看像帧不同步」). touchmove 本身已被框架节流, 再叠写入风暴只会更糟.
+    ivFlush() {
+      if (this._ivPend) return
+      const self = this
+      this._ivPend = true
+      setTimer(this, 33, function () {
+        self._ivPend = false
+        self.ivApply(true)
+      })
     },
     ivZoom(f) {
       this.viewer.scale = clampScale(this.viewer.scale * f)
@@ -531,7 +546,7 @@ export default {
         this.viewer.tx = mx - cx - (this._pinch.mx - cx - this._pinch.tx) * k
         this.viewer.ty = my - cy - (this._pinch.my - cy - this._pinch.ty) * k
         this._moved = true
-        this.ivApply()
+        this.ivFlush()
         return
       }
       // ---- 双击后按住上下滑: 连续缩放 (单指可用, 替代双指捏合) ----
@@ -541,7 +556,7 @@ export default {
         const dy = this._zoomDrag.y - q.y
         if (Math.abs(dy) > 8) { this._moved = true; this.viewer.hint = false }
         this.viewer.scale = clampScale(this._zoomDrag.scale * Math.exp(dy / 130))
-        this.ivApply()
+        this.ivFlush()
         return
       }
       // ---- 单指拖动平移 ----
@@ -558,6 +573,7 @@ export default {
     },
     ivEnd() {
       this.ivScheduleUpgrade()   // 手停了再决定要不要换原图
+      this.ivApply()             // 手停: 落一次最终位置, 百分比文字也在这时刷新
       if (this._pinch) { this._pinch = null; this._ix = undefined; this._iy = undefined; this._lastTap = 0; return }
       const moved = this._moved === true
       if (this._zoomDrag) {

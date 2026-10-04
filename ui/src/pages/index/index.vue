@@ -69,6 +69,11 @@
         <div class="search-input" @click="openKeyboard">
           <text class="search-text">{{ keyword ? keyword : placeholder }}</text>
         </div>
+        <!-- 清空: 系统输入法经常拿不到「删空后返回空串」的时机, 必须给显式出口,
+             否则搜过一次就再也回不到历史记录态 (只能重进应用) -->
+        <div v-if="keyword !== ''" class="search-clear" @click="clearKeyword">
+          <text class="search-clear-t">清空</text>
+        </div>
         <div class="search-btn" @click="openKeyboard">
           <text class="search-btn-text">搜索</text>
         </div>
@@ -223,7 +228,7 @@ const MI = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P1P2P3-fix1'
+const BUILD_TAG = 'P2bP4P5P6'
 export default {
   name: 'index',
   data() {
@@ -629,8 +634,9 @@ export default {
         if (text === null) return // 用户取消
         this.keyword = text
         if (text.trim() === '') {
-          this.status = '请输入关键词'
-          this.searched = false
+          // 输入法删空 -> 回到「历史记录」初始态.
+          // (旧版只写 status='请输入关键词', searched 状态与结果都不清, 历史列表永远回不来)
+          this.resetSearchState()
           return
         }
         this.doSearch(text)
@@ -638,6 +644,23 @@ export default {
         console.log('IME error', err)
         this.status = '输入法打开失败: ' + err
       }
+    },
+
+    // 回到搜索初始态 (显示历史记录 + 关键词全清)
+    resetSearchState() {
+      this.generation++
+      this.keyword = ''
+      this.searched = false
+      this.results = []
+      this.searchPage = 1
+      this.searchHasMore = false
+      this.loading = false
+      this.status = ''
+      try { this.history = getSearchHistory(12) } catch (e) { this.history = [] }
+    },
+    // 显式清空按钮: 同时把下一次输入法的预填文本也清掉 (openKeyboard 传的就是 keyword)
+    clearKeyword() {
+      this.resetSearchState()
     },
 
     async doSearch(keyword) {
@@ -1080,4 +1103,6 @@ export default {
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; margin-bottom: 0px; }
 .dynbar-ic { margin-left: 6px; }
+.search-clear { width: 56px; flex-direction: row; justify-content: center; align-items: center; }
+.search-clear-t { font-size: 17px; color: #9aa0a6; }
 </style>
