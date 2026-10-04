@@ -46,7 +46,7 @@
               <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
             </template>
           </richtext>
-          <div v-if="d.segs && d.segs.length > 0 && !d.expanded" class="dmore" @click="toggle(d)">
+          <div v-if="d.isLong && !d.expanded" class="dmore" @click="toggle(d)">
             <text class="dmore-t">展开全文</text>
             <image class="dmore-ic" :src="MI.expand" :style="{ width: '20px', height: '20px' }"></image>
           </div>
@@ -74,7 +74,8 @@
 
           <div class="ocard" v-if="d.opus">
             <text class="otitle">{{ d.opus.title }}</text>
-            <text class="osum" v-if="d.opus.summary">{{ d.opus.summary }}</text>
+            <!-- 正文已经作为主 richtext 渲染时不要再重复一遍 (真机响应: opus.summary.text 就是正文) -->
+            <text class="osum" v-if="d.opus.summary && (!d.segs || d.segs.length === 0)">{{ d.opus.summary }}</text>
           </div>
 
           <div class="ostat" v-if="d.orig">

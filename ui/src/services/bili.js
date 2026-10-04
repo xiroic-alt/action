@@ -1434,6 +1434,9 @@ function mapDynamicItem(it) {
   }
   const archive = dynArchive(major.archive)
   const txt = desc.text ? String(desc.text) : ''
+  // 正文总长 (用于「展开全文」是否出现: 一个字也显示展开文案很蠢)
+  let segAll = ''
+  for (let i2 = 0; i2 < segs.length; i2++) { if (segs[i2].t === 0 || segs[i2].t === 2) segAll += String(segs[i2].v || '') }
   const item = {
     id: String(it.id_str || ''),
     // kind 用于分类筛选; type/pic/title 保留旧字段, 首页「动态」tab 的旧渲染不用改
@@ -1443,6 +1446,7 @@ function mapDynamicItem(it) {
     face: ma.face ? thumb(dynHttps(ma.face), 80, 80) : '',
     pubText: ma.pub_time || '',
     segs: segs,
+    isLong: isLongMessage(segAll),   // 超 3 行才显示「展开全文」
     pics: pics,
     rows: [],
     archive: archive,
