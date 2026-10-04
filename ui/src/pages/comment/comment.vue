@@ -70,17 +70,33 @@
     </scroller>
 
 
-    <!-- 图片查看器 (独立 so) -->
+    <!-- 图片查看器: 纯黑底 + 居中悬浮工具栏; 缩放/平移走 CSS transform (实测本机 <image> 支持) -->
     <div v-if="viewer.on" class="iview"
          @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
-      <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"></image>
-      <div class="iview-bar">
-        <div class="iview-btn" @click="ivZoom(0.8)"><text class="iview-btn-t">−</text></div>
-        <text class="iview-zoom">{{ viewer.text }}</text>
-        <div class="iview-btn" @click="ivZoom(1.25)"><text class="iview-btn-t">＋</text></div>
-        <div class="iview-btn" @click="ivFit"><text class="iview-btn-t">适配 100%</text></div>
-        <div class="iview-btn iview-close" @click="ivClose"><text class="iview-btn-t">关闭</text></div>
-        <text class="iview-tip">拖动可平移 · ＋ 可放大到超出屏幕</text>
+      <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"
+             @load="onImgLoad"></image>
+
+      <!-- 加载态 / 失败态 -->
+      <div v-if="viewer.loading || viewer.err !== ''" class="iv-mask">
+        <text class="iv-mask-t">{{ viewer.err !== '' ? viewer.err : '加载中…' }}</text>
+      </div>
+
+      <!-- 右上角关闭 (不用去底部栏找) -->
+      <div class="iv-close" @click="ivClose"><text class="iv-close-t">✕</text></div>
+
+      <!-- 首次提示, 4 秒后自动消失 -->
+      <div v-if="viewer.hint" class="iv-hint">
+        <text class="iv-hint-t">拖动平移 · 双击放大 / 还原</text>
+      </div>
+
+      <!-- 底部悬浮工具栏 -->
+      <div class="iv-bar">
+        <div class="iv-btn" @click="ivZoomOut"><text class="iv-btn-t">−</text></div>
+        <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
+        <div class="iv-btn" @click="ivZoomIn"><text class="iv-btn-t">＋</text></div>
+        <div class="iv-sep"></div>
+        <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">适配</text></div>
+        <text v-if="viewer.sizeText !== ''" class="iv-size">{{ viewer.sizeText }}</text>
       </div>
     </div>
   </div>
@@ -90,6 +106,14 @@
 import { getReplies, likeReply, addReply } from '../../services/bili.js'
 import { log } from '../../services/log.js'
 import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle } from '../../services/imageview.js'
+
+// 计时器: 优先用页面实例的 setTimeout (本运行时组件里不保证有全局 setTimeout) —— 与 player.vue 同款
+function setTimer(vm, ms, fn) {
+  const p = vm.$page
+  if (p && p.setTimeout) return p.setTimeout(fn, ms)
+  return setTimeout(fn, ms)
+}
+
 
 const BUILTIN_EMOJI = {
 '1f197': require('../../assets/emoji/1f197.png'),
@@ -183,7 +207,7 @@ export default {
       draft: '',
       posting: false,
       scrollY: 0,
-      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%' }
+      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false }
     }
   },
   // 生命周期: 本运行时 BasePage 只把 onShow/onHide/onUnload 转发给页面根组件($root),
@@ -262,13 +286,39 @@ export default {
     onInput(e) { try { this.draft = e.detail && e.detail.value !== undefined ? e.detail.value : (e.target && e.target.value) || '' } catch (err) {} },
     // 打开: 只把大图 URL 交给 <image resize="contain">, 缩放/平移全用 transform (不落盘, 不阻塞)
     ivOpen(url) {
+      const self = this
       this.viewer.url = bigUrl(url)
       this.viewer.scale = 1
       this.viewer.tx = 0
       this.viewer.ty = 0
       this.viewer.text = '100%'
+      this.viewer.sizeText = ''
+      this.viewer.err = ''
+      this.viewer.loading = true
+      this.viewer.hint = true
       this.viewer.on = true
       try { log('图片查看器', '打开 ' + this.viewer.url) } catch (e) {}
+      setTimer(this, 4000, function () { self.viewer.hint = false })      // 提示自动消失
+      setTimer(this, 8000, function () { self.viewer.loading = false })   // load 没回来也别一直转
+    },
+    // <image> 的 load 事件: 拿到 success / size -> 关掉加载态 + 显示原图尺寸
+    onImgLoad(e) {
+      const d = (e && e.detail) || {}
+      this.viewer.loading = false
+      if (d.success === false) { this.viewer.err = '图片加载失败'; return }
+      this.viewer.err = ''
+      const s = d.size || {}
+      const w = s.width || s.w || s.imgWidth || 0
+      const h = s.height || s.h || s.imgHeight || 0
+      if (w && h) this.viewer.sizeText = w + '×' + h
+    },
+    ivZoomIn() { this.viewer.hint = false; this.ivZoom(1.25) },
+    ivZoomOut() { this.viewer.hint = false; this.ivZoom(0.8) },
+    // 双击: 100% <-> 200%
+    ivDouble() {
+      if (this.viewer.scale > 1.05) { this.ivFit(); return }
+      this.viewer.scale = clampScale(2)
+      this.ivApply()
     },
     ivApply() {
       const p = clampPan({ x: this.viewer.tx, y: this.viewer.ty }, this.viewer.scale)
@@ -285,6 +335,7 @@ export default {
       this.viewer.tx = 0
       this.viewer.ty = 0
       this.viewer.text = '100%'
+      this.viewer.hint = false
     },
     ivClose() { this.viewer.on = false },
     txy(e) {
@@ -294,18 +345,29 @@ export default {
       } catch (err) {}
       return { x: 0, y: 0, ok: false }
     },
-    ivStart(e) { const p = this.txy(e); this._ix = p.ok ? p.x : null; this._iy = p.ok ? p.y : null },
+    ivStart(e) { const p = this.txy(e); this._ix = p.ok ? p.x : null; this._iy = p.ok ? p.y : null; this._moved = false },
     ivMove(e) {
       const p = this.txy(e)
       if (!p.ok || this._ix === null || this._ix === undefined) return
       const dx = p.x - this._ix, dy = p.y - this._iy
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+      if (Math.abs(dx) + Math.abs(dy) > 4) { this._moved = true; this.viewer.hint = false }
       this._ix = p.x; this._iy = p.y
       this.viewer.tx += dx
       this.viewer.ty += dy
       this.ivApply()
     },
-    ivEnd() { this._ix = undefined; this._iy = undefined }
+    ivEnd() {
+      const now = Date.now()
+      const moved = this._moved === true
+      this._ix = undefined
+      this._iy = undefined
+      this._moved = false
+      if (moved) { this._lastTap = 0; return }
+      // 320ms 内第二次轻点 = 双击 (放大/还原)
+      if (now - (this._lastTap || 0) < 320) { this._lastTap = 0; this.ivDouble() }
+      else this._lastTap = now
+    }
   }
 }
 </script>
@@ -351,12 +413,21 @@ export default {
 .loadmore-t { font-size: 17px; color: #8fb8ff; }
 .empty { margin-top: 20px; justify-content: center; }
 .empty-t { font-size: 18px; color: #8a93a0; }
-.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; z-index: 200; }
+/* ---------- 图片查看器 (纯黑底 + 悬浮工具栏) ---------- */
+.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
-.iview-bar { position: absolute; left: 0px; bottom: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: rgba(0,0,0,0.72); padding-left: 10px; }
-.iview-btn { padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; background-color: #2f3238; border-radius: 8px; margin-right: 10px; justify-content: center; }
-.iview-close { background-color: #fb7299; }
-.iview-btn-t { font-size: 19px; color: #ffffff; }
-.iview-zoom { font-size: 19px; color: #fb7299; margin-right: 10px; }
-.iview-tip { font-size: 15px; color: #9aa3af; margin-left: 6px; }
+.iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
+.iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
+.iv-close { position: absolute; left: 902px; top: 12px; width: 44px; height: 44px; border-radius: 22px; background-color: rgba(255,255,255,0.16); flex-direction: row; justify-content: center; align-items: center; }
+.iv-close-t { font-size: 22px; color: #ffffff; }
+.iv-hint { position: absolute; left: 0px; bottom: 68px; width: 960px; flex-direction: column; align-items: center; }
+.iv-hint-t { font-size: 16px; color: #ffffff; background-color: rgba(0,0,0,0.62); padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; border-radius: 16px; }
+.iv-bar { position: absolute; left: 0px; bottom: 14px; width: 960px; flex-direction: row; justify-content: center; align-items: center; }
+.iv-btn { width: 62px; height: 40px; margin-right: 10px; border-radius: 12px; background-color: rgba(255,255,255,0.14); flex-direction: row; justify-content: center; align-items: center; }
+.iv-btn-wide { width: 86px; }
+.iv-btn-t { font-size: 21px; color: #ffffff; }
+.iv-pill { height: 40px; padding-left: 18px; padding-right: 18px; margin-right: 10px; border-radius: 12px; background-color: #fb7299; flex-direction: row; justify-content: center; align-items: center; }
+.iv-pill-t { font-size: 20px; color: #ffffff; }
+.iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.25); margin-right: 10px; }
+.iv-size { font-size: 16px; color: #9aa3af; margin-left: 6px; }
 </style>
