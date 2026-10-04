@@ -1332,7 +1332,7 @@ export default {
       this._ix = p.x; this._iy = p.y
       this.viewer.tx += dx
       this.viewer.ty += dy
-      this.ivApply()
+      this.ivFlush()   // 平移也必须合并写: 逐 move 写就是「果冻/撕裂」的主因
     },
     ivEnd() {
       this.ivScheduleUpgrade()   // 手停了再决定要不要换原图
