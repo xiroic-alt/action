@@ -87,7 +87,7 @@
 
       <!-- 首次提示, 4 秒后自动消失 -->
       <div v-if="viewer.hint" class="iv-hint">
-        <text class="iv-hint-t">双指缩放 · 拖动平移 · 双击放大</text>
+        <text class="iv-hint-t">双击后按住上下滑 = 缩放 · 拖动平移</text>
       </div>
 
       <!-- 底部悬浮工具栏 -->
@@ -349,24 +349,58 @@ export default {
       return { x: 0, y: 0, ok: false }
     },
     // 触点列表: <image>/div 的 touch 事件里 touches[] 才是当前所有手指(changedTouches 只有变化的那根)
+    // 触点: 实测本机运行时 e.touches 不存在(touches=0), 只给 changedTouches -> 三种形态都兼容
     touchList(e) {
       const out = []
-      try {
-        const t = (e && e.touches) || []
-        for (let i = 0; i < t.length; i++) {
-          if (t[i] && typeof t[i].pageY === 'number') out.push({ pageX: t[i].pageX, pageY: t[i].pageY })
+      const push = function (arr) {
+        if (!arr) return
+        for (let i = 0; i < arr.length; i++) {
+          if (arr[i] && typeof arr[i].pageY === 'number') out.push({ pageX: arr[i].pageX, pageY: arr[i].pageY })
         }
+      }
+      try {
+        const d = (e && e.detail) || null
+        push(e && e.touches)
+        if (out.length === 0) push(e && e.changedTouches)
+        if (out.length === 0 && d) push(d.touches)
+        if (out.length === 0 && d) push(d.changedTouches)
       } catch (err) {}
       return out
+    },
+    pt(e) {
+      const ts = this.touchList(e)
+      if (ts.length) return { x: ts[0].pageX, y: ts[0].pageY, ok: true }
+      return this.txy(e)
     },
     pinchDist(ts) { const dx = ts[0].pageX - ts[1].pageX; const dy = ts[0].pageY - ts[1].pageY; return Math.sqrt(dx * dx + dy * dy) || 1 },
     ivStart(e) {
       this._moved = false
       const ts = this.touchList(e)
-      try { log('图片查看器', '按下 touches=' + ts.length) } catch (e0) {}
-      if (ts.length >= 2) { this.startPinch(ts); return }
+      // 只记前几次原始结构, 用来确认运行时到底下发什么(本机实测 e.touches 不存在)
+      this._diag = (this._diag || 0) + 1
+      if (this._diag <= 4) {
+        try {
+          const d = (e && e.detail) || {}
+          log('图片查看器', 'evt keys=' + Object.keys(e || {}).join(',') + ' | detail keys=' + Object.keys(d).join(',')
+            + ' | touches=' + ((e && e.touches && e.touches.length) || 0)
+            + ' changed=' + ((e && e.changedTouches && e.changedTouches.length) || 0)
+            + ' d.touches=' + ((d.touches && d.touches.length) || 0))
+        } catch (e0) {}
+      }
+      if (ts.length >= 2) { this._zoomDrag = null; this.startPinch(ts); return }
       this._pinch = null
-      const p = this.txy(e)
+      const p = this.pt(e)
+      // 双击之后紧接的一次按住 -> 竖直拖动连续缩放(本机不支持双指, 用这个替代捏合)
+      if (this._lastTap && Date.now() - this._lastTap < 320 && p.ok) {
+        this._zoomDrag = { y: p.y, scale: this.viewer.scale }
+        this._lastTap = 0
+        this._ix = p.x
+        this._iy = p.y
+        this.viewer.hint = false
+        try { log('图片查看器', '进入上下滑缩放 scale=' + this.viewer.scale) } catch (e0) {}
+        return
+      }
+      this._zoomDrag = null
       this._ix = p.ok ? p.x : null
       this._iy = p.ok ? p.y : null
     },
@@ -398,9 +432,19 @@ export default {
         this.ivApply()
         return
       }
+      // ---- 双击后按住上下滑: 连续缩放 (单指可用, 替代双指捏合) ----
+      if (this._zoomDrag) {
+        const q = this.pt(e)
+        if (!q.ok) return
+        const dy = this._zoomDrag.y - q.y
+        if (Math.abs(dy) > 8) { this._moved = true; this.viewer.hint = false }
+        this.viewer.scale = clampScale(this._zoomDrag.scale * Math.exp(dy / 130))
+        this.ivApply()
+        return
+      }
       // ---- 单指拖动平移 ----
       if (this._pinch) { this._pinch = null; this._moved = true; return }
-      const p = this.txy(e)
+      const p = this.pt(e)
       if (!p.ok || this._ix === null || this._ix === undefined) return
       const dx = p.x - this._ix, dy = p.y - this._iy
       if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
@@ -412,8 +456,18 @@ export default {
     },
     ivEnd() {
       if (this._pinch) { this._pinch = null; this._ix = undefined; this._iy = undefined; this._lastTap = 0; return }
-      const now = Date.now()
       const moved = this._moved === true
+      if (this._zoomDrag) {
+        // 按住了但没滑 -> 就是普通双击(100% <-> 200%); 滑过了 -> 保持当前倍率
+        const wasDrag = moved
+        this._zoomDrag = null
+        this._ix = undefined
+        this._iy = undefined
+        this._moved = false
+        if (!wasDrag) this.ivDouble()
+        return
+      }
+      const now = Date.now()
       this._ix = undefined
       this._iy = undefined
       this._moved = false
