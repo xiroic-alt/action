@@ -22,7 +22,7 @@
           <text @click="switchTab('detail')" :class="['tab-text', tab === 'detail' ? 'tab-text-on' : '']">详情</text>
         </div>
         <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页) -->
-        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" @click="switchTab('comment')">
+        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" :style="{ width: commentTabW + 'px' }" @click="switchTab('comment')">
           <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
         </div>
         <div class="tab-spacer"></div>
@@ -65,18 +65,6 @@
         <!-- 交互行: 点赞/投币/收藏/三连/稍后再看 (状态高亮; 均可再点取消, 投币除外) -->
         <div v-if="detail" class="actrow">
           <div :class="['act-btn', detail.reqLike ? 'act-on' : '']" @click="doLike">
---- FILE: bilibili/ui/src/pages/page/page.vue
---- OLD
-        <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页) -->
-        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" @click="switchTab('comment')">
-          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
-        </div>
---- NEW
-        <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页);
-             宽度随评论数位数变化 —— 固定 96px + overflow:hidden 会把 5~6 位数的最后一位截掉 -->
-        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" :style="{ width: commentTabW + 'px' }" @click="switchTab('comment')">
-          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
-        </div>
             <text :class="['act-text', detail.reqLike ? 'act-text-on' : '']">{{ detail.reqLike ? '已赞' : '点赞' }}</text>
           </div>
           <div :class="['act-btn', detail.reqCoin ? 'act-on' : '']" @click="openCoinPicker">
