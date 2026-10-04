@@ -1346,8 +1346,10 @@ function dynPics(list, cell) {
   const arr = list || []
   const cs = cell || GRID_CELL
   for (let i = 0; i < arr.length && i < 9; i++) {
-    const p = arr[i] || {}
-    const src = dynHttps(p.src || p.url || '')
+    const p = arr[i]
+    // 两种真实形态都见过: 对象 {src|url} (图文 draw.items / opus.pics) 与
+    // 纯 URL 字符串 (专栏 major.article.covers) —— 只认对象会把专栏封面全丢掉
+    const src = (typeof p === 'string') ? dynHttps(p) : dynHttps((p && (p.src || p.url)) || '')
     if (!src) continue
     out.push({ src: src, w: cs, h: cs, full: src })
   }

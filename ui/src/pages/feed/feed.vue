@@ -72,10 +72,9 @@
             </div>
           </div>
 
-          <div class="ocard" v-if="d.opus">
+          <!-- 专栏/图文(opus) 的标题块: summary 就是主正文, 已在上面 richtext 里渲染过, 这里不再重复 -->
+          <div class="ocard" v-if="d.opus && d.opus.title">
             <text class="otitle">{{ d.opus.title }}</text>
-            <!-- 正文已经作为主 richtext 渲染时不要再重复一遍 (真机响应: opus.summary.text 就是正文) -->
-            <text class="osum" v-if="d.opus.summary && (!d.segs || d.segs.length === 0)">{{ d.opus.summary }}</text>
           </div>
 
           <div class="ostat" v-if="d.orig">
