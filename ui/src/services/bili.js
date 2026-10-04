@@ -1387,24 +1387,27 @@ function mapDynamicItem(it) {
   const opus = major.opus || major.article || {}
   let segs = mapRichNodes(desc.rich_text_nodes)
   if (segs.length === 0 && desc.text) segs = [{ t: 0, v: String(desc.text) }]
-  // 正文兜底链: desc -> opus.summary -> opus.title -> draw.text -> archive.desc
+  // 正文兜底链 (真机 raw 取证: 图文动态的 module_dynamic.desc 常为 null;
+  // 专栏正文在 major.article.desc/title, 新版图文在 major.opus.summary/title):
+  //   desc -> opus.summary -> opus.title -> article.desc -> article.title -> draw.text -> archive.desc
+  const art = major.article || {}
   if (segs.length === 0) { const a = textOf(opus.summary); if (a.segs.length) segs = a.segs }
   if (segs.length === 0) { const b = textOf(opus.title); if (b.segs.length) segs = b.segs }
-  if (segs.length === 0) { const c = textOf(draw.text); if (c.segs.length) segs = c.segs }
-  if (segs.length === 0) { const d = textOf(major.archive && major.archive.desc); if (d.segs.length) segs = d.segs }
+  if (segs.length === 0) { const c = textOf(art.desc); if (c.segs.length) segs = c.segs }
+  if (segs.length === 0) { const d = textOf(art.title); if (d.segs.length) segs = d.segs }
+  if (segs.length === 0) { const e = textOf(draw.text); if (e.segs.length) segs = e.segs }
+  if (segs.length === 0) { const f = textOf(major.archive && major.archive.desc); if (f.segs.length) segs = f.segs }
   let pics = []
   if (draw.items && draw.items.length) pics = dynPics(draw.items)
   if (pics.length === 0 && opus.pics && opus.pics.length) pics = dynPics(opus.pics)
+  if (pics.length === 0 && art.covers && art.covers.length) pics = dynPics(art.covers)
   if (pics.length === 0 && desc.pics && desc.pics.length) pics = dynPics(desc.pics)
-  // 现场诊断: 前 5 条把原始 modules 结构打进设备日志 (一次性取证, 定位正文字段)
-  if (dynDbg < 5) {
+  // 诊断 (保留 2 条, 便于现场核对正文/图片来源)
+  if (dynDbg < 2) {
     dynDbg++
     try {
-      log('动态', '原始#' + dynDbg + ' ' + kind + ' md键=' + Object.keys(md).join('/')
-        + ' major键=' + Object.keys(major).join('/')
-        + ' desc键=' + Object.keys(desc).join('/')
-        + ' segs=' + segs.length + ' pics=' + pics.length)
-      log('动态', 'raw#' + dynDbg + ' ' + String(JSON.stringify(md)).slice(0, 420))
+      log('动态', '结构#' + dynDbg + ' ' + kind + ' major=' + String(major.type || '')
+        + ' desc=' + (desc ? 'obj' : 'null') + ' segs=' + segs.length + ' pics=' + pics.length)
     } catch (e0) {}
   }
   // 转发: 正文是转发语, 原动态在 it.orig
@@ -1443,7 +1446,11 @@ function mapDynamicItem(it) {
     pics: pics,
     rows: [],
     archive: archive,
-    opus: (opus.title || opus.summary) ? { title: stripTags(textOf(opus.title).text || ''), summary: stripTags(textOf(opus.summary).text || ''), url: opus.jump_url || '' } : null,
+    opus: (opus.title || opus.summary || art.title) ? {
+      title: stripTags(textOf(opus.title).text || textOf(art.title).text || ''),
+      summary: stripTags(textOf(opus.summary).text || textOf(art.desc).text || ''),
+      url: opus.jump_url || art.jump_url || ''
+    } : null,
     orig: orig,
     stat: {
       like: (st.like && st.like.count) || 0,
