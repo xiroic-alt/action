@@ -1068,10 +1068,14 @@ export default {
           self.appendPage(r)
           self.cLoaded = true
           self.cStatus = ''
+          // 页内评论区也要有打点: 合并后这里是唯一评论入口, 设备日志必须能区分
+          // 「打开/加载完成/加载失败」(定位时不用再猜是没进页面还是请求没回来)
+          try { log('评论区(内联)', '加载完成 ' + self.replies.length + ' 条 (total=' + self.total + ' pn=' + self.pn + ')') } catch (e0) {}
         } catch (err) {
           if (gen !== self.cGeneration) return
           console.log('[page] comments error: ' + (err && err.message ? err.message : err))
           self.cStatus = err && err.message ? err.message : String(err)
+          try { log('评论区(内联)', '加载失败 ' + self.cStatus) } catch (e1) {}
         } finally {
           if (gen === self.cGeneration) { self.cLoading = false; self._cAt = 0 }
         }
