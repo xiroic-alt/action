@@ -303,7 +303,7 @@ import {
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
-import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
+import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
 // require 只能写在 .vue 里 —— aiot-cli 只处理 .vue 内的图片 require
@@ -463,7 +463,7 @@ export default {
       logged: false,
       cStatus: '',
       // 图片查看器 (transform 版: 只把大图 URL 交给 <image resize=contain>, 缩放/平移全用 CSS transform)
-      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
+      viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       posting: false,
       ime: null,
       cGeneration: 0
@@ -1163,7 +1163,10 @@ export default {
     // (native imageviewer 版每帧解码+tjCompress2 编码+落盘, 且缓存导致"80% 和 0% 是同一张图").
     ivOpen(url) {
       const self = this
-      this.viewer.url = bigUrl(url)
+      // 原图留到「放大到 2 倍以上 + 手势结束静置」时才用; 手势期间用轻量图
+      // (2040 宽 ≈235 万像素, 每帧重采样就是掉帧的元凶; 见 services/imageview.js 注释)
+      this.viewer.full = bigUrl(url)
+      this.viewer.url = viewUrl(url, false)
       this.viewer.scale = 1
       this.viewer.tx = 0
       this.viewer.ty = 0
@@ -1188,19 +1191,22 @@ export default {
       const h = s.height || s.h || s.imgHeight || 0
       if (w && h) this.viewer.sizeText = w + '×' + h
     },
-    ivZoomIn() { this.viewer.hint = false; this.ivZoom(1.25) },
+    ivZoomIn() { this.viewer.hint = false; this.ivZoom(1.25); this.ivScheduleUpgrade() },
     ivZoomOut() { this.viewer.hint = false; this.ivZoom(0.8) },
     // 双击: 100% <-> 200%
     ivDouble() {
       if (this.viewer.scale > 1.05) { this.ivFit(); return }
       this.viewer.scale = clampScale(2)
       this.ivApply()
+      this.ivScheduleUpgrade()
     },
     ivApply() {
       const p = clampPan({ x: this.viewer.tx, y: this.viewer.ty }, this.viewer.scale)
-      this.viewer.tx = p.x
-      this.viewer.ty = p.y
-      this.viewer.text = Math.round(this.viewer.scale * 100) + '%'
+      // 值没变就不写: 平移到边界 / 缩放没变时省掉一次无意义的响应式更新
+      if (p.x !== this.viewer.tx) this.viewer.tx = p.x
+      if (p.y !== this.viewer.ty) this.viewer.ty = p.y
+      const t = Math.round(this.viewer.scale * 100) + '%'
+      if (t !== this.viewer.text) this.viewer.text = t
     },
     ivZoom(f) {
       this.viewer.scale = clampScale(this.viewer.scale * f)
@@ -1212,6 +1218,23 @@ export default {
       this.viewer.ty = 0
       this.viewer.text = '100%'
       this.viewer.hint = false
+      this.ivLight()   // 回到适配态: 换回轻量图 (够清晰且拖动跟手)
+    },
+    // 换回轻量图 (手势期间 / 适配态)
+    ivLight() { if (this.viewer.full) this.viewer.url = viewUrl(this.viewer.full, false) },
+    // 原图只在「放大到 2 倍以上 + 手停下来静置 260ms」之后才换:
+    // 换 src 会重新解码, 手势过程中换必然闪一下 + 掉帧
+    ivScheduleUpgrade() {
+      const self = this
+      if (!this.viewer.full) return
+      setTimer(this, 260, function () {
+        if (!self.viewer.on) return
+        const want = self.viewer.scale >= 2 ? self.viewer.full : viewUrl(self.viewer.full, false)
+        if (self.viewer.url === want) return
+        self.viewer.url = want
+        // 打点: 现场能直接从日志看出「手势期间是轻量图 / 静置后有没有换原图」
+        try { log('图片查看器', '切图 ' + (want === self.viewer.full ? '原图2040' : '轻量1080') + ' scale=' + (Math.round(self.viewer.scale * 100) / 100)) } catch (e0) {}
+      })
     },
     ivClose() { this.viewer.on = false },
     txy(e) {
@@ -1314,6 +1337,7 @@ export default {
       this.ivApply()
     },
     ivEnd() {
+      this.ivScheduleUpgrade()   // 手停了再决定要不要换原图
       if (this._pinch) { this._pinch = null; this._ix = undefined; this._iy = undefined; this._lastTap = 0; return }
       const moved = this._moved === true
       if (this._zoomDrag) {

@@ -15,9 +15,19 @@ export const VIEW_H = 266
 export const MIN_SCALE = 0.4
 export const MAX_SCALE = 12
 
-// 缩略 URL -> 原图(大图) URL: 剥掉 @缩略 后缀与查询串, B 站图床补 @2040w.jpg
-// (列表里的图都是 @160w_160h_1c 这类缩略, 拿它放大必然糊; 2040 宽足够 8 倍放大)
-export function bigUrl(u) {
+// 缩略 URL -> 指定宽度的图 URL: 剥掉 @缩略 后缀与查询串, B 站图床按宽度补 @<w>w.jpg
+// (列表里的图都是 @160w_160h_1c 这类缩略, 拿它放大必然糊)
+//
+// 为什么要分两档宽度 (0.9.58 流畅度优化):
+//   本机 UI 只有 960 宽, 而 @2040w 是 2040x~1150 ≈ 235 万像素 —— 查看器每帧要把这个位图
+//   重新采样到 transform 后的位置, 拖动/放大时就是它把帧率拖下去.
+//   手势期间改用 @1080w (≈ 58 万像素, 只有原图的 1/4), 手感立刻跟手;
+//   放大到 2 倍以上**且手势结束静置 260ms** 之后再换回原图 —— 换 src 会重新解码,
+//   绝不能在手势过程中做 (会闪 + 掉帧).
+export const HI_WIDTH = 2040
+export const FIT_WIDTH = 1080
+
+export function viewUrl(u, hi) {
   let s = String(u == null ? '' : u)
   if (s === '') return s
   const q = s.indexOf('?')
@@ -25,9 +35,14 @@ export function bigUrl(u) {
   const at = s.indexOf('@')
   if (at >= 0) s = s.slice(0, at)
   if (s.indexOf('hdslb.com') >= 0 || s.indexOf('bilivideo') >= 0 || s.indexOf('biliimg') >= 0) {
-    return s + '@2040w.jpg'
+    return s + (hi ? '@' + HI_WIDTH + 'w.jpg' : '@' + FIT_WIDTH + 'w.jpg')
   }
   return s
+}
+
+// 兼容旧调用: 取原图
+export function bigUrl(u) {
+  return viewUrl(u, true)
 }
 
 export function clampScale(s) {
