@@ -1243,11 +1243,22 @@ export async function getMyInfo() {
  * @param {string} offset 分页游标 (首次传 '')
  * @returns {Promise<{items:Array, offset:string, hasMore:boolean}>}
  */
-export async function getDynamicFeed(offset) {
+// 动态首屏缓存 TTL: B 站这个接口一次要 1s+, 缓存一下让二次进入秒开
+const DYN_TTL = 60000
+
+export async function getDynamicFeed(offset, type, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   if (!auth.hasCookie()) throw new Error('未登录')
-  // 不带 type 参数 -> 全类型(投稿/图文/文字/专栏/转发), 供「动态」页按类型分类
-  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480'
+  // type 是文档参数 (references/bilibili-api-collect-mirror/docs/dynamic/all.md):
+  //   all(默认) / video(投稿) / pgc(追番) / article(专栏)
+  // 客户端过滤做不到「这个分类首页一条都没有时继续往后翻」, 所以专栏/投稿走服务端 type.
+  const t = type || 'all'
+  const key = 'dyn:' + t + ':' + (offset || '')
+  if (!fresh) {
+    const hit = cacheGet(key, DYN_TTL)
+    if (hit) { log('动态', '命中缓存 type=' + t + ' 条数=' + ((hit.items || []).length)); return hit }
+  }
+  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480&type=' + encodeURIComponent(t)
     + (offset ? '&offset=' + encodeURIComponent(offset) : '')
   const body = await getJsonAsync(url, 15)
   if (body.code === -101) throw new Error('未登录或登录已过期')
@@ -1262,11 +1273,13 @@ export async function getDynamicFeed(offset) {
   }
   // 封面诊断: 0.8.6 动态封面不显示过一次, 留下实际下发的 URL 便于设备上 curl 验证
   if (items.length > 0) log('动态', '首条封面 ' + items[0].pic)
-  return {
+  const out = {
     items: items,
     offset: body.data.offset || '',
     hasMore: body.data.has_more === 1
   }
+  cacheSet(key, out)
+  return out
 }
 
 // ===================== 动态流全类型映射 (0.9.54) =====================

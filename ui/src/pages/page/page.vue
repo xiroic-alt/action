@@ -312,7 +312,7 @@ const MI = {
   home: require('../../assets/mi/home_30_w.png'),
   play18: require('../../assets/mi/play_18_w.png'),
   play28: require('../../assets/mi/play_28_w.png'),
-  comment: require('../../assets/mi/comment_20_m.png'),
+
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
   thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
   reply: require('../../assets/mi/reply_20_m.png'),
@@ -687,12 +687,7 @@ export default {
       $falcon.navTo('player', { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title })
     },
 
-    // 评论入口: 同页切到评论 tab (0.9.57 起评论区合并, 独立评论页已删除, 不再 navTo)
-    // 三个入口 —— 顶部 tab 栏 / 动作栏「评论」/ 轻点兜底(tabBarHit) —— 全部走这里
-    goComment() {
-      if (!this.detail || !this.detail.aid) return
-      this.switchTab('comment')
-    },
+
 
     // 轻点落在顶部 tab 栏内 -> 直接切 tab, 不等 click 事件
     // (评论列表正在渲染时 click 常被框架丢掉, 这是「评论点不进去」的老病根之一)

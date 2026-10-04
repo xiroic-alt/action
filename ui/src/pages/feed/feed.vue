@@ -20,7 +20,13 @@
       <text class="fstatus-t">{{ status }}</text>
     </div>
 
-    <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true">
+    <!-- 下拉刷新提示 -->
+    <div class="fpull" v-if="pullHint !== ''"><text class="fpull-t">{{ pullHint }}</text></div>
+
+    <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true"
+              :over-scroll="70" :loadmoreoffset="100"
+              @loadmore="loadMore" @scroll="onScroll"
+              @touchstart="onPullStart" @touchmove="onPullMove" @touchend="onPullEnd">
       <div class="fwrap">
 
         <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)">
@@ -185,6 +191,11 @@ const CATS = [
 ]
 const KIND_NAME = { av: '投稿', draw: '图文', word: '文字', opus: '专栏', forward: '转发', live: '直播', other: '动态' }
 
+// 分类 -> 动态接口的 type (文档 dynamic/all.md):
+//   投稿=video, 专栏=article 由服务端筛; 全部/图文/文字/转发没有服务端 type, 仍走客户端过滤 + 自动续翻
+const CAT_TYPE = { all: 'all', av: 'video', draw: 'all', word: 'all', forward: 'all', opus: 'article' }
+const PULL_DY = 55   // 下拉刷新触发位移 (与首页一致)
+
 function chunk(arr, n) {
   const out = []
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n))
@@ -201,6 +212,8 @@ export default {
       hasMore: false,
       loading: false,
       status: '加载中…',
+      feedType: 'all',    // 当前走服务端的 type (换分类时会变)
+      pullHint: '',       // 下拉刷新提示
       viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       // 异步世代守卫 —— 必须声明在 data() 里!
       // 不声明的后果: ++this.generation 得到 NaN, NaN !== NaN 恒为真 ->
@@ -238,15 +251,77 @@ export default {
       this.load(true)
     },
     // 接口偶发不返回(实测有 1 分钟不 resolve 的情况) -> 给用户一个明确的重试入口
-    retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true) },
+    retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true, true) },
     back() { try { this.$page.finish() } catch (e) {} },
     kindName(k) { return KIND_NAME[k] || '动态' },
     setCat(k) {
       if (this.cat === k) return
       this.cat = k
       try { log('动态页', '切换分类 ' + k) } catch (e) {}
+      const t = CAT_TYPE[k] || 'all'
+      if (t !== this.feedType) {
+        // 服务端能筛的分类 (投稿/专栏): 换 type 重新拉, 不再靠客户端过滤
+        this.feedType = t
+        this._catPulls = 0
+        this.load(true, true)
+        return
+      }
+      this.ensureCatItems()
     },
-    async load(reset) {
+    // 纯客户端过滤的分类 (图文/文字/转发) 首页可能一条都没有 -> 自动续翻, 最多 4 页
+    ensureCatItems() {
+      if (this.cat === 'all') return
+      if (this.shown.length > 0) return
+      if (!this.hasMore || this.loading) return
+      if ((this._catPulls || 0) >= 4) {
+        this.status = '这个分类往下翻了 4 页也没有内容'
+        return
+      }
+      this._catPulls = (this._catPulls || 0) + 1
+      this.status = '这个分类首页没有, 继续往下找…（第 ' + this._catPulls + ' 页）'
+      this.load(false)
+    },
+    // ---------- 下拉刷新 (与首页同款: 靠滚动偏移判定, 不信被框架节流合并的 touchmove) ----------
+    onScroll(e) {
+      try { const co = e && e.contentOffset; this._scrollY = co && typeof co.y === 'number' ? co.y : (this._scrollY || 0) } catch (err) {}
+    },
+    ptXY(e) {
+      try {
+        const t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0]) || e
+        if (t) {
+          if (typeof t.pageX === 'number') return { x: t.pageX, y: t.pageY, ok: true }
+          if (typeof t.clientX === 'number') return { x: t.clientX, y: t.clientY, ok: true }
+        }
+      } catch (err) {}
+      return { x: 0, y: 0, ok: false }
+    },
+    onPullStart(e) {
+      const p = this.ptXY(e)
+      if (!p.ok) { this._ty0 = null; this._pullOk = false; return }
+      this._ty0 = p.y
+      this._tx0 = p.x
+      this._pullArmed = false
+      this._pullOk = (this._scrollY || 0) <= 2
+    },
+    onPullMove(e) {
+      if (!this._pullOk || this._ty0 === null || this._ty0 === undefined) return
+      if ((this._scrollY || 0) > 2) { this._pullOk = false; return }
+      const p = this.ptXY(e)
+      if (!p.ok) return
+      if (p.y - this._ty0 > PULL_DY && Math.abs(p.x - this._tx0) < 40) {
+        this._pullArmed = true
+        this.pullHint = '松手刷新'
+      }
+    },
+    onPullEnd() {
+      const armed = this._pullArmed === true
+      this._pullArmed = false
+      this._ty0 = null
+      this._pullOk = false
+      this.pullHint = ''
+      if (armed) this.load(true, true)
+    },
+    async load(reset, fresh) {
       if (this.loading) return
       if (!reset && !this.hasMore) return
       const self = this
@@ -259,7 +334,7 @@ export default {
         setTimer(self, 12000, function () { rej(new Error('加载超时，点这里重试')) })
       })
       try {
-        const r = await Promise.race([getDynamicFeed(reset ? '' : this.offset), watchdog])
+        const r = await Promise.race([getDynamicFeed(reset ? '' : this.offset, this.feedType, fresh), watchdog])
         if (gen !== this.generation) return
         const add = r.items || []
         for (let i = 0; i < add.length; i++) {
@@ -271,7 +346,10 @@ export default {
         for (let i = 0; i < add.length; i++) this.items.push(add[i])
         this.offset = r.offset || ''
         this.hasMore = !!r.hasMore
+        this._catPulls = 0
         this.status = this.items.length === 0 ? '关注的 UP 主暂无动态' : ''
+        // 客户端过滤的分类: 首页可能是空的 -> 自动往后翻
+        this.ensureCatItems()
         let nd = 0
         for (let i = 0; i < this.items.length; i++) { if (this.items[i].kind === 'draw') nd++ }
         try { log('动态页', '加载完成 ' + this.items.length + ' 条 (图文 ' + nd + ' / offset=' + this.offset + ')') } catch (e) {}
@@ -577,4 +655,6 @@ export default {
 .iv-pill-t { font-size: 20px; color: #ffffff; }
 .iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.30); margin-right: 8px; }
 .iv-size { font-size: 16px; color: rgba(255,255,255,0.72); margin-left: 4px; }
+.fpull { position: absolute; left: 0px; top: 46px; width: 960px; height: 22px; flex-direction: row; justify-content: center; align-items: center; }
+.fpull-t { font-size: 16px; color: #fb7299; }
 </style>
