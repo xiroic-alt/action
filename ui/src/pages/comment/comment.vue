@@ -87,7 +87,7 @@
 
       <!-- 首次提示, 4 秒后自动消失 -->
       <div v-if="viewer.hint" class="iv-hint">
-        <text class="iv-hint-t">拖动平移 · 双击放大 / 还原</text>
+        <text class="iv-hint-t">双指缩放 · 拖动平移 · 双击放大</text>
       </div>
 
       <!-- 底部悬浮工具栏 -->
@@ -108,7 +108,7 @@
 <script>
 import { getReplies, likeReply, addReply } from '../../services/bili.js'
 import { log } from '../../services/log.js'
-import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle } from '../../services/imageview.js'
+import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
 // 计时器: 优先用页面实例的 setTimeout (本运行时组件里不保证有全局 setTimeout) —— 与 player.vue 同款
 function setTimer(vm, ms, fn) {
@@ -348,8 +348,58 @@ export default {
       } catch (err) {}
       return { x: 0, y: 0, ok: false }
     },
-    ivStart(e) { const p = this.txy(e); this._ix = p.ok ? p.x : null; this._iy = p.ok ? p.y : null; this._moved = false },
+    // 触点列表: <image>/div 的 touch 事件里 touches[] 才是当前所有手指(changedTouches 只有变化的那根)
+    touchList(e) {
+      const out = []
+      try {
+        const t = (e && e.touches) || []
+        for (let i = 0; i < t.length; i++) {
+          if (t[i] && typeof t[i].pageY === 'number') out.push({ pageX: t[i].pageX, pageY: t[i].pageY })
+        }
+      } catch (err) {}
+      return out
+    },
+    pinchDist(ts) { const dx = ts[0].pageX - ts[1].pageX; const dy = ts[0].pageY - ts[1].pageY; return Math.sqrt(dx * dx + dy * dy) || 1 },
+    ivStart(e) {
+      this._moved = false
+      const ts = this.touchList(e)
+      try { log('图片查看器', '按下 touches=' + ts.length) } catch (e0) {}
+      if (ts.length >= 2) { this.startPinch(ts); return }
+      this._pinch = null
+      const p = this.txy(e)
+      this._ix = p.ok ? p.x : null
+      this._iy = p.ok ? p.y : null
+    },
+    startPinch(ts) {
+      const mx = (ts[0].pageX + ts[1].pageX) / 2
+      const my = (ts[0].pageY + ts[1].pageY) / 2
+      this._pinch = { d: this.pinchDist(ts), mx: mx, my: my, scale: this.viewer.scale, tx: this.viewer.tx, ty: this.viewer.ty }
+      this._ix = null
+      this._iy = null
+      this.viewer.hint = false
+      try { log('图片查看器', '开始双指缩放 d=' + Math.round(this._pinch.d) + ' scale=' + this.viewer.scale) } catch (e0) {}
+    },
     ivMove(e) {
+      const ts = this.touchList(e)
+      // ---- 双指捏合缩放 (两指间距比例 = 缩放比例; 焦点跟随两指中点, 手感才对) ----
+      if (ts.length >= 2) {
+        if (!this._pinch) { this.startPinch(ts); return }
+        const f = this.pinchDist(ts) / (this._pinch.d || 1)
+        const s2 = clampScale(this._pinch.scale * f)
+        const k = s2 / (this._pinch.scale || 1)
+        const mx = (ts[0].pageX + ts[1].pageX) / 2
+        const my = (ts[0].pageY + ts[1].pageY) / 2
+        const cx = VIEW_W / 2
+        const cy = VIEW_H / 2
+        this.viewer.scale = s2
+        this.viewer.tx = mx - cx - (this._pinch.mx - cx - this._pinch.tx) * k
+        this.viewer.ty = my - cy - (this._pinch.my - cy - this._pinch.ty) * k
+        this._moved = true
+        this.ivApply()
+        return
+      }
+      // ---- 单指拖动平移 ----
+      if (this._pinch) { this._pinch = null; this._moved = true; return }
       const p = this.txy(e)
       if (!p.ok || this._ix === null || this._ix === undefined) return
       const dx = p.x - this._ix, dy = p.y - this._iy
@@ -361,6 +411,7 @@ export default {
       this.ivApply()
     },
     ivEnd() {
+      if (this._pinch) { this._pinch = null; this._ix = undefined; this._iy = undefined; this._lastTap = 0; return }
       const now = Date.now()
       const moved = this._moved === true
       this._ix = undefined
