@@ -11,10 +11,11 @@
       </div>
     </div>
 
-    <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true"
-              :over-scroll="40" :loadmoreoffset="120" @loadmore="loadMore">
+    <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
+    <div class="fstatus" v-if="status !== ''"><text class="fstatus-t">{{ status }}</text></div>
+
+    <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true">
       <div class="fwrap">
-        <div class="status" v-if="status !== ''">{{ status }}</div>
 
         <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)">
           <div class="dhead">
@@ -183,6 +184,7 @@ export default {
   methods: {
     // 生命周期: BasePage 只把 onShow/onHide/onUnload 转发给页面根组件
     onShow() {
+      try { log('动态页', 'onShow 到达 started=' + (this._started === true)) } catch (e0) {}
       if (this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
         const self = this
@@ -204,6 +206,7 @@ export default {
       if (!reset && !this.hasMore) return
       this.loading = true
       if (reset) this.status = '加载中…'
+      try { log('动态页', 'load 开始 reset=' + reset) } catch (e0) {}
       const gen = ++this._gen
       try {
         const r = await getDynamicFeed(reset ? '' : this.offset)
@@ -333,7 +336,9 @@ export default {
 .cat-on { background-color: #fb7299; }
 .cat-t { font-size: 17px; color: #aab2bd; }
 .cat-t-on { color: #ffffff; }
-.fscroll { position: absolute; left: 0px; top: 44px; width: 960px; height: 222px; }
+.fscroll { position: absolute; left: 0px; top: 74px; width: 960px; height: 192px; }
+.fstatus { position: absolute; left: 0px; top: 46px; width: 960px; height: 26px; flex-direction: row; justify-content: center; align-items: center; }
+.fstatus-t { font-size: 16px; color: #8a93a0; }
 .fwrap { padding-left: 20px; padding-right: 20px; padding-bottom: 12px; }
 .status { font-size: 17px; color: #8a93a0; text-align: center; padding-top: 14px; padding-bottom: 6px; }
 .dyn { width: 920px; margin-top: 10px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; background-color: #1f1f1f; border-radius: 12px; }
