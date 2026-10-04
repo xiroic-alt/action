@@ -2,7 +2,8 @@
   <div class="page" :class="entering ? 'page-enter' : ''">
     <div class="header">
       <div class="back" @click="goBack">
-        <text class="back-text">‹ 返回</text>
+        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text">返回</text>
       </div>
       <text class="header-title">UP主主页</text>
     </div>
@@ -26,7 +27,10 @@
         <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
         <div class="meta2">
           <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-          <text class="stat">▶{{ item.playText }}  {{ item.duration }}</text>
+          <div class="statrow">
+            <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+            <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+          </div>
         </div>
       </div>
       <text v-if="videos.length > 0 && videosHasMore" class="empty" @click="loadMoreVideos">上滑加载更多…</text>
@@ -43,10 +47,17 @@ import { afterPaint } from '../../base-page.js'
 var LOAD_DELAY_MS = 340
 var PULL_DY = 55
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  play: require('../../assets/mi/play_18_w.png')
+}
+
 export default {
   name: 'up',
   data() {
     return {
+      MI: MI,
       mid: 0,
       name: '',
       info: null,
@@ -375,4 +386,10 @@ export default {
   text-align: center;
   margin-top: 16px;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
+.statrow { flex-direction: row; align-items: center; margin-left: 16px; margin-top: 8px; }
+.stat-ic { margin-right: 6px; }
+.stat { margin-left: 0px; margin-top: 0px; }
 </style>

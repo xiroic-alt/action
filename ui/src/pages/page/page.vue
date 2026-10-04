@@ -10,7 +10,8 @@
       <text v-if="detail" class="dur">{{ detail.duration }}</text>
       <!-- 返回按钮: 左上角悬浮于封面上 (0.9.5 需求: 返回按钮放左上角) -->
       <div class="backbtn" @click="goBack">
-        <text class="backbtn-text">‹ 返回</text>
+        <image class="backbtn-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="backbtn-text">返回</text>
       </div>
     </div>
 
@@ -20,12 +21,13 @@
         <div :class="['tab', tab === 'detail' ? 'tab-on' : '']" @click="switchTab('detail')">
           <text @click="switchTab('detail')" :class="['tab-text', tab === 'detail' ? 'tab-text-on' : '']">详情</text>
         </div>
-        <div class="tab" @click="goComment">
-          <text @click="goComment" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
+        <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页) -->
+        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" @click="switchTab('comment')">
+          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
         </div>
         <div class="tab-spacer"></div>
         <div class="mini-btn" @click="goHome">
-          <text class="mini-text">⌂</text>
+          <image class="mini-ic" :src="MI.home" :style="{ width: '30px', height: '30px' }"></image>
         </div>
       </div>
 
@@ -44,18 +46,28 @@
             <image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
           </template>
         </richtext>
-        <text class="author" @click="openUp">{{ detail ? (detail.author + ' › · ') : '' }}{{ detail ? detail.pubdateText : '' }}</text>
+        <!-- 作者行: 事件挂在有尺寸的 div 上 (text @click 在本机固件不触发); 顺带去掉缺字形的右尖括号 -->
+        <div class="author-row" @click="openUp">
+          <text class="author">{{ detail ? (detail.author + ' · ') : '' }}{{ detail ? detail.pubdateText : '' }}</text>
+        </div>
         <text v-if="detail" class="stat">播放 {{ detail.playText }} · 弹幕 {{ detail.danmakuText }} · {{ detail.duration }}</text>
         <text v-if="detail" class="stat">赞 {{ detail.likeText }} · 币 {{ detail.coinText }} · 藏 {{ detail.favText }} · 转 {{ detail.shareText }}</text>
         <div v-if="detail" class="btnrow">
           <div class="playbtn" @click="openPlayer">
-            <text class="play-text">▶ 播放</text>
+            <image class="play-ic" :src="MI.play28" :style="{ width: '28px', height: '28px' }"></image>
+            <text class="play-text">播放</text>
           </div>
-          <text v-if="actStatus !== ''" class="act-status">{{ actStatus }}</text>
+          <div v-if="actStatus !== ''" class="status-row">
+            <image v-if="actOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="act-status">{{ actStatus }}</text>
+          </div>
         </div>
         <!-- 交互行: 点赞/投币/收藏/三连/稍后再看 (状态高亮; 均可再点取消, 投币除外) -->
         <div v-if="detail" class="actrow">
-          <div class="act act-comment" @click="goComment">
+          <!-- 原来这里是 class="act act-comment" —— 两个类在样式里都不存在, 等于一个 0 尺寸的 div,
+               命中区为 0 所以「评论」按钮点不动. 用 .act-btn 给它真实尺寸 -->
+          <div class="act-btn act-comment" @click="switchTab('comment')">
+            <image class="act-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
             <text class="act-text">评论 {{ total > 0 ? total : '' }}</text>
           </div>
           <div :class="['act-btn', detail.reqLike ? 'act-on' : '']" @click="doLike">
@@ -114,7 +126,11 @@
             <image class="rcover" :src="item.pic" resize="cover" :lazy-load="true"></image>
             <div class="rmeta">
               <text class="rtitle">{{ item.title }}</text>
-              <text class="rstat">{{ item.author }} · ▶{{ item.playText }} {{ item.duration }}</text>
+              <div class="rstatrow">
+                <text class="rstat">{{ item.author }} ·</text>
+                <image class="rstat-ic" :src="MI.play18" :style="{ width: '16px', height: '16px' }"></image>
+                <text class="rstat">{{ item.playText }} {{ item.duration }}</text>
+              </div>
             </div>
           </div>
         </div>
@@ -134,7 +150,10 @@
         </div>
         <scroller class="clist" scroll-direction="vertical" :show-scrollbar="true"
                   :loadmoreoffset="100" @loadmore="onCommentsLoadmore" @scroll="onListScroll">
-          <text v-if="cStatus !== ''" class="c-status">{{ cStatus }}</text>
+          <div v-if="cStatus !== ''" class="status-row">
+            <image v-if="cOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="c-status">{{ cStatus }}</text>
+          </div>
           <!-- 未登录: 登录引导 -->
           <div v-if="!logged && !cLoading" class="gate">
             <text class="gate-text">评论需要登录后查看</text>
@@ -165,15 +184,29 @@
                   <!-- 折叠态右下角省略号 (richtext 被 lines 截断时不会自己带 ...) -->
                   <text v-if="!r.expanded && r.long" class="reply-more" @click="toggleReply(r)">…</text>
                 </div>
+                <!-- 每张图一个独立命中区: 原来所有图挤在一个命中 div 里, 而那个 div 的 :style 引用了
+                     内层 v-for 的 pic (作用域外 -> undefined) => 尺寸 0 => 图也点不开 -->
                 <div v-if="r.pics && r.pics.length > 0" class="reply-pics">
-                  <div class="reply-pic-hit" :style="{ width: pic.w + 'px', height: pic.h + 'px' }" @click="ivOpen(pic.src)">
-                    <image v-for="(pic, pi) in r.pics" :key="'pic' + r.rpid + pi" class="reply-pic" @click="ivOpen(pic.src)" :src="pic.src" :style="{ width: pic.w + 'px', height: pic.h + 'px' }" resize="cover"></image>
+                  <div v-for="(pic, pi) in r.pics" :key="'pic' + r.rpid + pi" class="reply-pic-hit"
+                       :style="{ width: pic.w + 'px', height: pic.h + 'px' }" @click="ivOpen(pic.src)">
+                    <image class="reply-pic" :src="pic.src"
+                           :style="{ width: pic.w + 'px', height: pic.h + 'px' }" resize="cover"></image>
                   </div>
                 </div>
+                <!-- 点赞 / 回复 / 看图: 事件一律挂在有尺寸的 div 上 (text 上的 @click 在本机固件不触发) -->
                 <div class="reply-meta">
-                  <text :class="['meta-text', r.liked ? 'meta-liked' : '']" @click="toggleReplyLike(r)">赞 {{ r.likeText }}{{ r.liked ? ' ✓' : '' }}</text>
-                  <text class="meta-reply" @click="openSubReply(r)">回复 {{ r.replyCount }}</text>
-                  <text v-if="r.pics && r.pics.length > 0" class="meta-pic" @click="ivOpen(r.pics[0].src)">图 {{ r.pics.length }}</text>
+                  <div class="meta-btn" @click="toggleReplyLike(r)">
+                    <image :src="r.liked ? MI.thumbupOn : MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
+                    <text :class="['meta-text', r.liked ? 'meta-liked' : '']">{{ r.likeText }}</text>
+                  </div>
+                  <div class="meta-btn" @click="openSubReply(r)">
+                    <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
+                    <text class="meta-reply">{{ r.replyCount }}</text>
+                  </div>
+                  <div v-if="r.pics && r.pics.length > 0" class="meta-btn meta-btn-pic" @click="ivOpen(r.pics[0].src)">
+                    <image :src="MI.img" :style="{ width: '20px', height: '20px' }"></image>
+                    <text class="meta-pic">{{ r.pics.length }}</text>
+                  </div>
                 </div>
               </div>
             </div>
@@ -219,17 +252,32 @@
       </div>
     </div>
 
-    <!-- 图片查看器覆盖层: 解码/缩放/裁剪全在独立 so (libjsapi_imageviewer) 里做, 这里只显示 + 手势 -->
-    <div v-if="viewer.on" class="iview">
-      <image class="iview-img" :src="viewer.path" resize="cover"
-             @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd"></image>
-      <div class="iview-bar">
-        <div class="iview-btn" @click="ivZoom(0.5)"><text class="iview-btn-text">−</text></div>
-        <text class="iview-zoom">{{ viewer.zoomText }}</text>
-        <div class="iview-btn" @click="ivZoom(2)"><text class="iview-btn-text">＋</text></div>
-        <div class="iview-btn" @click="ivReset"><text class="iview-btn-text">复位</text></div>
-        <div class="iview-btn iview-btn-close" @click="ivClose"><text class="iview-btn-text">关闭</text></div>
-        <text class="iview-hint">{{ viewer.hint }}</text>
+    <!-- 图片查看器: 纯黑底 + 居中悬浮工具栏; 缩放/平移全走 CSS transform
+         (改用 transform 版后不再用 native imageviewer: 它每帧解码+编码+落盘, 且运行时按路径
+          缓存 <image>, "80% 和 0% 是同一张图""拖不动"就是这么来的) -->
+    <div v-if="viewer.on" class="iview"
+         @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
+      <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"
+             @load="onImgLoad"></image>
+      <div v-if="viewer.loading || viewer.err !== ''" class="iv-mask">
+        <text class="iv-mask-t">{{ viewer.err !== '' ? viewer.err : '加载中…' }}</text>
+      </div>
+      <div class="iv-back" @click="ivClose">
+        <image class="iv-back-ic" :src="MI.back" :style="{ width: '24px', height: '24px' }"></image>
+        <text class="iv-back-t">返回</text>
+      </div>
+      <div v-if="viewer.hint" class="iv-hint">
+        <text class="iv-hint-t">双击后按住上下滑 = 缩放 · 拖动平移</text>
+      </div>
+      <div class="iv-bar">
+        <div class="iv-panel">
+          <div class="iv-btn" @click="ivZoomOut"><image :src="MI.minus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
+          <div class="iv-btn" @click="ivZoomIn"><image :src="MI.plus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-sep"></div>
+          <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">复位</text></div>
+          <text v-if="viewer.sizeText !== ''" class="iv-size">{{ viewer.sizeText }}</text>
+        </div>
       </div>
     </div>
   </div>
@@ -248,7 +296,32 @@ import {
 } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
-import { imageviewer } from 'imageviewer'
+import { log } from '../../services/log.js'
+import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
+
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+// require 只能写在 .vue 里 —— aiot-cli 只处理 .vue 内的图片 require
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  home: require('../../assets/mi/home_30_w.png'),
+  play18: require('../../assets/mi/play_18_w.png'),
+  play28: require('../../assets/mi/play_28_w.png'),
+  comment: require('../../assets/mi/comment_20_m.png'),
+  thumbup: require('../../assets/mi/thumbup_20_m.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  reply: require('../../assets/mi/reply_20_m.png'),
+  img: require('../../assets/mi/image_20_m.png'),
+  check: require('../../assets/mi/check_20_w.png'),
+  minus: require('../../assets/mi/remove_32_w.png'),
+  plus: require('../../assets/mi/add_32_w.png')
+}
+
+// 计时器: 优先用页面实例的 setTimeout (本运行时组件里不保证有全局 setTimeout)
+function setTimer(vm, ms, fn) {
+  const p = vm.$page
+  if (p && p.setTimeout) return p.setTimeout(fn, ms)
+  return setTimeout(fn, ms)
+}
 
 // 内置常用 emoji 映射: .vue 里的 require png 会被 aiot-cli 编译成 images/<hash>.png
 // (services/*.js 里的 require 不会被编译, QuickJS 无 require 会崩, 见 0.8.7 黑屏教训)
@@ -383,14 +456,20 @@ export default {
       cLoaded: false,
       logged: false,
       cStatus: '',
-      // 图片查看器状态 (解码/缩放/裁剪在独立 so libjsapi_imageviewer 里做)
-      viewer: { on: false, path: '', zoom: 1, cx: 0, cy: 0, w: 0, h: 0, zoomText: '100%', hint: '拖动移动 · ＋/− 缩放 · 复位' },
+      // 图片查看器 (transform 版: 只把大图 URL 交给 <image resize=contain>, 缩放/平移全用 CSS transform)
+      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       posting: false,
       ime: null,
       cGeneration: 0
     }
   },
   computed: {
+    MI() { return MI },
+    // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
+    viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
+    // 状态行是否成功态: 成功才配一个勾图标 (失败/加载中不配)
+    actOk() { return this.actStatus !== '' && this.actStatus.indexOf('失败') < 0 && this.actStatus.indexOf('中') < 0 },
+    cOk() { return this.cStatus !== '' && this.cStatus.indexOf('失败') < 0 && this.cStatus.indexOf('中') < 0 && this.cStatus.indexOf('需要') < 0 },
     coverSrc() {
       return this.detail && this.detail.pic ? this.detail.pic : ''
     },
@@ -599,19 +678,30 @@ export default {
       $falcon.navTo('player', { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title })
     },
 
-    // 保底入口: 普通按钮触发 (tab 栏命中不稳时也能进评论)
-    // 评论入口: 跳转独立页面 (同页 tab 切换在本机固件上命中不稳, 改成按钮跳转)
+    // 评论入口: 同页切到评论 tab (0.9.57 起评论区合并, 独立评论页已删除, 不再 navTo)
+    // 三个入口 —— 顶部 tab 栏 / 动作栏「评论」/ 轻点兜底(tabBarHit) —— 全部走这里
     goComment() {
       if (!this.detail || !this.detail.aid) return
-      try {
-        $falcon.navTo('comment', {
-          aid: String(this.detail.aid),
-          title: this.detail.title || '',
-          total: String(this.total || 0)
-        })
-      } catch (e) {
-        this.cStatus = '打开评论页失败'
+      this.switchTab('comment')
+    },
+
+    // 轻点落在顶部 tab 栏内 -> 直接切 tab, 不等 click 事件
+    // (评论列表正在渲染时 click 常被框架丢掉, 这是「评论点不进去」的老病根之一)
+    // 触摸坐标 -> 显示坐标: 显示X = 959 - pageX, 显示Y = pageY + 45 (HANDOVER §14.7)
+    // tab 栏几何: 右栏起点 x=300; .tab 宽 96 + margin-left 8 -> 详情 308..404, 评论 412..508
+    tabBarHit(p) {
+      if (!p || !p.valid) return ''
+      const cands = [
+        { dx: 959 - p.x, dy: p.y + 45 },   // 常见映射
+        { dx: 959 - p.y, dy: p.x - 107 }   // 另一种固件映射
+      ]
+      for (let i = 0; i < cands.length; i++) {
+        const c = cands[i]
+        if (c.dy < -6 || c.dy > 44) continue
+        if (c.dx >= 300 && c.dx <= 406) return 'detail'
+        if (c.dx > 406 && c.dx <= 520) return 'comment'
       }
+      return ''
     },
 
     switchTab(t) {
@@ -665,8 +755,17 @@ export default {
         return
       }
       const adx = Math.abs(p.x - this._tx0), ady = Math.abs(p.y - this._ty0)
-      // 点击 tab 栏: 位移很小 —— 直接在这里切, 不等 click 事件 (评论渲染期间 click 常被丢掉,
-      // 这正是用户反馈「评论页点不进去」的直接原因). 触控坐标: x = 959 - 显示X
+      // 轻点顶部 tab 栏: 位移很小 -> 按位置直接切 tab, 不等 click 事件
+      // (这段逻辑上一轮被误插到样式块之后成了死代码, 现在收回 onTouchEnd 里真正生效)
+      if (adx < 16 && ady < 22) {
+        const hit = this.tabBarHit(p)
+        if (hit !== '') {
+          this._pullArmed = false
+          this._tx0 = null; this._t0 = 0
+          this.switchTab(hit)
+          return
+        }
+      }
       const dx = p.x - this._tx0
       const dy = p.y - this._ty0
       // 1) 左右滑动: 横向大幅 + 竖向小幅 → 切 tab
@@ -725,7 +824,7 @@ export default {
       try {
         await likeVideo(this.detail.aid, want)
         this.detail.reqLike = want
-        this.actStatus = want ? '✓ 已点赞' : '已取消'
+        this.actStatus = want ? '已点赞' : '已取消'
         this.reloadDetail()
       } catch (err) {
         this.actStatus = '操作失败: ' + (err && err.message ? err.message : String(err))
@@ -760,7 +859,7 @@ export default {
         const r = await addCoin(this.detail.aid, num, false)
         this.detail.reqCoin = true
         if (r && r.like) this.detail.reqLike = true
-        this.actStatus = '✓ 已投 ' + num + ' 币'
+        this.actStatus = '已投 ' + num + ' 币'
         this.reloadDetail()
       } catch (err) {
         this.actStatus = '投币失败: ' + (err && err.message ? err.message : String(err))
@@ -819,7 +918,7 @@ export default {
         await dealFav(this.detail.aid, folder.id, true)
         this.detail.reqFav = true
         this.favFoldersAid = 0   // 收藏状态变了, 缓存作废
-        this.actStatus = '✓ 已收藏·' + folder.title
+        this.actStatus = '已收藏·' + folder.title
         this.reloadDetail()
       } catch (err) {
         this.actStatus = '收藏失败: ' + (err && err.message ? err.message : String(err))
@@ -859,7 +958,7 @@ export default {
         this.detail.reqFav = still
         this.favFoldersAid = 0
         if (!still) {
-          this.actStatus = '✓ 已取消收藏' + (targets.length > 1 ? ' (共 ' + targets.length + ' 个夹)' : '')
+          this.actStatus = '已取消收藏' + (targets.length > 1 ? ' (共 ' + targets.length + ' 个夹)' : '')
           this.reloadDetail()
         } else if (failed.length > 0) {
           this.actStatus = '取消失败: ' + failed[0].title + ' ' + failed[0].msg
@@ -903,7 +1002,7 @@ export default {
           this.favFoldersAid = 0
         }
         if (gen !== this.generation) return
-        this.actStatus = '✓ 三连成功！'
+        this.actStatus = '三连成功！'
         this.reloadDetail()
       } catch (err) {
         this.actStatus = '三连失败: ' + (err && err.message ? err.message : String(err))
@@ -923,7 +1022,7 @@ export default {
         if (want) {
           await addToViewLater(this.detail.aid)
           this.detail.reqToview = true
-          this.actStatus = '✓ 已加入稍后再看'
+          this.actStatus = '已加入稍后再看'
         } else {
           await delToViewLater(this.detail.aid)
           this.detail.reqToview = false
@@ -1045,74 +1144,183 @@ export default {
       try { $falcon.navTo('up', { mid: r.mid, name: r.author }) } catch (e) { this.cStatus = '打开主页失败' }
     },
 
-    // ---------------- 图片查看器 (独立模块 imageviewer) ----------------
+    // ---------------- 图片查看器 (transform 版, 与 feed.vue 同款) ----------------
+    // 只把大图 URL 交给 <image resize="contain">, 缩放/平移全走 CSS transform:
+    // 即时/无损/不落盘, 也不会被运行时「按路径缓存图片」坑到
+    // (native imageviewer 版每帧解码+tjCompress2 编码+落盘, 且缓存导致"80% 和 0% 是同一张图").
     ivOpen(url) {
-      try {
-        const info = imageviewer.open(url)
-        const o = typeof info === 'string' ? JSON.parse(info) : info
-        if (!o || o.ret !== 0) { this.cStatus = '打开图片失败'; return }
-        this.viewer.on = true
-        this.viewer.w = o.width || 0
-        this.viewer.h = o.height || 0
-        this.viewer.cx = this.viewer.w / 2
-        this.viewer.cy = this.viewer.h / 2
-        // 初始按屏幕高度适配 (266 高)
-        this.viewer.zoom = this.viewer.h > 0 ? Math.max(0.2, Math.min(4, 266 / this.viewer.h)) : 1
-        this.ivRender()
-      } catch (e) {
-        this.cStatus = '打开图片失败: ' + (e && e.message ? e.message : e)
-      }
+      const self = this
+      this.viewer.url = bigUrl(url)
+      this.viewer.scale = 1
+      this.viewer.tx = 0
+      this.viewer.ty = 0
+      this.viewer.text = '100%'
+      this.viewer.sizeText = ''
+      this.viewer.err = ''
+      this.viewer.loading = true
+      this.viewer.hint = true
+      this.viewer.on = true
+      try { log('图片查看器', '打开 ' + this.viewer.url) } catch (e) {}
+      setTimer(this, 4000, function () { self.viewer.hint = false })      // 提示自动消失
+      setTimer(this, 8000, function () { self.viewer.loading = false })   // load 没回来也别一直转
     },
-    ivRender() {
-      try {
-        const path = imageviewer.view(this.viewer.cx, this.viewer.cy, this.viewer.zoom, 960, 266)
-        if (path) this.viewer.path = String(path)
-        this.viewer.zoomText = Math.round(this.viewer.zoom * 100) + '%'
-      } catch (e) { this.viewer.hint = '渲染失败: ' + (e && e.message ? e.message : e) }
+    // <image> 的 load 事件: 拿到 success / size -> 关掉加载态 + 显示原图尺寸
+    onImgLoad(e) {
+      const d = (e && e.detail) || {}
+      this.viewer.loading = false
+      if (d.success === false) { this.viewer.err = '图片加载失败'; return }
+      this.viewer.err = ''
+      const s = d.size || {}
+      const w = s.width || s.w || s.imgWidth || 0
+      const h = s.height || s.h || s.imgHeight || 0
+      if (w && h) this.viewer.sizeText = w + '×' + h
+    },
+    ivZoomIn() { this.viewer.hint = false; this.ivZoom(1.25) },
+    ivZoomOut() { this.viewer.hint = false; this.ivZoom(0.8) },
+    // 双击: 100% <-> 200%
+    ivDouble() {
+      if (this.viewer.scale > 1.05) { this.ivFit(); return }
+      this.viewer.scale = clampScale(2)
+      this.ivApply()
+    },
+    ivApply() {
+      const p = clampPan({ x: this.viewer.tx, y: this.viewer.ty }, this.viewer.scale)
+      this.viewer.tx = p.x
+      this.viewer.ty = p.y
+      this.viewer.text = Math.round(this.viewer.scale * 100) + '%'
     },
     ivZoom(f) {
-      let z = this.viewer.zoom * f
-      if (z < 0.1) z = 0.1
-      if (z > 8) z = 8
-      this.viewer.zoom = z
-      this.ivRender()
+      this.viewer.scale = clampScale(this.viewer.scale * f)
+      this.ivApply()
     },
-    ivReset() {
-      this.viewer.zoom = this.viewer.h > 0 ? Math.max(0.2, Math.min(4, 266 / this.viewer.h)) : 1
-      this.viewer.cx = this.viewer.w / 2
-      this.viewer.cy = this.viewer.h / 2
-      this.ivRender()
+    ivFit() {
+      this.viewer.scale = 1
+      this.viewer.tx = 0
+      this.viewer.ty = 0
+      this.viewer.text = '100%'
+      this.viewer.hint = false
     },
-    ivClose() {
-      this.viewer.on = false
-      try { imageviewer.close() } catch (e) {}
+    ivClose() { this.viewer.on = false },
+    txy(e) {
+      try {
+        const t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0])
+        if (t && typeof t.pageY === 'number') return { x: t.pageX, y: t.pageY, ok: true }
+      } catch (err) {}
+      return { x: 0, y: 0, ok: false }
     },
-    ivStart(e) { this._ivx = this.touchPageY(e); this._ivy = this.touchPageX(e); this.viewer.hint = '拖动中…' },
+    // 触点列表: 实测本机运行时 e.touches 不存在(touches=0), 只给 changedTouches -> 三种形态都兼容
+    touchList(e) {
+      const out = []
+      const push = function (arr) {
+        if (!arr) return
+        for (let i = 0; i < arr.length; i++) {
+          if (arr[i] && typeof arr[i].pageY === 'number') out.push({ pageX: arr[i].pageX, pageY: arr[i].pageY })
+        }
+      }
+      try {
+        const d = (e && e.detail) || null
+        push(e && e.touches)
+        if (out.length === 0) push(e && e.changedTouches)
+        if (out.length === 0 && d) push(d.touches)
+        if (out.length === 0 && d) push(d.changedTouches)
+      } catch (err) {}
+      return out
+    },
+    pt(e) {
+      const ts = this.touchList(e)
+      if (ts.length) return { x: ts[0].pageX, y: ts[0].pageY, ok: true }
+      return this.txy(e)
+    },
+    pinchDist(ts) { const dx = ts[0].pageX - ts[1].pageX; const dy = ts[0].pageY - ts[1].pageY; return Math.sqrt(dx * dx + dy * dy) || 1 },
+    ivStart(e) {
+      this._moved = false
+      const ts = this.touchList(e)
+      if (ts.length >= 2) { this._zoomDrag = null; this.startPinch(ts); return }
+      this._pinch = null
+      const p = this.pt(e)
+      // 双击之后紧接的一次按住 -> 竖直拖动连续缩放 (本机不支持双指, 用这个替代捏合)
+      if (this._lastTap && Date.now() - this._lastTap < 320 && p.ok) {
+        this._zoomDrag = { y: p.y, scale: this.viewer.scale }
+        this._lastTap = 0
+        this._ix = p.x
+        this._iy = p.y
+        this.viewer.hint = false
+        return
+      }
+      this._zoomDrag = null
+      this._ix = p.ok ? p.x : null
+      this._iy = p.ok ? p.y : null
+    },
+    startPinch(ts) {
+      const mx = (ts[0].pageX + ts[1].pageX) / 2
+      const my = (ts[0].pageY + ts[1].pageY) / 2
+      this._pinch = { d: this.pinchDist(ts), mx: mx, my: my, scale: this.viewer.scale, tx: this.viewer.tx, ty: this.viewer.ty }
+      this._ix = null
+      this._iy = null
+      this.viewer.hint = false
+    },
     ivMove(e) {
-      if (this._ivx === undefined) return
-      const nx = this.touchPageY(e), ny = this.touchPageX(e)
-      const dx = nx - this._ivx, dy = ny - this._ivy
-      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) return
-      this.viewer.cx -= dx / this.viewer.zoom
-      this.viewer.cy -= dy / this.viewer.zoom
-      this._ivx = nx; this._ivy = ny
-      this.ivRender()
+      const ts = this.touchList(e)
+      // ---- 双指捏合缩放 (间距比例 = 缩放比例; 焦点跟随两指中点) ----
+      if (ts.length >= 2) {
+        if (!this._pinch) { this.startPinch(ts); return }
+        const f = this.pinchDist(ts) / (this._pinch.d || 1)
+        const s2 = clampScale(this._pinch.scale * f)
+        const k = s2 / (this._pinch.scale || 1)
+        const mx = (ts[0].pageX + ts[1].pageX) / 2
+        const my = (ts[0].pageY + ts[1].pageY) / 2
+        const cx = VIEW_W / 2
+        const cy = VIEW_H / 2
+        this.viewer.scale = s2
+        this.viewer.tx = mx - cx - (this._pinch.mx - cx - this._pinch.tx) * k
+        this.viewer.ty = my - cy - (this._pinch.my - cy - this._pinch.ty) * k
+        this._moved = true
+        this.ivApply()
+        return
+      }
+      // ---- 双击后按住上下滑: 连续缩放 (单指可用, 替代双指捏合) ----
+      if (this._zoomDrag) {
+        const q = this.pt(e)
+        if (!q.ok) return
+        const dy = this._zoomDrag.y - q.y
+        if (Math.abs(dy) > 8) { this._moved = true; this.viewer.hint = false }
+        this.viewer.scale = clampScale(this._zoomDrag.scale * Math.exp(dy / 130))
+        this.ivApply()
+        return
+      }
+      // ---- 单指拖动平移 ----
+      if (this._pinch) { this._pinch = null; this._moved = true; return }
+      const p = this.pt(e)
+      if (!p.ok || this._ix === null || this._ix === undefined) return
+      const dx = p.x - this._ix, dy = p.y - this._iy
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+      if (Math.abs(dx) + Math.abs(dy) > 4) { this._moved = true; this.viewer.hint = false }
+      this._ix = p.x; this._iy = p.y
+      this.viewer.tx += dx
+      this.viewer.ty += dy
+      this.ivApply()
     },
-    ivEnd() { this._ivx = undefined; this._ivy = undefined; this.viewer.hint = '拖动移动 · ＋/− 缩放 · 复位' },
-    // 触摸事件字段: changedTouches[0].pageX/pageY (顶层 pageY 是 undefined)
-    touchPageY(e) {
-      try {
-        const t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0])
-        if (t && typeof t.pageY === 'number') return t.pageY
-      } catch (err) {}
-      return 0
-    },
-    touchPageX(e) {
-      try {
-        const t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0])
-        if (t && typeof t.pageX === 'number') return t.pageX
-      } catch (err) {}
-      return 0
+    ivEnd() {
+      if (this._pinch) { this._pinch = null; this._ix = undefined; this._iy = undefined; this._lastTap = 0; return }
+      const moved = this._moved === true
+      if (this._zoomDrag) {
+        // 按住了但没滑 -> 就是普通双击(100% <-> 200%); 滑过了 -> 保持当前倍率
+        const wasDrag = moved
+        this._zoomDrag = null
+        this._ix = undefined
+        this._iy = undefined
+        this._moved = false
+        if (!wasDrag) this.ivDouble()
+        return
+      }
+      const now = Date.now()
+      this._ix = undefined
+      this._iy = undefined
+      this._moved = false
+      if (moved) { this._lastTap = 0; return }
+      // 320ms 内第二次轻点 = 双击 (放大/还原)
+      if (now - (this._lastTap || 0) < 320) { this._lastTap = 0; this.ivDouble() }
+      else this._lastTap = now
     },
 
     openSubReply(r) {
@@ -1162,7 +1370,7 @@ export default {
         await addReply(this.detail.aid, message)
         this.pn = 1
         this.replies = []
-        this.cStatus = '✓ 已发送'
+        this.cStatus = '已发送'
         this.loadComments(true, true)
       } catch (err) {
         this.cStatus = '发送失败: ' + (err && err.message ? err.message : err)
@@ -1195,59 +1403,26 @@ export default {
 </script>
 
 <style scoped>
-.iview {
-  position: absolute;
-  left: 0px;
-  top: 0px;
-  width: 960px;
-  height: 266px;
-  background-color: #000000;
-  z-index: 200;
-}
-.iview-img {
-  position: absolute;
-  left: 0px;
-  top: 0px;
-  width: 960px;
-  height: 266px;
-}
-.iview-bar {
-  position: absolute;
-  left: 0px;
-  bottom: 0px;
-  width: 960px;
-  height: 44px;
-  flex-direction: row;
-  align-items: center;
-  background-color: rgba(0, 0, 0, 0.72);
-  padding-left: 10px;
-}
-.iview-btn {
-  padding-left: 16px;
-  padding-right: 16px;
-  padding-top: 6px;
-  padding-bottom: 6px;
-  background-color: #2f3238;
-  border-radius: 8px;
-  margin-right: 10px;
-  justify-content: center;
-}
-.iview-btn-close {
-  background-color: #fb7299;
-}
-.iview-btn-text {
-  font-size: 19px;
-  color: #ffffff;
-}
-.iview-zoom {
-  font-size: 19px;
-  color: #fb7299;
-  margin-right: 10px;
-}
-.iview-hint {
-  font-size: 15px;
-  color: #8a93a0;
-}
+/* ---------- 图片查看器 (纯黑底 + 居中悬浮工具栏; 与 feed.vue / 已删除的评论页同款) ---------- */
+.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
+.iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
+.iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
+.iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
+.iv-back { position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 14px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
+.iv-back-ic { margin-right: 4px; }
+.iv-back-t { font-size: 19px; color: #ffffff; }
+.iv-hint { position: absolute; left: 0px; bottom: 68px; width: 960px; flex-direction: column; align-items: center; }
+.iv-hint-t { font-size: 16px; color: #ffffff; background-color: rgba(0,0,0,0.62); padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; border-radius: 16px; }
+/* 工具栏深色面板打底: 白底照片上白半透明按钮会看不见(实测反馈) */
+.iv-bar { position: absolute; left: 0px; bottom: 12px; width: 960px; flex-direction: row; justify-content: center; align-items: center; }
+.iv-panel { flex-direction: row; justify-content: center; align-items: center; padding-left: 10px; padding-right: 14px; padding-top: 6px; padding-bottom: 6px; border-radius: 20px; background-color: rgba(0,0,0,0.70); }
+.iv-btn { width: 62px; height: 40px; margin-right: 8px; border-radius: 12px; background-color: rgba(255,255,255,0.22); flex-direction: row; justify-content: center; align-items: center; }
+.iv-btn-wide { width: 88px; }
+.iv-btn-t { font-size: 22px; color: #ffffff; }
+.iv-pill { height: 40px; padding-left: 18px; padding-right: 18px; margin-right: 8px; border-radius: 12px; background-color: #fb7299; flex-direction: row; justify-content: center; align-items: center; }
+.iv-pill-t { font-size: 20px; color: #ffffff; }
+.iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.30); margin-right: 8px; }
+.iv-size { font-size: 16px; color: rgba(255,255,255,0.72); margin-left: 4px; }
 
 .page {
   position: absolute;
@@ -1298,8 +1473,12 @@ export default {
   height: 40px;
   border-radius: 20px;
   background-color: rgba(0, 0, 0, 0.55);
+  flex-direction: row;
   justify-content: center;
   align-items: center;
+}
+.backbtn-ic {
+  margin-right: 4px;
 }
 .backbtn-text {
   font-size: 20px;
@@ -1395,12 +1574,24 @@ export default {
   height: 42px;
   border-radius: 21px;
   background-color: #fb7299;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
+}
+.play-ic {
+  margin-right: 6px;
 }
 .play-text {
   font-size: 20px;
   color: #ffffff;
+}
+.status-row {
+  flex-direction: row;
+  align-items: center;
+  flex: 1;
+}
+.status-ic {
+  margin-right: 6px;
 }
 .act-status {
   font-size: 16px;
@@ -1418,10 +1609,14 @@ export default {
   height: 42px;
   border-radius: 21px;
   background-color: #2a2f38;
+  flex-direction: row;
   justify-content: center;
   align-items: center;
   margin-left: 4px;
   margin-right: 4px;
+}
+.act-ic {
+  margin-right: 6px;
 }
 .act-on {
   background-color: #fb7299;
@@ -1507,11 +1702,19 @@ export default {
   text-overflow: ellipsis;
   overflow: hidden;
 }
+.rstatrow {
+  flex-direction: row;
+  align-items: center;
+  margin-left: 10px;
+  margin-top: 4px;
+}
+.rstat-ic {
+  margin-left: 5px;
+  margin-right: 5px;
+}
 .rstat {
   font-size: 15px;
   color: #888888;
-  margin-left: 10px;
-  margin-top: 4px;
 }
 .pull-hint {
   font-size: 14px;
@@ -1606,9 +1809,10 @@ export default {
 }
 .reply-pic-hit {
   margin-right: 8px;
+  border-radius: 8px;
+  background-color: #232830;
 }
 .reply-pic {
-  margin-right: 8px;
   border-radius: 8px;
 }
 .reply-head {
@@ -1656,12 +1860,22 @@ export default {
   align-items: center;
   margin-top: 3px;
 }
+/* 点赞 / 回复 / 看图: 有尺寸的命中区 (原来事件挂在 text 上, 本机固件不触发) */
+.meta-btn {
+  flex-direction: row;
+  align-items: center;
+  padding-top: 6px;
+  padding-bottom: 6px;
+  margin-right: 18px;
+}
+.meta-btn-pic {
+  margin-right: 0px;
+}
 .meta-text {
   lines: 1;
   font-size: 15px;
   color: #6a7684;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  margin-left: 6px;
 }
 .meta-liked {
   color: #fb7299;
@@ -1670,7 +1884,7 @@ export default {
   lines: 1;
   font-size: 17px;
   color: #fb7299;
-  margin-left: 22px;
+  margin-left: 6px;
   padding-left: 12px;
   padding-right: 12px;
   padding-top: 2px;
@@ -1682,9 +1896,7 @@ export default {
   lines: 1;
   font-size: 16px;
   color: #fb7299;
-  margin-left: 16px;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  margin-left: 6px;
   padding-right: 10px;
 }
 .load-more {
@@ -1851,22 +2063,8 @@ export default {
   font-size: 19px;
   color: #c8d2de;
 }
-</style>
-      const adx = Math.abs(p.x - this._tx0), ady = Math.abs(p.y - this._ty0)
-      // 点击 tab 栏: 位移很小 —— 直接在触摸管线里切, 不等 click 事件
-      // (评论渲染期间 click 常被丢掉, 这是「评论页点不进去」的直接原因).
-      // 触摸字段映射在不同固件上不一致, 两种候选都算一遍, 取落在 tab 栏内的那个.
-      if (adx < 16 && ady < 22) {
-        const cands = [
-          { dx: 959 - p.x, dy: p.y + 45 },   // 常见: pageX = 显示Y+107, pageY = 显示Y-45
-          { dx: 959 - p.y, dy: p.x - 107 }    // 另一种: pageX = 显示Y+107, pageY = 959-显示X
-        ]
-        for (let ci = 0; ci < cands.length; ci++) {
-          const c = cands[ci]
-          if (c.dy >= -5 && c.dy < 48 && c.dx > 280 && c.dx < 620) {
-            this._tx0 = null; this._t0 = 0; this._pullArmed = false
-            this.switchTab(c.dx < 380 ? 'detail' : 'comment')
-            return
-          }
-        }
-      }
+.author-row { flex-direction: row; align-items: center; margin-top: 6px; }
+.author { margin-top: 0px; }
+.author-row { flex-direction: row; align-items: center; margin-top: 6px; }
+.author { margin-top: 0px; }
+</style>

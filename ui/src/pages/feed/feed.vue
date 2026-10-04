@@ -1,7 +1,10 @@
 <template>
   <div class="fpage">
     <div class="ftop">
-      <div class="fback" @click="back"><text class="fback-t">‹ 返回</text></div>
+      <div class="fback" @click="back">
+        <image class="fback-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="fback-t">返回</text>
+      </div>
       <text class="ftitle">动态</text>
       <div class="cats">
         <div v-for="(c, ci) in cats" :key="'c' + ci"
@@ -12,7 +15,10 @@
     </div>
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
-    <div class="fstatus" v-if="status !== ''" @click="retry"><text class="fstatus-t">{{ status }}</text></div>
+    <div class="fstatus" v-if="status !== ''" @click="retry">
+      <image class="fstatus-ic" :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
+      <text class="fstatus-t">{{ status }}</text>
+    </div>
 
     <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true">
       <div class="fwrap">
@@ -34,7 +40,8 @@
             </template>
           </richtext>
           <div v-if="d.segs && d.segs.length > 0 && !d.expanded" class="dmore" @click="toggle(d)">
-            <text class="dmore-t">展开全文 ▾</text>
+            <text class="dmore-t">展开全文</text>
+            <image class="dmore-ic" :src="MI.expand" :style="{ width: '20px', height: '20px' }"></image>
           </div>
 
           <div class="pics" v-if="d.rows && d.rows.length">
@@ -51,7 +58,10 @@
             <image class="vcover" :src="d.archive.cover" resize="cover"></image>
             <div class="vmeta">
               <text class="vtitle">{{ d.archive.title }}</text>
-              <text class="vstat">{{ '▶' + d.archive.playText + '   ' + d.archive.duration }}</text>
+              <div class="vstatrow">
+                <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
+                <text class="vstat">{{ d.archive.playText + '   ' + d.archive.duration }}</text>
+              </div>
             </div>
           </div>
 
@@ -82,15 +92,21 @@
               <image class="vcover" :src="d.orig.archive.cover" resize="cover"></image>
               <div class="vmeta">
                 <text class="vtitle">{{ d.orig.archive.title }}</text>
-                <text class="vstat">{{ '▶' + d.orig.archive.playText + '   ' + d.orig.archive.duration }}</text>
+                <div class="vstatrow">
+                  <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
+                  <text class="vstat">{{ d.orig.archive.playText + '   ' + d.orig.archive.duration }}</text>
+                </div>
               </div>
             </div>
           </div>
 
           <div class="dfoot">
-            <text class="dfoot-t">{{ '赞 ' + d.stat.like }}</text>
-            <text class="dfoot-t">{{ '评论 ' + d.stat.reply }}</text>
-            <text class="dfoot-t">{{ '转发 ' + d.stat.forward }}</text>
+            <image class="dfoot-ic" :src="MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="dfoot-t">{{ d.stat.like }}</text>
+            <image class="dfoot-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="dfoot-t">{{ d.stat.reply }}</text>
+            <image class="dfoot-ic" :src="MI.share" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="dfoot-t">{{ d.stat.forward }}</text>
           </div>
         </div>
 
@@ -110,16 +126,19 @@
       <div v-if="viewer.loading || viewer.err !== ''" class="iv-mask">
         <text class="iv-mask-t">{{ viewer.err !== '' ? viewer.err : '加载中…' }}</text>
       </div>
-      <!-- 左上角返回/关闭: 用与应用内一致的「‹ 返回」(✕ 字形本机字体没有, 显示为空白); 深色胶囊白底也看得清 -->
-      <div class="iv-back" @click="ivClose"><text class="iv-back-t">‹ 返回</text></div>
+      <!-- 左上角返回: material 图标 + 文字 (✕ 字形本机字体没有, 会渲染成空白) -->
+      <div class="iv-back" @click="ivClose">
+        <image class="iv-back-ic" :src="MI.back" :style="{ width: '24px', height: '24px' }"></image>
+        <text class="iv-back-t">返回</text>
+      </div>
       <div v-if="viewer.hint" class="iv-hint">
         <text class="iv-hint-t">双击后按住上下滑 = 缩放 · 拖动平移</text>
       </div>
       <div class="iv-bar">
         <div class="iv-panel">
-          <div class="iv-btn" @click="ivZoomOut"><text class="iv-btn-t">-</text></div>
+          <div class="iv-btn" @click="ivZoomOut"><image :src="MI.minus" :style="{ width: '32px', height: '32px' }"></image></div>
           <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
-          <div class="iv-btn" @click="ivZoomIn"><text class="iv-btn-t">+</text></div>
+          <div class="iv-btn" @click="ivZoomIn"><image :src="MI.plus" :style="{ width: '32px', height: '32px' }"></image></div>
           <div class="iv-sep"></div>
           <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">复位</text></div>
           <text v-if="viewer.sizeText !== ''" class="iv-size">{{ viewer.sizeText }}</text>
@@ -133,6 +152,20 @@
 import { getDynamicFeed } from '../../services/bili.js'
 import { log } from '../../services/log.js'
 import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
+
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+// require 只能写在 .vue 里 —— aiot-cli 只处理 .vue 内的图片 require (.js 里的原样保留 -> 运行期取不到图)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  refresh: require('../../assets/mi/refresh_30_w.png'),
+  play: require('../../assets/mi/play_18_w.png'),
+  expand: require('../../assets/mi/expand_20_m.png'),
+  thumbup: require('../../assets/mi/thumbup_20_m.png'),
+  comment: require('../../assets/mi/comment_20_m.png'),
+  share: require('../../assets/mi/share_20_m.png'),
+  minus: require('../../assets/mi/remove_32_w.png'),
+  plus: require('../../assets/mi/add_32_w.png')
+}
 
 // 计时器: 优先用页面实例的 setTimeout (本运行时组件里不保证有全局 setTimeout) —— 与 player.vue 同款
 function setTimer(vm, ms, fn) {
@@ -168,10 +201,16 @@ export default {
       hasMore: false,
       loading: false,
       status: '加载中…',
-      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false }
+      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
+      // 异步世代守卫 —— 必须声明在 data() 里!
+      // 不声明的后果: ++this.generation 得到 NaN, NaN !== NaN 恒为真 ->
+      // 接口成功返回后, 结果被 "if (gen !== this.generation) return" 整段丢掉,
+      // finally 也不清 loading -> 页面永远停在「加载中…」, 且再点重试也进不来 (loading 卡死)
+      generation: 0
     }
   },
   computed: {
+    MI() { return MI },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
     // 分类筛选: 投稿 / 图文 / 文字 / 转发 / 专栏
@@ -199,7 +238,7 @@ export default {
       this.load(true)
     },
     // 接口偶发不返回(实测有 1 分钟不 resolve 的情况) -> 给用户一个明确的重试入口
-    retry() { this._gen++; this.loading = false; this.status = '加载中…'; this.load(true) },
+    retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true) },
     back() { try { this.$page.finish() } catch (e) {} },
     kindName(k) { return KIND_NAME[k] || '动态' },
     setCat(k) {
@@ -214,14 +253,14 @@ export default {
       this.loading = true
       if (reset) this.status = '加载中…'
       try { log('动态页', 'load 开始 reset=' + reset) } catch (e0) {}
-      const gen = ++this._gen
+      const gen = ++this.generation
       // 看门狗: 12 秒不回来就当超时, 绝不让页面永远停在「加载中…」
       const watchdog = new Promise(function (res, rej) {
         setTimer(self, 12000, function () { rej(new Error('加载超时，点这里重试')) })
       })
       try {
         const r = await Promise.race([getDynamicFeed(reset ? '' : this.offset), watchdog])
-        if (gen !== this._gen) return
+        if (gen !== this.generation) return
         const add = r.items || []
         for (let i = 0; i < add.length; i++) {
           add[i].rows = chunk(add[i].pics || [], 3)
@@ -237,11 +276,11 @@ export default {
         for (let i = 0; i < this.items.length; i++) { if (this.items[i].kind === 'draw') nd++ }
         try { log('动态页', '加载完成 ' + this.items.length + ' 条 (图文 ' + nd + ' / offset=' + this.offset + ')') } catch (e) {}
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.generation) return
         this.status = (e && e.message) ? e.message : String(e)
         try { log('动态页', '加载失败 ' + this.status) } catch (e2) {}
       } finally {
-        if (gen === this._gen) this.loading = false
+        if (gen === this.generation) this.loading = false
       }
     },
     loadMore() { if (this.loading || !this.hasMore) return; this.load(false) },
@@ -444,7 +483,8 @@ export default {
 <style scoped>
 .fpage { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #14161a; }
 .ftop { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #1b1e24; }
-.fback { padding-left: 16px; padding-right: 14px; height: 40px; justify-content: center; }
+.fback { padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center; }
+.fback-ic { margin-right: 4px; }
 .fback-t { font-size: 21px; color: #cfd5de; }
 .ftitle { font-size: 19px; color: #e6eaf0; margin-right: 16px; }
 .cats { flex-direction: row; flex: 1; }
@@ -454,6 +494,7 @@ export default {
 .cat-t-on { color: #ffffff; }
 .fscroll { position: absolute; left: 0px; top: 74px; width: 960px; height: 192px; }
 .fstatus { position: absolute; left: 0px; top: 46px; width: 960px; height: 26px; flex-direction: row; justify-content: center; align-items: center; }
+.fstatus-ic { margin-right: 6px; }
 .fstatus-t { font-size: 16px; color: #8a93a0; }
 .fwrap { padding-left: 20px; padding-right: 20px; padding-bottom: 12px; }
 .status { font-size: 17px; color: #8a93a0; text-align: center; padding-top: 14px; padding-bottom: 6px; }
@@ -468,7 +509,8 @@ export default {
 .dtext { font-size: 19px; color: #dfe4ea; lines: 3; margin-top: 4px; }
 .dtext-open { lines: 99; }
 .dhl { color: #8fb8ff; }
-.dmore { padding-top: 6px; padding-bottom: 6px; }
+.dmore { flex-direction: row; align-items: center; padding-top: 6px; padding-bottom: 6px; }
+.dmore-ic { margin-left: 2px; }
 .dmore-t { font-size: 16px; color: #8fb8ff; }
 .pics { margin-top: 6px; }
 .pic-row { flex-direction: row; }
@@ -478,14 +520,17 @@ export default {
 .vcover { width: 160px; height: 100px; border-radius: 6px; margin-right: 10px; }
 .vmeta { flex: 1; }
 .vtitle { font-size: 18px; color: #ffffff; lines: 2; }
-.vstat { font-size: 16px; color: #888888; margin-top: 6px; }
+.vstatrow { flex-direction: row; align-items: center; margin-top: 6px; }
+.vstat-ic { margin-right: 4px; }
+.vstat { font-size: 16px; color: #888888; }
 .ocard { margin-top: 6px; padding: 8px; background-color: #262b33; border-radius: 8px; }
 .otitle { font-size: 18px; color: #ffffff; lines: 2; }
 .osum { font-size: 17px; color: #aab2bd; lines: 2; margin-top: 4px; }
 .ostat { margin-top: 6px; padding: 8px; background-color: #1a1d22; border-radius: 8px; }
 .olabel { font-size: 17px; color: #8fb8ff; }
-.dfoot { flex-direction: row; margin-top: 8px; }
-.dfoot-t { font-size: 16px; color: #9aa3af; margin-right: 20px; }
+.dfoot { flex-direction: row; align-items: center; margin-top: 8px; }
+.dfoot-ic { margin-right: 6px; }
+.dfoot-t { font-size: 16px; color: #9aa3af; margin-right: 18px; }
 .loadmore { height: 40px; justify-content: center; }
 .loadmore-t { font-size: 17px; color: #8fb8ff; }
 .empty { margin-top: 20px; justify-content: center; }
@@ -494,7 +539,8 @@ export default {
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
 .iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
-.iv-back { position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 16px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
+.iv-back { position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 14px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
+.iv-back-ic { margin-right: 4px; }
 .iv-back-t { font-size: 19px; color: #ffffff; }
 .iv-hint { position: absolute; left: 0px; bottom: 68px; width: 960px; flex-direction: column; align-items: center; }
 .iv-hint-t { font-size: 16px; color: #ffffff; background-color: rgba(0,0,0,0.62); padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; border-radius: 16px; }

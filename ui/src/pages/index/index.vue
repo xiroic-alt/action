@@ -8,7 +8,7 @@
       </div>
       <!-- 刷新按钮: 下拉手势在真机上偶发被框架吞掉, 这里给一个必定可用的入口 -->
       <div class="tab-refresh" @click="refreshTab">
-        <text class="tab-refresh-text">⟳</text>
+        <image :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
       </div>
     </div>
 
@@ -27,7 +27,10 @@
           <div class="meta">
             <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up">{{ item.author }}</text>
-            <text class="stat">▶{{ item.playText }}  {{ item.duration }}</text>
+            <div class="statrow">
+              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+            </div>
           </div>
         </div>
         <text v-if="recLoaded && recResults.length === 0 && !recLoading" class="empty">暂无推荐内容</text>
@@ -49,7 +52,10 @@
           <div class="meta">
             <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up">{{ item.author }}</text>
-            <text class="stat">▶{{ item.playText }}  {{ item.duration }}</text>
+            <div class="statrow">
+              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+            </div>
           </div>
         </div>
         <text v-if="hotLoaded && hotResults.length === 0 && !hotLoading" class="empty">暂无热门内容</text>
@@ -93,7 +99,10 @@
             <div class="meta">
               <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
               <text class="up">{{ item.author }}</text>
-              <text class="stat">▶{{ item.playText }}  {{ item.duration }}</text>
+              <div class="statrow">
+              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+            </div>
             </div>
           </div>
           <text v-if="searched && results.length === 0 && !loading" class="empty">没有找到相关视频</text>
@@ -112,7 +121,8 @@
         <text class="login-cta-text">去登录</text>
       </div>
       <div class="dynbar" @click="openFeed">
-        <text class="dynbar-t">分类浏览全类型动态（投稿 / 图文 / 文字 / 转发 / 专栏）›</text>
+        <text class="dynbar-t">分类浏览全类型动态（投稿 / 图文 / 文字 / 转发 / 专栏）</text>
+        <image class="dynbar-ic" :src="MI.chevron" :style="{ width: '20px', height: '20px' }"></image>
       </div>
       <scroller v-if="dynStatus === '' || dynItems.length > 0" class="list"
                 scroll-direction="vertical" :show-scrollbar="true"
@@ -124,7 +134,10 @@
           <div class="meta">
             <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up">{{ item.author }} · {{ item.pubText }}</text>
-            <text class="stat">{{ item.type === 'draw' ? ('图文 · ' + item.duration) : ('▶' + item.playText + '  ' + item.duration) }}</text>
+            <div class="statrow">
+              <image v-if="item.type !== 'draw'" class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat">{{ item.type === 'draw' ? ('图文 · ' + item.duration) : (item.playText + '  ' + item.duration) }}</text>
+            </div>
           </div>
         </div>
         <text v-if="dynHasMore" class="loadmore" @click="loadMoreDynamic">上滑加载更多…</text>
@@ -201,10 +214,18 @@ import { log, logStatus } from '../../services/log.js'
 import { storeStatus, addSearchHistory, getSearchHistory, clearSearchHistory } from '../../services/store.js'
 import pm from 'pm'
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  refresh: require('../../assets/mi/refresh_30_w.png'),
+  play: require('../../assets/mi/play_18_w.png'),
+  chevron: require('../../assets/mi/chevron_20_m.png')
+}
+
 export default {
   name: 'index',
   data() {
     return {
+      MI: MI,
       tabs: [
         { key: 'recommend', label: '推荐' },
         { key: 'hot', label: '热门' },
@@ -1051,4 +1072,9 @@ export default {
   margin-top: 12px;
   margin-bottom: 12px;
 }
+/* ---------- 图标 (material, 见 tools/make-icons.mjs) ---------- */
+.statrow { flex-direction: row; align-items: center; margin-left: 16px; margin-top: 4px; margin-bottom: 8px; }
+.stat-ic { margin-right: 6px; }
+.stat { margin-left: 0px; margin-top: 0px; margin-bottom: 0px; }
+.dynbar-ic { margin-left: 6px; }
 </style>

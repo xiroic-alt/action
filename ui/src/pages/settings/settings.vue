@@ -2,7 +2,8 @@
   <div class="page">
     <div class="topbar">
       <div class="back" @click="goBack">
-        <text class="back-text">‹ 返回</text>
+        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text">返回</text>
       </div>
       <text class="topbar-title">设置</text>
     </div>
@@ -89,10 +90,16 @@ import { log, logStatus } from '../../services/log.js'
 import { getMyInfo } from '../../services/bili.js'
 import { getMid, clearLogin, hasCookie } from '../../services/auth.js'
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png')
+}
+
 export default {
   name: 'settings',
   data() {
     return {
+      MI: MI,
       cfg: { btaudioMs: 200, keepAwake: true },
       presets: [
         { v: 0, label: '0 关闭' },
@@ -347,4 +354,7 @@ export default {
   margin-top: 14px;
   margin-bottom: 16px;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
 </style>

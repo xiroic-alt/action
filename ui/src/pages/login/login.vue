@@ -5,7 +5,8 @@
     <div :class="['left', mode === 'pc' ? 'left-full' : '']">
       <div :class="['topbar', mode === 'pc' ? 'topbar-full' : '']">
         <div class="back" @click="goBack">
-          <text class="back-text">‹ 返回</text>
+          <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+          <text class="back-text">返回</text>
         </div>
         <text class="title">登录哔哩哔哩</text>
       </div>
@@ -20,7 +21,10 @@
 
       <!-- 扫码状态 -->
       <div v-if="mode === 'qr'" class="qr-status">
-        <text v-if="pollState === 'ok'" class="st st-ok">✓ 登录成功</text>
+        <div v-if="pollState === 'ok'" class="strow">
+          <image class="st-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
+          <text class="st st-ok">登录成功</text>
+        </div>
         <text v-else-if="pollState === 'scanned'" class="st st-ok">已扫描, 请在手机上确认</text>
         <text v-else-if="pollState === 'expired'" class="st st-err">二维码已过期</text>
         <text v-else-if="pollState === 'error'" class="st st-err">{{ pollError }}</text>
@@ -79,7 +83,7 @@
         </div>
         <div v-else-if="pollState === 'ok'" class="qr-mask"
              :style="{ width: (qr.size * MOD + QPAD * 2) + 'px', height: (qr.size * MOD + QPAD * 2) + 'px' }">
-          <text class="qr-mask-text">✓</text>
+          <image :src="MI.checkBig" :style="{ width: '56px', height: '56px' }"></image>
         </div>
       </div>
       <text v-else class="qr-ph">{{ qrError !== '' ? '生成失败' : '生成中…' }}</text>
@@ -103,10 +107,18 @@ const QPAD = 20        // 静默区 >= 4 模块 (ISO/IEC 18004 下限; 面板高
 const POLL_MS = 2000   // 轮询周期
 const QR_TTL_MS = 180000
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  check: require('../../assets/mi/check_20_w.png'),
+  checkBig: require('../../assets/mi/check_56_w.png')
+}
+
 export default {
   name: 'login',
   data() {
     return {
+      MI: MI,
       MOD: MOD,
       QPAD: QPAD,
       mode: 'qr',
@@ -292,7 +304,7 @@ export default {
         const info = await getMyInfo()
         if (info.isLogin) {
           this.pcOk = true
-          this.pcStatus = '✓ 登录成功: ' + info.uname + ' (Lv' + info.level + ')'
+          this.pcStatus = '登录成功: ' + info.uname + ' (Lv' + info.level + ')'
         } else {
           this.pcStatus = 'Cookie 无效或已过期 (isLogin=false)'
         }
@@ -539,4 +551,9 @@ function toRuns(m) {
   font-size: 20px;
   color: #6a7684;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
+.strow { flex-direction: row; align-items: center; justify-content: center; }
+.st-ic { margin-right: 6px; }
 </style>

@@ -2,7 +2,8 @@
   <div class="page">
     <div class="topbar">
       <div class="back" @click="goBack">
-        <text class="back-text">‹ 返回</text>
+        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text">返回</text>
       </div>
       <text class="title">全部回复 {{ total > 0 ? total : '' }}</text>
     </div>
@@ -37,14 +38,27 @@
             </template>
           </richtext>
           <div v-if="r.pics && r.pics.length > 0" class="reply-pics">
-            <div class="reply-pic-hit" :style="{ width: pic.w + 'px', height: pic.h + 'px' }" @click="ivOpen(pic.src)">
-              <image v-for="(pic, pi) in r.pics" :key="'pic' + r.rpid + pi" class="reply-pic" @click="ivOpen(pic.src)" :src="pic.src" :style="{ width: pic.w + 'px', height: pic.h + 'px' }" resize="cover"></image>
+            <!-- 每张图一个独立命中区: 原来所有图挤在一个引用作用域外变量(pic)的 div 里, 尺寸算出来是 0, 点不开 -->
+            <div v-for="(pic, pi) in r.pics" :key="'pic' + r.rpid + pi" class="reply-pic-hit"
+                 :style="{ width: pic.w + 'px', height: pic.h + 'px' }" @click="ivOpen(pic.src)">
+              <image class="reply-pic" :src="pic.src"
+                     :style="{ width: pic.w + 'px', height: pic.h + 'px' }" resize="cover"></image>
             </div>
           </div>
+          <!-- 点赞 / 回复 / 看图: 事件挂在有尺寸的 div 上 (text 上的 @click 在本机固件不触发) -->
           <div class="reply-meta">
-            <text :class="['meta-text', r.liked ? 'meta-liked' : '']" @click="toggleReplyLike(r)">赞 {{ r.likeText }}{{ r.liked ? ' ✓' : '' }}</text>
-            <text class="meta-reply" @click="setTarget(r)">回复</text>
-            <text v-if="r.pics && r.pics.length > 0" class="meta-pic" @click="ivOpen(r.pics[0].src)">图 {{ r.pics.length }}</text>
+            <div class="meta-btn" @click="toggleReplyLike(r)">
+              <image :src="r.liked ? MI.thumbupOn : MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
+              <text :class="['meta-text', r.liked ? 'meta-liked' : '']">{{ r.likeText }}</text>
+            </div>
+            <div class="meta-btn" @click="setTarget(r)">
+              <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
+              <text class="meta-reply">回复</text>
+            </div>
+            <div v-if="r.pics && r.pics.length > 0" class="meta-btn meta-btn-pic" @click="ivOpen(r.pics[0].src)">
+              <image :src="MI.img" :style="{ width: '20px', height: '20px' }"></image>
+              <text class="meta-pic">{{ r.pics.length }}</text>
+            </div>
           </div>
         </div>
       </div>
@@ -61,6 +75,32 @@
         <text class="post-btn-text">发送</text>
       </div>
     </div>
+    <!-- 图片查看器 (transform 版, 与详情页同款): 楼中楼里的图原来点不开 ——
+         模板引用了 ivOpen, 但整个页面根本没有这个实现 (也没有查看器) -->
+    <div v-if="viewer.on" class="iview"
+         @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
+      <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"
+             @load="onImgLoad"></image>
+      <div v-if="viewer.loading || viewer.err !== ''" class="iv-mask">
+        <text class="iv-mask-t">{{ viewer.err !== '' ? viewer.err : '加载中…' }}</text>
+      </div>
+      <div class="iv-back" @click="ivClose">
+        <image class="iv-back-ic" :src="MI.back" :style="{ width: '24px', height: '24px' }"></image>
+        <text class="iv-back-t">返回</text>
+      </div>
+      <div v-if="viewer.hint" class="iv-hint">
+        <text class="iv-hint-t">双击后按住上下滑 = 缩放 · 拖动平移</text>
+      </div>
+      <div class="iv-bar">
+        <div class="iv-panel">
+          <div class="iv-btn" @click="ivZoomOut"><image :src="MI.minus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
+          <div class="iv-btn" @click="ivZoomIn"><image :src="MI.plus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-sep"></div>
+          <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">复位</text></div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -73,6 +113,14 @@ import { getSubReplies, addReply, parseMessage, likeReply } from '../../services
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { bigUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
+
+// 计时器: 优先用页面实例的 setTimeout
+function setTimer(vm, ms, fn) {
+  const p = vm.$page
+  if (p && p.setTimeout) return p.setTimeout(fn, ms)
+  return setTimeout(fn, ms)
+}
 
 // 内置常用 emoji 映射: .vue 里的 require png 会被 aiot-cli 编译成 images/<hash>.png
 // (services/*.js 里的 require 不会被编译, QuickJS 无 require 会崩, 见 0.8.7 黑屏教训)
@@ -161,11 +209,22 @@ const BUILTIN_EMOJI = {
   '2764': require('../../assets/emoji/2764.png'),
 }
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  thumbup: require('../../assets/mi/thumbup_20_m.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  reply: require('../../assets/mi/reply_20_m.png'),
+  img: require('../../assets/mi/image_20_m.png')
+}
+
 export default {
   name: 'subreply',
   data() {
     return {
       aid: 0,
+      // 图片查看器 (transform 版): 楼中楼里的图原来点不开 —— 模板引用了 ivOpen, 但整页没有实现
+      viewer: { on: false, url: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       root: 0,
       parentAuthor: '',
       parentFace: '',
@@ -186,6 +245,8 @@ export default {
     }
   },
   computed: {
+    MI() { return MI },
+    viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
     inputHint() {
       return this.target ? '回复 @' + this.target.author : '回复主评论…'
     }
@@ -341,6 +402,172 @@ export default {
     },
 
     // 点头像/昵称 -> TA 的主页
+    // ---------------- 图片查看器 (transform 版) ----------------
+    ivOpen(url) {
+      const self = this
+      this.viewer.url = bigUrl(url)
+      this.viewer.scale = 1
+      this.viewer.tx = 0
+      this.viewer.ty = 0
+      this.viewer.text = '100%'
+      this.viewer.sizeText = ''
+      this.viewer.err = ''
+      this.viewer.loading = true
+      this.viewer.hint = true
+      this.viewer.on = true
+      try { log('图片查看器', '打开 ' + this.viewer.url) } catch (e) {}
+      setTimer(this, 4000, function () { self.viewer.hint = false })
+      setTimer(this, 8000, function () { self.viewer.loading = false })
+    },
+    onImgLoad(e) {
+      const d = (e && e.detail) || {}
+      this.viewer.loading = false
+      if (d.success === false) { this.viewer.err = '图片加载失败'; return }
+      this.viewer.err = ''
+      const s = d.size || {}
+      const w = s.width || s.w || s.imgWidth || 0
+      const h = s.height || s.h || s.imgHeight || 0
+      if (w && h) this.viewer.sizeText = w + '×' + h
+    },
+    ivZoomIn() { this.viewer.hint = false; this.ivZoom(1.25) },
+    ivZoomOut() { this.viewer.hint = false; this.ivZoom(0.8) },
+    ivDouble() {
+      if (this.viewer.scale > 1.05) { this.ivFit(); return }
+      this.viewer.scale = clampScale(2)
+      this.ivApply()
+    },
+    ivApply() {
+      const p = clampPan({ x: this.viewer.tx, y: this.viewer.ty }, this.viewer.scale)
+      this.viewer.tx = p.x
+      this.viewer.ty = p.y
+      this.viewer.text = Math.round(this.viewer.scale * 100) + '%'
+    },
+    ivZoom(f) {
+      this.viewer.scale = clampScale(this.viewer.scale * f)
+      this.ivApply()
+    },
+    ivFit() {
+      this.viewer.scale = 1
+      this.viewer.tx = 0
+      this.viewer.ty = 0
+      this.viewer.text = '100%'
+      this.viewer.hint = false
+    },
+    ivClose() { this.viewer.on = false },
+    txy(e) {
+      try {
+        const t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0])
+        if (t && typeof t.pageY === 'number') return { x: t.pageX, y: t.pageY, ok: true }
+      } catch (err) {}
+      return { x: 0, y: 0, ok: false }
+    },
+    touchList(e) {
+      const out = []
+      const push = function (arr) {
+        if (!arr) return
+        for (let i = 0; i < arr.length; i++) {
+          if (arr[i] && typeof arr[i].pageY === 'number') out.push({ pageX: arr[i].pageX, pageY: arr[i].pageY })
+        }
+      }
+      try {
+        const d = (e && e.detail) || null
+        push(e && e.touches)
+        if (out.length === 0) push(e && e.changedTouches)
+        if (out.length === 0 && d) push(d.touches)
+        if (out.length === 0 && d) push(d.changedTouches)
+      } catch (err) {}
+      return out
+    },
+    pt(e) {
+      const ts = this.touchList(e)
+      if (ts.length) return { x: ts[0].pageX, y: ts[0].pageY, ok: true }
+      return this.txy(e)
+    },
+    pinchDist(ts) { const dx = ts[0].pageX - ts[1].pageX; const dy = ts[0].pageY - ts[1].pageY; return Math.sqrt(dx * dx + dy * dy) || 1 },
+    ivStart(e) {
+      this._moved = false
+      const ts = this.touchList(e)
+      if (ts.length >= 2) { this._zoomDrag = null; this.startPinch(ts); return }
+      this._pinch = null
+      const p = this.pt(e)
+      if (this._lastTap && Date.now() - this._lastTap < 320 && p.ok) {
+        this._zoomDrag = { y: p.y, scale: this.viewer.scale }
+        this._lastTap = 0
+        this._ix = p.x
+        this._iy = p.y
+        this.viewer.hint = false
+        return
+      }
+      this._zoomDrag = null
+      this._ix = p.ok ? p.x : null
+      this._iy = p.ok ? p.y : null
+    },
+    startPinch(ts) {
+      const mx = (ts[0].pageX + ts[1].pageX) / 2
+      const my = (ts[0].pageY + ts[1].pageY) / 2
+      this._pinch = { d: this.pinchDist(ts), mx: mx, my: my, scale: this.viewer.scale, tx: this.viewer.tx, ty: this.viewer.ty }
+      this._ix = null
+      this._iy = null
+      this.viewer.hint = false
+    },
+    ivMove(e) {
+      const ts = this.touchList(e)
+      if (ts.length >= 2) {
+        if (!this._pinch) { this.startPinch(ts); return }
+        const f = this.pinchDist(ts) / (this._pinch.d || 1)
+        const s2 = clampScale(this._pinch.scale * f)
+        const k = s2 / (this._pinch.scale || 1)
+        const mx = (ts[0].pageX + ts[1].pageX) / 2
+        const my = (ts[0].pageY + ts[1].pageY) / 2
+        const cx = VIEW_W / 2
+        const cy = VIEW_H / 2
+        this.viewer.scale = s2
+        this.viewer.tx = mx - cx - (this._pinch.mx - cx - this._pinch.tx) * k
+        this.viewer.ty = my - cy - (this._pinch.my - cy - this._pinch.ty) * k
+        this._moved = true
+        this.ivApply()
+        return
+      }
+      if (this._zoomDrag) {
+        const q = this.pt(e)
+        if (!q.ok) return
+        const dy = this._zoomDrag.y - q.y
+        if (Math.abs(dy) > 8) { this._moved = true; this.viewer.hint = false }
+        this.viewer.scale = clampScale(this._zoomDrag.scale * Math.exp(dy / 130))
+        this.ivApply()
+        return
+      }
+      if (this._pinch) { this._pinch = null; this._moved = true; return }
+      const p = this.pt(e)
+      if (!p.ok || this._ix === null || this._ix === undefined) return
+      const dx = p.x - this._ix, dy = p.y - this._iy
+      if (Math.abs(dx) < 1 && Math.abs(dy) < 1) return
+      if (Math.abs(dx) + Math.abs(dy) > 4) { this._moved = true; this.viewer.hint = false }
+      this._ix = p.x; this._iy = p.y
+      this.viewer.tx += dx
+      this.viewer.ty += dy
+      this.ivApply()
+    },
+    ivEnd() {
+      if (this._pinch) { this._pinch = null; this._ix = undefined; this._iy = undefined; this._lastTap = 0; return }
+      const moved = this._moved === true
+      if (this._zoomDrag) {
+        const wasDrag = moved
+        this._zoomDrag = null
+        this._ix = undefined
+        this._iy = undefined
+        this._moved = false
+        if (!wasDrag) this.ivDouble()
+        return
+      }
+      const now = Date.now()
+      this._ix = undefined
+      this._iy = undefined
+      this._moved = false
+      if (moved) { this._lastTap = 0; return }
+      if (now - (this._lastTap || 0) < 320) { this._lastTap = 0; this.ivDouble() }
+      else this._lastTap = now
+    },
     openUser(r) {
       if (!r || !r.mid) return
       try { $falcon.navTo('up', { mid: r.mid, name: r.author }) } catch (e) { this.status = '打开主页失败' }
@@ -399,7 +626,7 @@ export default {
         this.target = null
         this.pn = 1
         this.replies = []
-        this.status = '✓ 已发送'
+        this.status = '已发送'
         this.load(true)
       } catch (err) {
         this.status = '发送失败: ' + (err && err.message ? err.message : err)
@@ -682,4 +909,29 @@ function parseParentSegs(msg) {
   font-size: 19px;
   color: #ffffff;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
+.meta-btn { flex-direction: row; align-items: center; padding-top: 4px; padding-bottom: 4px; margin-right: 8px; }
+.meta-btn-pic { margin-right: 0px; }
+.meta-text, .meta-reply, .meta-pic { margin-left: 6px; }
+.reply-pic-hit { border-radius: 8px; background-color: #232830; }
+/* ---------- 图片查看器 (transform 版) ---------- */
+.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
+.iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
+.iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
+.iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
+.iv-back { position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 14px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
+.iv-back-ic { margin-right: 4px; }
+.iv-back-t { font-size: 19px; color: #ffffff; }
+.iv-hint { position: absolute; left: 0px; bottom: 68px; width: 960px; flex-direction: column; align-items: center; }
+.iv-hint-t { font-size: 16px; color: #ffffff; background-color: rgba(0,0,0,0.62); padding-left: 16px; padding-right: 16px; padding-top: 6px; padding-bottom: 6px; border-radius: 16px; }
+.iv-bar { position: absolute; left: 0px; bottom: 12px; width: 960px; flex-direction: row; justify-content: center; align-items: center; }
+.iv-panel { flex-direction: row; justify-content: center; align-items: center; padding-left: 10px; padding-right: 14px; padding-top: 6px; padding-bottom: 6px; border-radius: 20px; background-color: rgba(0,0,0,0.70); }
+.iv-btn { width: 62px; height: 40px; margin-right: 8px; border-radius: 12px; background-color: rgba(255,255,255,0.22); flex-direction: row; justify-content: center; align-items: center; }
+.iv-btn-wide { width: 88px; }
+.iv-btn-t { font-size: 22px; color: #ffffff; }
+.iv-pill { height: 40px; padding-left: 18px; padding-right: 18px; margin-right: 8px; border-radius: 12px; background-color: #fb7299; flex-direction: row; justify-content: center; align-items: center; }
+.iv-pill-t { font-size: 20px; color: #ffffff; }
+.iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.30); margin-right: 8px; }
 </style>

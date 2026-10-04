@@ -2,7 +2,8 @@
   <div class="page" :class="entering ? 'page-enter' : ''">
     <div class="topbar">
       <div class="back" @click="goBack">
-        <text class="back-text">‹ 返回</text>
+        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text">返回</text>
       </div>
       <text class="topbar-title">历史记录</text>
     </div>
@@ -42,10 +43,16 @@ import { afterPaint } from '../../base-page.js'
 var LOAD_DELAY_MS = 340
 var PULL_DY = 55
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png')
+}
+
 export default {
   name: 'history',
   data() {
     return {
+      MI: MI,
       items: [],
       status: '加载中…',
       logged: false,
@@ -328,4 +335,7 @@ export default {
   font-size: 20px;
   color: #ffffff;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
 </style>

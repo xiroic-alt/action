@@ -2,7 +2,8 @@
   <div class="page" :class="entering ? 'page-enter' : ''">
     <div class="topbar">
       <div class="back" @click="goBack">
-        <text class="back-text">‹ 返回</text>
+        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text">返回</text>
       </div>
       <text class="topbar-title">{{ mode === 'folders' ? '我的收藏' : (currentFolder.title + ' (' + currentFolder.mediaCount + ')') }}</text>
     </div>
@@ -20,7 +21,8 @@
       <template v-else-if="mode === 'folders'">
         <div v-for="f in folders" :key="f.id" class="fitem" @click="openFolder(f)">
           <text class="fitem-title">{{ f.title }}</text>
-          <text class="fitem-count">{{ f.mediaCount }} 个 · ›</text>
+          <text class="fitem-count">{{ f.mediaCount }} 个</text>
+          <image class="fitem-ic" :src="MI.chevron" :style="{ width: '20px', height: '20px' }"></image>
         </div>
         <text v-if="folders.length === 0 && !loading && status === ''" class="empty">还没有创建收藏夹</text>
       </template>
@@ -30,7 +32,10 @@
           <div class="meta">
             <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up">{{ item.author }}</text>
-            <text class="stat">▶{{ item.playText }}  {{ item.duration }}</text>
+            <div class="statrow">
+              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+            </div>
           </div>
         </div>
         <text v-if="items.length === 0 && !loading && status === ''" class="empty">这个收藏夹还是空的</text>
@@ -50,10 +55,18 @@ import { afterPaint } from '../../base-page.js'
 var LOAD_DELAY_MS = 340
 var PULL_DY = 55
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  chevron: require('../../assets/mi/chevron_20_m.png'),
+  play: require('../../assets/mi/play_18_w.png')
+}
+
 export default {
   name: 'fav',
   data() {
     return {
+      MI: MI,
       mode: 'folders',
       folders: [],
       currentFolder: { title: '', mediaCount: 0, id: 0 },
@@ -405,4 +418,11 @@ export default {
   font-size: 20px;
   color: #ffffff;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
+.fitem-ic { margin-left: 6px; }
+.statrow { flex-direction: row; align-items: center; margin-left: 16px; margin-top: 4px; margin-bottom: 8px; }
+.stat-ic { margin-right: 6px; }
+.stat { margin-left: 0px; margin-top: 0px; margin-bottom: 0px; }
 </style>

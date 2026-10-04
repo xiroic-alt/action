@@ -16,7 +16,7 @@
     "up": "pages/up/up.vue",
     "player": "pages/player/player.vue",
     "login": "pages/login/login.vue",
-    "comment": "pages/comment/comment.vue",
+
     "subreply": "pages/subreply/subreply.vue",
     "history": "pages/history/history.vue",
     "fav": "pages/fav/fav.vue",
@@ -25,7 +25,7 @@
     "feed": "pages/feed/feed.vue"
   },
   "options": {
-    "external": ["bilinet", "gstplayer", "brightness", "imageviewer"],
+    "external": ["bilinet", "gstplayer", "brightness"],
     "style": {
       "lessPaths": ["styles"]
     }

@@ -10,7 +10,8 @@
       <!-- 顶部悬浮栏: 返回 + 标题 (悬浮于视频上方) -->
       <div v-if="barVisible" class="top-bar">
         <div class="back" @click="goBack">
-          <text class="back-text">‹ 返回</text>
+          <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+          <text class="back-text">返回</text>
         </div>
         <richtext class="title"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
       </div>
@@ -23,13 +24,13 @@
       <!-- 底部悬浮控制条: 播放/快进退 + 进度条 + 时间 (悬浮于视频上方) -->
       <div v-if="barVisible" class="ctrl">
         <div class="btn btn-mini" @click="seekBack">
-          <text class="btn-text">«10s</text>
+          <image :src="MI.back10" :style="{ width: '28px', height: '28px' }"></image>
         </div>
         <div class="btn btn-main" @click="togglePlay">
-          <text class="btn-text">{{ playing ? '❚❚' : '▶' }}</text>
+          <image :src="playing ? MI.pause : MI.play" :style="{ width: '28px', height: '28px' }"></image>
         </div>
         <div class="btn btn-mini" @click="seekForward">
-          <text class="btn-text">10s»</text>
+          <image :src="MI.fwd10" :style="{ width: '28px', height: '28px' }"></image>
         </div>
         <!-- 进度条: 按 width% 渲染播放位置, 叠 N 个隐形点击分段实现点击调节 -->
         <div class="seek">
@@ -100,6 +101,15 @@ function clearTicker(vm, token) {
   if (p && p.clearInterval) p.clearInterval(token); else clearInterval(token)
 }
 
+// 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+const MI = {
+  back: require('../../assets/mi/back_26_w.png'),
+  play: require('../../assets/mi/play_28_w.png'),
+  pause: require('../../assets/mi/pause_28_w.png'),
+  back10: require('../../assets/mi/replay10_28_w.png'),
+  fwd10: require('../../assets/mi/forward10_28_w.png')
+}
+
 export default {
   name: 'player',
   data: function () {
@@ -129,6 +139,7 @@ export default {
     }
   },
   computed: {
+    MI() { return MI },
     // 标题分段: emoji -> 图片 (设备字体没有 emoji 字形, 直接 text 会整片空白)
     titleSegs() {
       const t = String(this.titleText || '')
@@ -671,4 +682,7 @@ export default {
   width: 160px;
   margin-left: 8px;
 }
+/* ---------- 图标 (material) ---------- */
+.back { flex-direction: row; }
+.back-ic { margin-right: 4px; }
 </style>
