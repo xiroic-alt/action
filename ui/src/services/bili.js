@@ -1560,9 +1560,16 @@ function dynPics(list, cell) {
     // 纯 URL 字符串 (专栏 major.article.covers) —— 只认对象会把专栏封面全丢掉
     const src = (typeof p === 'string') ? dynHttps(p) : dynHttps((p && (p.src || p.url)) || '')
     if (!src) continue
-    out.push({ src: src, w: cs, h: cs, full: src })
+    // 「照片加载慢」的根因: 原来把**原图 URL** 直接给了 <image> —— 实测有的原图 6336px 宽,
+    // 一条九宫格要下十几 MB. B 站图床支持 @<w>w_<h>h_1c.jpg 按需裁切,
+    // 列表只下格子尺寸; 原图 URL 留在 full 里, 只有点开查看器才用.
+    out.push({ src: thumb(src, cs, cs), w: cs, h: cs, full: src })
   }
-  if (out.length === 1) { out[0].w = GRID_ONE_W; out[0].h = GRID_ONE_H }
+  if (out.length === 1) {
+    out[0].w = GRID_ONE_W
+    out[0].h = GRID_ONE_H
+    out[0].src = thumb(out[0].full, GRID_ONE_W, GRID_ONE_H)
+  }
   return out
 }
 function dynArchive(arc) {
@@ -1578,6 +1585,8 @@ function dynArchive(arc) {
 }
 function dynKindOf(type) {
   if (type === 'DYNAMIC_TYPE_AV') return 'av'
+  // 番剧: 分类栏现在有「番剧」(服务端 type=pgc), 类型要能被 filter 认出来
+  if (type === 'DYNAMIC_TYPE_PGC' || type === 'DYNAMIC_TYPE_PGC_UNKNOWN') return 'pgc'
   if (type === 'DYNAMIC_TYPE_DRAW') return 'draw'
   if (type === 'DYNAMIC_TYPE_WORD') return 'word'
   if (type === 'DYNAMIC_TYPE_OPUS' || type === 'DYNAMIC_TYPE_ARTICLE') return 'opus'
@@ -1637,6 +1646,7 @@ function mapDynamicItem(it) {
     if (opics.length === 0 && oopus.pics && oopus.pics.length) opics = dynPics(oopus.pics)
     orig = {
       author: oma.name || '',
+      authorMid: oma.mid || 0,
       face: oma.face ? thumb(dynHttps(oma.face), 80, 80) : '',
       segs: osegs,
       pics: opics,
@@ -1665,6 +1675,7 @@ function mapDynamicItem(it) {
     kind: kind,
     type: kind === 'av' ? 'video' : (kind === 'draw' ? 'draw' : kind),
     author: ma.name || '',
+    mid: ma.mid || 0,        // 作者 UID: 列表/详情点头像或昵称进 UP 主页
     face: ma.face ? thumb(dynHttps(ma.face), 80, 80) : '',
     pubText: ma.pub_time || '',
     segs: segs,
@@ -1682,6 +1693,10 @@ function mapDynamicItem(it) {
       like: (st.like && st.like.count) || 0,
       reply: (st.comment && st.comment.count) || 0,
       forward: (st.forward && st.forward.count) || 0,
+      // 展示文案 (「1.2万」这类) 在映射层统一算好, 列表/详情共用同一套格式化
+      likeText: formatPlay((st.like && st.like.count) || 0),
+      replyText: formatPlay((st.comment && st.comment.count) || 0),
+      forwardText: formatPlay((st.forward && st.forward.count) || 0),
       // 点赞按钮初始高亮: module_stat.like.status = 我是否已赞 (实测字段存在)
       liked: !!(st.like && st.like.status)
     },

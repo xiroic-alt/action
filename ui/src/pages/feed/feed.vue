@@ -30,7 +30,7 @@
       <div class="fwrap">
 
         <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)">
-          <div class="dhead">
+          <div class="dhead" @click="openUp(d)">
             <image v-if="d.face" class="dface" :src="d.face" resize="cover"></image>
             <div v-else class="dface dface-ph"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
             <text class="dauthor">{{ d.author }}</text>
@@ -39,15 +39,16 @@
           </div>
 
           <!-- 无正文时不要渲染空 richtext: lines:3 仍会占 3 行高度 -> 卡片里一大片空白 -->
-          <richtext v-if="d.segs && d.segs.length > 0" :class="['dtext', d.expanded ? 'dtext-open' : '']" @click="toggle(d)">
+          <richtext v-if="d.segs && d.segs.length > 0" class="dtext" @click="openDyn(d)">
             <template v-for="(seg, si) in d.segs">
               <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
               <span v-else-if="seg.t === 2" :key="'h' + si" class="dhl">{{ seg.v }}</span>
               <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
             </template>
           </richtext>
-          <div v-if="d.isLong && !d.expanded" class="dmore" @click="toggle(d)">
-            <text class="dmore-t">展开全文</text>
+          <!-- 点文字 / 点这里都进详情页 (用户要求: 收起和展开都一样进详情), 不再就地展开 -->
+          <div v-if="d.isLong || d.kind === 'opus' || d.kind === 'draw'" class="dmore" @click="openDynRow(d)">
+            <text class="dmore-t">查看全文</text>
             <image class="dmore-ic" :src="MI.expand" :style="{ width: '20px', height: '20px' }"></image>
           </div>
 
@@ -77,11 +78,7 @@
             <text class="otitle">{{ d.opus.title }}</text>
           </div>
 
-          <!-- 专栏/图文: 列表里只是摘要, 全文在阅读页 -> 给一个明确的入口 (整张卡片也可点) -->
-          <div class="dread" v-if="d.kind === 'opus' || d.kind === 'draw'" @click="openDynRow(d)">
-            <text class="dread-t">阅读全文</text>
-            <image class="dread-ic" :src="MI.expand" :style="{ width: '18px', height: '18px' }"></image>
-          </div>
+
 
           <div class="ostat" v-if="d.orig">
             <text class="olabel">{{ '转发 @' + d.orig.author + '：' }}</text>
@@ -113,13 +110,20 @@
             </div>
           </div>
 
+          <!-- 底部: 点赞(列表直接点) / 评论(一律进动态详情页) / 转发数 -->
           <div class="dfoot">
-            <image class="dfoot-ic" :src="MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="dfoot-t">{{ d.stat.like }}</text>
-            <image class="dfoot-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="dfoot-t">{{ d.stat.reply }}</text>
-            <image class="dfoot-ic" :src="MI.share" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="dfoot-t">{{ d.stat.forward }}</text>
+            <div :class="['dfoot-btn', d.stat.liked ? 'dfoot-on' : '']" @click="likeItem(d)">
+              <image class="dfoot-ic" :src="d.stat.liked ? MI.thumbupOn : MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
+              <text :class="['dfoot-t', d.stat.liked ? 'dfoot-t-on' : '']">{{ d.stat.likeText }}</text>
+            </div>
+            <div class="dfoot-btn" @click="openDynPage(d)">
+              <image class="dfoot-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
+              <text class="dfoot-t">{{ d.stat.replyText }}</text>
+            </div>
+            <div class="dfoot-btn dfoot-static">
+              <image class="dfoot-ic" :src="MI.share" :style="{ width: '20px', height: '20px' }"></image>
+              <text class="dfoot-t">{{ d.stat.forwardText }}</text>
+            </div>
           </div>
         </div>
 
@@ -162,7 +166,8 @@
 </template>
 
 <script>
-import { getDynamicFeed } from '../../services/bili.js'
+import { getDynamicFeed, likeDynamic } from '../../services/bili.js'
+import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
@@ -174,6 +179,7 @@ const MI = {
   play: require('../../assets/mi/play_18_w.png'),
   expand: require('../../assets/mi/expand_20_m.png'),
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
   comment: require('../../assets/mi/comment_20_m.png'),
   share: require('../../assets/mi/share_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
@@ -188,25 +194,34 @@ function setTimer(vm, ms, fn) {
 }
 
 
+// 分类精简 (用户要求): 全部 / 投稿 / 番剧 / 专栏 —— 四个都用服务端 type 筛,
+// 「图文 / 文字 / 转发」三个客户端过滤分类取消 (它们靠客户端过滤 + 自动续翻, 命中率差)
 const CATS = [
   { k: 'all', n: '全部' },
   { k: 'av', n: '投稿' },
-  { k: 'draw', n: '图文' },
-  { k: 'word', n: '文字' },
-  { k: 'forward', n: '转发' },
+  { k: 'pgc', n: '番剧' },
   { k: 'opus', n: '专栏' }
 ]
-const KIND_NAME = { av: '投稿', draw: '图文', word: '文字', opus: '专栏', forward: '转发', live: '直播', other: '动态' }
+const KIND_NAME = { av: '投稿', pgc: '番剧', draw: '图文', word: '文字', opus: '专栏', forward: '转发', live: '直播', other: '动态' }
 
 // 分类 -> 动态接口的 type (文档 dynamic/all.md):
 //   投稿=video, 专栏=article 由服务端筛; 全部/图文/文字/转发没有服务端 type, 仍走客户端过滤 + 自动续翻
-const CAT_TYPE = { all: 'all', av: 'video', draw: 'all', word: 'all', forward: 'all', opus: 'article' }
+const CAT_TYPE = { all: 'all', av: 'video', pgc: 'pgc', opus: 'article' }
 const PULL_DY = 55   // 下拉刷新触发位移 (与首页一致)
 
 function chunk(arr, n) {
   const out = []
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n))
   return out
+}
+
+// 点赞数 +1/-1 (接口给的是 "1.2万" 这类文案, 只能就地加减整数部分)
+function bumpCount(text, add) {
+  const t = String(text == null ? '' : text)
+  const m = /^(\d+)(.*)$/.exec(t)
+  if (!m) return t
+  const n = Math.max(0, parseInt(m[1], 10) + (add ? 1 : -1))
+  return n + m[2]
 }
 
 export default {
@@ -233,14 +248,15 @@ export default {
     MI() { return MI },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
-    // 分类筛选: 投稿 / 图文 / 文字 / 转发 / 专栏
+    // 分类筛选: 全部 / 投稿 / 番剧 / 专栏 (都走服务端 type)
+    // 客户端只兜一层类型过滤, 且过滤后为空就原样显示 —— 别把服务端筛过的内容藏起来
     shown() {
       if (this.cat === 'all') return this.items
       const out = []
       for (let i = 0; i < this.items.length; i++) {
         if (this.items[i].kind === this.cat) out.push(this.items[i])
       }
-      return out
+      return out.length > 0 ? out : this.items
     }
   },
   methods: {
@@ -372,24 +388,58 @@ export default {
     // 卡片内部的点击(展开全文/开图/开视频)会冒泡到卡片本身: 本运行时没有验证过 .stop 修饰符,
     // 用时间窗兜底 —— 内部点击先落一个时间戳, 卡片的 handler 在 500ms 内直接让路.
     innerTap() { this._innerTap = Date.now() },
-    toggle(d) { this.innerTap(); d.expanded = !d.expanded },
     openVideo(a) {
       if (!a || !a.bvid) return
       this.innerTap()
       try { $falcon.navTo('page', { bvid: a.bvid, title: a.title }) } catch (e) {}
     },
     openPic(p) { this.innerTap(); if (p && p.full) this.ivOpen(p.full) },
-    // 「阅读全文」入口: 先落 innerTap, 避免冒泡到卡片再打开一次
-    openDynRow(d) { this.innerTap(); this.openDyn(d) },
-    // 卡片 -> 动态阅读页 (投稿仍走视频详情页, 其余进动态/专栏阅读页)
+    // 头像 / 昵称 -> UP 主页
+    openUp(d) {
+      this.innerTap()
+      if (!d || !d.mid) return
+      try { $falcon.navTo('up', { mid: String(d.mid), name: d.author }) } catch (e) { this.status = '打开主页失败' }
+    },
+    // 「查看全文」: 一律进详情页
+    openDynRow(d) { this.innerTap(); this.openDynPage(d) },
+    // 卡片 -> 详情页 (投稿走视频页, 其余进动态阅读页)
     openDyn(d) {
       if (this._innerTap && (Date.now() - this._innerTap) < 500) return
       if (!d) return
       if (d.bvid) { this.openVideo(d); return }
+      this.openDynPage(d)
+    },
+    // 强制进动态详情页: 评论按钮走这里 —— 投稿也能进去看评论 (用户要求)
+    openDynPage(d) {
+      this.innerTap()
+      if (!d) return
       const id = d.id ? String(d.id) : ''
       if (!id) return
       try { log('动态页', '打开详情 id=' + id + ' kind=' + (d.kind || '')) } catch (e0) {}
       try { $falcon.navTo('dyn', { id: id, kind: d.kind || '' }) } catch (e) { this.status = '打开动态详情失败' }
+    },
+    // 列表直接点赞: 乐观更新 + 失败回滚 (与详情页同一套)
+    async likeItem(d) {
+      this.innerTap()
+      if (!d || !d.id || !d.stat) return
+      if (!hasCookie()) { this.status = '登录后才能点赞'; return }
+      if (d._liking) return
+      d._liking = true
+      const want = !d.stat.liked
+      d.stat.liked = want
+      const before = d.stat.likeText
+      d.stat.likeText = bumpCount(before, want)
+      try {
+        await likeDynamic(d.id, want)
+        try { log('动态页', '点赞 ' + (want ? 'on' : 'off') + ' ' + d.id) } catch (e0) {}
+      } catch (err) {
+        d.stat.liked = !want
+        d.stat.likeText = before
+        this.status = (err && err.message) ? err.message : '点赞失败'
+        try { log('动态页', '点赞失败 ' + this.status) } catch (e1) {}
+      } finally {
+        d._liking = false
+      }
     },
     // 打开: 只把大图 URL 交给 <image resize="contain">, 缩放/平移用 transform (不落盘/不阻塞/不受图片缓存影响)
     ivOpen(url) {
@@ -673,8 +723,13 @@ export default {
 .ostat { margin-top: 6px; padding: 8px; background-color: #1a1d22; border-radius: 8px; }
 .olabel { font-size: 17px; color: #8fb8ff; }
 .dfoot { flex-direction: row; align-items: center; margin-top: 8px; }
+/* 点赞/评论/转发: 有尺寸的命中区 (事件必须挂在 div 上, text 上的 @click 本机不触发) */
+.dfoot-btn { flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; border-radius: 17px; background-color: #262b33; margin-right: 10px; }
+.dfoot-static { background-color: #1f2329; }
+.dfoot-on { background-color: #3a2733; }
 .dfoot-ic { margin-right: 6px; }
-.dfoot-t { font-size: 16px; color: #9aa3af; margin-right: 18px; }
+.dfoot-t { font-size: 16px; color: #9aa3af; }
+.dfoot-t-on { color: #fb7299; }
 .loadmore { height: 40px; justify-content: center; }
 .loadmore-t { font-size: 17px; color: #8fb8ff; }
 .empty { margin-top: 20px; justify-content: center; }

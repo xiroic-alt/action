@@ -13,7 +13,6 @@
 
     <!-- ============ 左栏: 内容 (580px) ============ -->
     <div class="dleft">
-      <!-- 交互行: 点赞 / 评论数 / 转发数 (固定在内容上方, 长文不用滚到底才点得到) -->
       <div class="actrow">
         <div :class="['act-btn', liked ? 'act-on' : '']" @click="doLike">
           <text :class="['act-text', liked ? 'act-text-on' : '']">{{ liked ? '已赞' : '点赞' }}</text>
@@ -37,7 +36,7 @@
 
       <scroller v-else class="dscroll" scroll-direction="vertical" :show-scrollbar="true">
         <div class="dwrap">
-          <div class="ahead">
+          <div class="ahead" @click="openUp">
             <image v-if="face !== ''" class="aface" :src="face" resize="cover"></image>
             <div v-else class="aface aface-ph"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
             <text class="aname">{{ author }}</text>
@@ -56,7 +55,7 @@
                 </template>
               </richtext>
               <div v-else-if="b.k === 'pic'" class="pimg" :style="{ width: b.w + 'px', height: b.h + 'px' }" @click="openPic(b)">
-                <image class="pimg-i" :src="b.src" resize="cover" :style="{ width: b.w + 'px', height: b.h + 'px' }"></image>
+                <image class="pimg-i" :src="b.src" :lazy-load="true" resize="cover" :style="{ width: b.w + 'px', height: b.h + 'px' }"></image>
               </div>
               <div v-else-if="b.k === 'list'" class="plist">
                 <div class="plist-row" v-for="(r, ri) in b.rows" :key="'lr' + ri">
@@ -89,13 +88,13 @@
               <div class="pic-row" v-for="(row, ri) in rows" :key="'pr' + ri">
                 <div class="pic-box" v-for="(p, pi) in row" :key="'pb' + ri + '_' + pi"
                      :style="{ width: p.w + 'px', height: p.h + 'px' }" @click="openPic(p)">
-                  <image class="pic-img" :src="p.src" resize="cover"
+                  <image class="pic-img" :src="p.src" :lazy-load="true" resize="cover"
                          :style="{ width: p.w + 'px', height: p.h + 'px' }"></image>
                 </div>
               </div>
             </div>
             <div class="vcard" v-if="archive" @click="openVideo(archive)">
-              <image class="vcover" :src="archive.cover" resize="cover"></image>
+              <image class="vcover" :src="archive.cover" :lazy-load="true" resize="cover"></image>
               <div class="vmeta">
                 <text class="vtitle">{{ archive.title }}</text>
                 <div class="vstatrow">
@@ -105,7 +104,7 @@
               </div>
             </div>
             <div class="ostat" v-if="orig">
-              <text class="olabel">{{ '转发 @' + orig.author }}</text>
+              <text class="olabel" @click="openOrigUp">{{ '转发 @' + orig.author }}</text>
               <richtext v-if="orig.segs.length > 0" class="ptext">
                 <template v-for="(seg, si) in orig.segs">
                   <span v-if="seg.t === 0" :key="'os' + si">{{ seg.v }}</span>
@@ -117,8 +116,19 @@
                 <div class="pic-row" v-for="(row, ri) in origRows" :key="'or' + ri">
                   <div class="pic-box" v-for="(p, pi) in row" :key="'ob' + ri + '_' + pi"
                        :style="{ width: p.w + 'px', height: p.h + 'px' }" @click="openPic(p)">
-                    <image class="pic-img" :src="p.src" resize="cover"
+                    <image class="pic-img" :src="p.src" :lazy-load="true" resize="cover"
                            :style="{ width: p.w + 'px', height: p.h + 'px' }"></image>
+                  </div>
+                </div>
+              </div>
+              <!-- 转发内容里的视频: 之前详情页漏渲染了 (用户反馈「转发的视频就没有了」) -->
+              <div class="vcard" v-if="orig.archive" @click="openVideo(orig.archive)">
+                <image class="vcover" :src="orig.archive.cover" :lazy-load="true" resize="cover"></image>
+                <div class="vmeta">
+                  <text class="vtitle">{{ orig.archive.title }}</text>
+                  <div class="vstatrow">
+                    <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
+                    <text class="vstat">{{ orig.archive.playText + '   ' + orig.archive.duration }}</text>
                   </div>
                 </div>
               </div>
@@ -145,7 +155,7 @@
                 :loadmoreoffset="100" @loadmore="loadMoreComments">
         <text v-if="cStatus !== ''" class="c-status">{{ cStatus }}</text>
         <div v-for="r in replies" :key="r.rpid" class="reply">
-          <image class="face" :src="r.face" resize="cover"></image>
+          <image class="face" :src="r.face" :lazy-load="true" resize="cover"></image>
           <div class="reply-main">
             <div class="reply-head">
               <text class="reply-author">{{ r.author }}</text>
@@ -178,9 +188,18 @@
         <text v-if="hasMore && replies.length > 0" class="load-more" @click="loadMoreComments">加载更多评论…</text>
         <text v-if="!cLoading && replies.length === 0 && cStatus === ''" class="empty">还没有评论</text>
       </scroller>
+      <!-- 发评论: 走系统输入法 (services/ime.js), 与视频详情页同一套 -->
+      <div class="postbar">
+        <div class="post-input" @click="openPostInput">
+          <text class="post-input-text">{{ logged ? (posting ? '发送中…' : '说点什么…') : '登录后参与评论' }}</text>
+        </div>
+        <div class="post-btn" @click="openPostInput">
+          <text class="post-btn-text">发送</text>
+        </div>
+      </div>
     </div>
 
-    <!-- 图片查看器 (与动态页同款: 手势期轻量图 + 每帧最多写一次 + 静置 260ms 换原图) -->
+    <!-- 图片查看器 (与动态页同款) -->
     <div v-if="viewer.on" class="iview"
          @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
       <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"
@@ -208,10 +227,10 @@
     </div>
   </div>
 </template>
-
 <script>
-import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply } from '../../services/bili.js'
+import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
+import { createIME } from '../../services/ime.js'
 import { log } from '../../services/log.js'
 import { afterPaint } from '../../base-page.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
@@ -242,15 +261,7 @@ function chunkRows(arr, n) {
   return out
 }
 
-// 计数文案: 上万折成「1.2万」(设备屏窄, 原始数字太长会把交互行挤爆)
-function fmtNum(n) {
-  const v = Number(n) || 0
-  if (v >= 100000000) return (Math.round(v / 1000000) / 10) + '亿'
-  if (v >= 10000) return (Math.round(v / 1000) / 10) + '万'
-  return String(v)
-}
-
-// 点赞数 +1/-1 (接口返回可能是 "1.2万" 这类文本, 只能就地加减整数部分)
+// 点赞数 +1/-1 (接口给的是 "1.2万" 这类文案, 只能就地加减整数部分)
 function bumpCount(text, add) {
   const t = String(text == null ? '' : text)
   const m = /^(\d+)(.*)$/.exec(t)
@@ -337,7 +348,6 @@ const BUILTIN_EMOJI = {
   '2753': require('../../assets/emoji/2753.png'),
   '2764': require('../../assets/emoji/2764.png'),
 }
-
 export default {
   name: 'dyn',
   data() {
@@ -350,14 +360,12 @@ export default {
       segs: [],
       rows: [],
       origRows: [],
-      // 点赞 (动态维度, 与列表里的数字同源)
       liked: false,
       likeText: '0',
       replyText: '0',
       forwardText: '0',
       actStatus: '',
       liking: false,
-      // 评论
       replies: [],
       total: 0,
       pn: 1,
@@ -369,8 +377,10 @@ export default {
       commentOid: '',
       cGeneration: 0,
       loading: false,
-      // 异步世代守卫: 必须声明在 data() 里, 否则 ++undefined=NaN 且 NaN!==NaN 恒真 ->
-      // 结果被整段丢弃, loading 永不复位 (0.9.57 动态页「永远加载中」的根因)
+      ime: null,
+      posting: false,
+      logged: false,
+      // 异步世代守卫: 必须声明在 data() 里 (0.9.57「永远加载中」的根因)
       generation: 0,
       viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false }
     }
@@ -396,6 +406,7 @@ export default {
   },
   methods: {
     onShow() {
+      this.logged = hasCookie()
       try { log('动态详情', 'onShow 到达 started=' + (this._started === true)) } catch (e0) {}
       if (this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
@@ -405,6 +416,9 @@ export default {
       if (this._started) return
       this._started = true
       this.begin()
+    },
+    onUnload() {
+      if (this.ime) { try { this.ime.destroy() } catch (e) {} this.ime = null }
     },
     onNewOptions(options) { this.begin(options) },
     begin(options) {
@@ -431,6 +445,17 @@ export default {
     },
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load() },
     back() { try { this.$page.finish() } catch (e) {} },
+    goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },
+    openUp() {
+      const mid = (this.item && this.item.mid) || 0
+      if (!mid) return
+      try { $falcon.navTo('up', { mid: String(mid), name: this.author }) } catch (e) { this.status = '打开主页失败' }
+    },
+    openOrigUp() {
+      const mid = (this.orig && this.orig.authorMid) || 0
+      if (!mid) return
+      try { $falcon.navTo('up', { mid: String(mid), name: this.orig.author }) } catch (e) { this.status = '打开主页失败' }
+    },
     async load() {
       if (this.loading) return
       if (!this.id) return
@@ -438,10 +463,8 @@ export default {
       this.status = '加载中…'
       const self = this
       const gen = ++this.generation
-      // 先让「加载中…」画出来再发请求 (同步实现会阻塞 JS 线程)
       afterPaint(async function () {
         try {
-          // 1) 动态本体: 所有类型都有 (作者/时间/图/视频卡/转发 + 评论区坐标)
           let it = null
           try {
             it = await getDynamicDetail(self.id)
@@ -455,13 +478,12 @@ export default {
             self.rows = chunkRows(it.pics || [], 4)
             self.origRows = it.orig ? chunkRows(it.orig.pics || [], 4) : []
             self.liked = !!(it.stat && it.stat.liked)
-            self.likeText = fmtNum(it.stat ? it.stat.like : 0)
-            self.replyText = fmtNum(it.stat ? it.stat.reply : 0)
-            self.forwardText = fmtNum(it.stat ? it.stat.forward : 0)
+            self.likeText = (it.stat && it.stat.likeText) || '0'
+            self.replyText = (it.stat && it.stat.replyText) || '0'
+            self.forwardText = (it.stat && it.stat.forwardText) || '0'
             self.commentType = it.commentType || 11
             self.commentOid = it.commentOid || ''
           }
-          // 2) 专栏/图文全文: 列表里的字只是摘要 (实测 211 字 + has_more), 全文只在 opus/detail
           let full = null
           try {
             full = await getOpusDetail(self.id)
@@ -476,10 +498,10 @@ export default {
             self.status = ''
             try {
               log('动态详情', '渲染 id=' + self.id + ' 全文=' + (full ? full.blocks.length + '块' : '无')
-                + ' 本体=' + (it ? it.kind : '无') + ' 评论区=' + self.commentType + '/' + self.commentOid)
+                + ' 本体=' + (it ? it.kind : '无') + ' 转发视频=' + (it && it.orig && it.orig.archive ? '有' : '无')
+                + ' 评论区=' + self.commentType + '/' + self.commentOid)
             } catch (e4) {}
           }
-          // 3) 评论: 用 basic.comment_type + comment_id_str (不是动态 id!)
           if (self.commentOid) self.loadComments(true, false)
           else self.cStatus = '这条动态没有评论区'
         } catch (err) {
@@ -499,7 +521,6 @@ export default {
       if (!hasCookie()) { this.actStatus = '登录后才能点赞'; return }
       const want = !this.liked
       this.liking = true
-      // 乐观更新: 接口成功后列表计数有延迟, 先改 UI, 失败回滚
       this.liked = want
       this.likeText = bumpCount(this.likeText, want)
       try {
@@ -576,7 +597,6 @@ export default {
         this.cStatus = (err && err.message) ? err.message : '点赞失败'
       }
     },
-    // 楼中楼: aid 用评论区的 oid, ctype 透传给 subreply (默认 1=视频会取错数据)
     openSubReply(r) {
       if (!r || !r.rpid) return
       try {
@@ -585,6 +605,44 @@ export default {
           author: r.author, face: r.face, count: r.replyCount, msg: r.message
         })
       } catch (e) { this.cStatus = '打开楼中楼失败' }
+    },
+    // 发评论: 系统输入法拿文本 -> addReply (type 用本动态的 commentType)
+    async openPostInput() {
+      if (!hasCookie()) { this.cStatus = '登录后才能评论'; this.goLogin(); return }
+      if (this.ime == null) this.ime = createIME()
+      try {
+        const text = await this.ime.open({
+          text: '',
+          placeholder: '说点什么…',
+          maxlength: 500,
+          multiLinesEditVisible: false,
+          enterButtonText: '发送',
+          confirmText: '发送'
+        })
+        if (text === null || text.trim() === '') return
+        await this.postComment(text.trim())
+      } catch (err) {
+        this.cStatus = '输入失败: ' + (err && err.message ? err.message : err)
+      }
+    },
+    async postComment(message) {
+      if (this.posting) return
+      if (!this.commentOid) { this.cStatus = '这条动态没有评论区'; return }
+      this.posting = true
+      this.cStatus = '发送中…'
+      try {
+        await addReply(this.commentOid, message, null, null, this.commentType)
+        this.pn = 1
+        this.replies = []
+        this.total = 0
+        this.cStatus = '已发送'
+        try { log('动态详情', '评论已发送 len=' + message.length + ' type=' + this.commentType) } catch (e0) {}
+        this.loadComments(true, true)
+      } catch (err) {
+        this.cStatus = '发送失败: ' + (err && err.message ? err.message : err)
+      } finally {
+        this.posting = false
+      }
     },
 
     openVideo(a) {
@@ -792,7 +850,6 @@ export default {
   }
 }
 </script>
-
 <style scoped>
 .dpage { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #14161a; }
 .dtop { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #1b1e24; }
@@ -854,7 +911,7 @@ export default {
 .ostat { margin-top: 8px; padding: 8px; background-color: #1a1d22; border-radius: 8px; }
 .olabel { font-size: 16px; color: #8fb8ff; }
 
-/* ---- 右栏: 评论 ---- */
+/* ---- 右栏: 评论 + 发评栏 ---- */
 .dsep { position: absolute; left: 580px; top: 44px; width: 2px; height: 222px; background-color: #232830; }
 .dright { position: absolute; left: 582px; top: 44px; width: 378px; height: 222px; flex-direction: column; }
 .sortbar { height: 30px; flex-direction: row; align-items: center; padding-left: 8px; background-color: #1a1d22; }
@@ -863,7 +920,7 @@ export default {
 .sort-text { font-size: 15px; color: #8a94a6; }
 .sort-text-on { color: #fb7299; }
 .sort-count { font-size: 14px; color: #5c6672; margin-left: 4px; }
-.clist { position: absolute; left: 0px; top: 30px; width: 378px; height: 192px; flex-direction: column; padding-left: 12px; padding-right: 12px; }
+.clist { position: absolute; left: 0px; top: 30px; width: 378px; height: 152px; flex-direction: column; padding-left: 12px; padding-right: 12px; }
 .c-status { font-size: 16px; color: #e6a23c; margin-top: 6px; margin-bottom: 6px; }
 .reply { flex-direction: row; padding-top: 8px; padding-bottom: 8px; border-bottom-width: 1px; border-bottom-color: #262b33; }
 .face { width: 44px; height: 44px; border-radius: 22px; margin-right: 10px; }
@@ -885,6 +942,11 @@ export default {
 .meta-reply { font-size: 15px; color: #8a94a6; margin-left: 4px; }
 .load-more { font-size: 16px; color: #8fb8ff; text-align: center; padding-top: 10px; padding-bottom: 10px; }
 .empty { font-size: 16px; color: #8a93a0; text-align: center; margin-top: 16px; }
+.postbar { position: absolute; left: 0px; top: 182px; width: 378px; height: 40px; flex-direction: row; align-items: center; background-color: #21242b; padding-left: 10px; padding-right: 10px; }
+.post-input { width: 248px; height: 32px; border-radius: 16px; background-color: #2a2f38; justify-content: center; padding-left: 14px; }
+.post-input-text { font-size: 16px; color: #8a94a6; }
+.post-btn { width: 78px; height: 32px; border-radius: 16px; background-color: #fb7299; justify-content: center; align-items: center; margin-left: 8px; }
+.post-btn-text { font-size: 16px; color: #ffffff; }
 
 /* ---- 图片查看器 ---- */
 .iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }

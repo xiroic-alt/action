@@ -138,7 +138,9 @@
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
             <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-            <text class="up">{{ item.author }} · {{ item.pubText }}</text>
+            <div class="uphit" @click="openUpItem(item)">
+              <text class="up">{{ item.author }} · {{ item.pubText }}</text>
+            </div>
             <div class="statrow">
               <image v-if="item.type !== 'draw'" class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
               <text class="stat">{{ item.type === 'draw' ? ('图文 · ' + item.duration) : (item.playText + '  ' + item.duration) }}</text>
@@ -228,7 +230,7 @@ const MI = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P17twocol'
+const BUILD_TAG = 'P18batch'
 export default {
   name: 'index',
   data() {
@@ -737,8 +739,16 @@ export default {
       console.log('open video', item.bvid, item.title)
       $falcon.navTo('page', { bvid: item.bvid, title: item.title })
     },
+    // 卡片内部点击(进 UP 主页)会冒泡到卡片本身: 用时间窗兜底 (本运行时没有 .stop 修饰符先例)
+    innerTap() { this._innerTap = Date.now() },
+    openUpItem(item) {
+      this.innerTap()
+      if (!item || !item.mid) return
+      try { $falcon.navTo('up', { mid: String(item.mid), name: item.author }) } catch (e) { this.dynStatus = '打开主页失败' }
+    },
     // 动态卡片: 投稿走视频详情页, 其余(图文/专栏/文字/转发)进动态阅读页
     openDynItem(item) {
+      if (this._innerTap && (Date.now() - this._innerTap) < 500) return
       if (!item) return
       if (item.bvid) { this.openVideo(item); return }
       const id = item.id ? String(item.id) : ''
@@ -979,11 +989,16 @@ export default {
   text-overflow: ellipsis;
   overflow: hidden;
 }
+/* 作者行: 点击进 UP 主页 (命中区必须有尺寸, text 上的 @click 本机不触发) */
+.uphit {
+  height: 30px;
+  justify-content: center;
+  margin-left: 16px;
+  margin-top: 4px;
+}
 .up {
   font-size: 20px;
   color: #fb7299;
-  margin-left: 16px;
-  margin-top: 4px;
 }
 .stat {
   font-size: 20px;
