@@ -124,6 +124,46 @@ static int readBtAudioDelayMs()
     return v;
 }
 
+// 视频面层级偏好: /userdisk/xiro/vlayer 覆盖 (整数, 见 applyLayer 注释).
+// 读不到用缺省 2 (bottom). 允许运行时改文件后重播生效, 不必重编 CI.
+static int readLayerPref()
+{
+    FILE* f = fopen("/userdisk/xiro/vlayer", "r");
+    if (!f) return 2;
+    int v = 99;
+    if (fscanf(f, "%d", &v) != 1) v = 99;
+    fclose(f);
+    if (v < -1 || v > 2) { GP_LOG("vlayer file invalid (%d), use 2", v); return 2; }
+    return v;
+}
+
+// 视频面层级 (从第一帧起就让 UI 叠在播放画面上):
+//   本固件 waylandsink 被原厂 patch 出 layer 枚举 (真机 gst-inspect 实测):
+//     0 = top / 1 = normal (缺省) / 2 = bottom
+//   设 2 把视频面钉在 Weston 层序最底 -> Falcon 页面的 UI (含 <hole> 挖洞)
+//   恒在视频之上, 播放页第一帧即正确, 不再依赖「真实输入事件抬升焦点 surface」
+//   (HANDOVER 20.4: bilinet 的 send_event 走框架输入队列, 不进 Weston, 那条路无解).
+//   红线: 绝不能在元素构造期设这个属性 —— 那时 window 还是 NULL,
+//   gst_wl_window_ensure_layer -> gst_wl_window_is_toplevel(NULL) 直接 SIGSEGV
+//   (真机 gst-launch layer=bottom 栈回溯实测: g_object_new_with_properties 路径).
+//   waylandsink 的 window 在 READY->PAUSED 时创建, 所以只在状态到位后设.
+void PlayCore::applyLayer()
+{
+    GstElement* sink = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(m_lock);
+        if (m_layerApplied || !m_sink) return;
+        m_layerApplied = true;
+        sink = m_sink;
+    }
+    int want = readLayerPref();
+    if (want < 0) { GP_LOG("layer: 已禁用 (vlayer<0), 保持 normal"); return; }
+    g_object_set(G_OBJECT(sink), "layer", want, NULL);
+    gint got = -1;
+    g_object_get(G_OBJECT(sink), "layer", &got, NULL);
+    GP_LOG("layer applied want=%d got=%d (0=top 1=normal 2=bottom)", want, (int)got);
+}
+
 void PlayCore::setEventCallback(EventFn fn, void* userData)
 {
     m_eventFn = fn;
@@ -275,6 +315,7 @@ void PlayCore::teardown()
         m_audioBaseMs = -1;
         m_videoBaseMs = -1;
         m_avOffsetApplied = false;
+        m_layerApplied = false;   // 新 window 需要重新设层级
     }
     GP_LOG("teardown done");
 }
@@ -697,9 +738,11 @@ void PlayCore::busLoop()
                 gst_message_parse_state_changed(msg, NULL, &newState, NULL);
                 if (newState == GST_STATE_PLAYING) {
                     GP_LOG("bus PLAYING");
+                    applyLayer();   // window 已建: 钉住视频面层级 (幂等)
                     emit("play");
                 } else if (newState == GST_STATE_PAUSED) {
                     GP_LOG("bus PAUSED");
+                    applyLayer();
                     emit("pause");
                 }
             }

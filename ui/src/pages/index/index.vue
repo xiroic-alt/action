@@ -233,7 +233,7 @@ const MI = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P18batch'
+const BUILD_TAG = 'P19ui'
 export default {
   name: 'index',
   data() {
@@ -796,7 +796,7 @@ export default {
 .page {
   width: 960px;
   height: 266px;
-  background-color: #141414;
+  background-color: #000000;
   display: flex;
   flex-direction: column;
 }
@@ -805,7 +805,7 @@ export default {
   height: 44px;
   display: flex;
   flex-direction: row;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
 }
 
 .tab-refresh {
@@ -825,13 +825,13 @@ export default {
   align-items: center;
 }
 .tab-active {
-  background-color: #2c2c2c;
+  background-color: #141416;
   border-bottom-width: 3px;
   border-bottom-color: #fb7299;
 }
 .tab-text {
   font-size: 24px;
-  color: #999999;
+  color: #a8a8b0;
 }
 .tab-text-active {
   color: #ffffff;
@@ -843,7 +843,7 @@ export default {
   flex-direction: column;
 }
 .dynbar { width: 960px; height: 34px; flex-direction: row; align-items: center; padding-left: 20px; }
-.dynbar-t { font-size: 17px; color: #8fb8ff; }
+.dynbar-t { font-size: 17px; color: #3ca5ec; }
 /* 列表区吃满剩余高度 (搜索页有结果时下方不再留空白) */
 .list {
   width: 960px;
@@ -855,13 +855,13 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: center;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
 }
 .search-input {
   width: 760px;
   height: 46px;
   margin-left: 20px;
-  background-color: #2c2c2c;
+  background-color: #141416;
   border-radius: 23px;
   justify-content: center;
 }
@@ -903,7 +903,7 @@ export default {
 }
 .status {
   font-size: 22px;
-  color: #999999;
+  color: #a8a8b0;
   margin-top: 4px;
   height: 30px;
   width: 100%;
@@ -950,7 +950,7 @@ export default {
   margin-right: 14px;
   margin-bottom: 12px;
   border-radius: 22px;
-  background-color: #2c2c2c;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -960,7 +960,7 @@ export default {
 }
 .his-empty {
   font-size: 20px;
-  color: #666666;
+  color: #6e6e76;
   margin-top: 12px;
 }
 .item {
@@ -969,7 +969,7 @@ export default {
   margin-top: 10px;
   display: flex;
   flex-direction: row;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   border-radius: 12px;
 }
 .cover {
@@ -1009,14 +1009,14 @@ export default {
 }
 .stat {
   font-size: 20px;
-  color: #888888;
+  color: #a8a8b0;
   margin-left: 16px;
   margin-top: 4px;
   margin-bottom: 8px;
 }
 .empty {
   font-size: 24px;
-  color: #666666;
+  color: #6e6e76;
   text-align: center;
   margin-top: 40px;
 }
@@ -1027,12 +1027,12 @@ export default {
 }
 .ph-desc {
   font-size: 22px;
-  color: #999999;
+  color: #a8a8b0;
   margin-top: 6px;
 }
 .ph-desc2 {
   font-size: 20px;
-  color: #666666;
+  color: #6e6e76;
   margin-top: 10px;
 }
 
@@ -1098,7 +1098,7 @@ export default {
 }
 .stat-lab {
   font-size: 20px;
-  color: #999999;
+  color: #a8a8b0;
   margin-top: 4px;
 }
 /* 我的页入口: 历史记录 / 收藏 / 稍后再看 */
@@ -1111,7 +1111,7 @@ export default {
   width: 200px;
   height: 48px;
   border-radius: 24px;
-  background-color: #2c2c2c;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
   margin-left: 12px;

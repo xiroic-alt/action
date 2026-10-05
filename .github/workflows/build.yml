@@ -124,22 +124,19 @@ jobs:
           npm install -g pnpm@10.12.4
           pnpm install -C ./ui
 
-      - name: Cross-compile libjsapi_imageviewer.so (aarch64)
+      # 图片查看器模块 (libjsapi_imageviewer.so) 不再打包:
+      #   查看器早已改成 CSS transform 方案 (不落盘/不重复解码), ui/src 全仓库
+      #   对 imageviewer 只剩两处注释, app.json 的 external 里也没有它 -> 零引用.
+      #   移除省 6.9MB(raw) / 2.4MB(zip).
+      - name: Strip native artifacts
         run: |
-          # 图片查看器: 独立模块, 只做看图 (解码/缩放/裁剪/编码), 不与其他功能混
-          cmake -B build/imageviewer \
-            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_BUILD_TYPE=Release \
-            native/imageviewer
-          cmake --build build/imageviewer --config Release --parallel $(nproc)
-          cp -f build/imageviewer/libjsapi_imageviewer.so ui/libs/libjsapi_imageviewer.so
-          file ui/libs/libjsapi_imageviewer.so
-          aarch64-linux-gnu-readelf -h ui/libs/libjsapi_imageviewer.so | grep -E 'Class|Machine'
-          aarch64-linux-gnu-readelf -d ui/libs/libjsapi_imageviewer.so | grep NEEDED
-          aarch64-linux-gnu-nm -D ui/libs/libjsapi_imageviewer.so | grep custom_init_jsapis
+          # Release 构建带 -g, 真机 ELF 段实测 .debug 占 .so 的 92% (7.67MB 里 7.05MB).
+          # --strip-debug 只删调试段, 保留 .dynsym 导出符号 -> 模块加载不受影响,
+          # 装机体积与解压占用同步下降 (0.5GB artifact 配额也轻松).
+          for f in ui/libs/libjsapi_bilinet.so ui/libs/libjsapi_gstplayer.so ui/libs/gstplayerd; do
+            aarch64-linux-gnu-strip --strip-debug "$f"
+          done
+          ls -l ui/libs/
       - name: Build AMR (production quickjs)
         run: pnpm -C ui package
 

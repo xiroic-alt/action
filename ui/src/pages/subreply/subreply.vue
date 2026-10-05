@@ -697,7 +697,7 @@ function parseParentSegs(msg) {
   top: 0px;
   width: 960px;
   height: 266px;
-  background-color: #16181c;
+  background-color: #000000;
 }
 .topbar {
   position: absolute;
@@ -707,14 +707,14 @@ function parseParentSegs(msg) {
   height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: #21242b;
+  background-color: #0b0b0d;
 }
 .back {
   width: 132px;
-  height: 38px;
+  height: 40px;
   margin-left: 12px;
-  border-radius: 19px;
-  background-color: #37404a;
+  border-radius: 20px;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -741,9 +741,9 @@ function parseParentSegs(msg) {
   align-items: center;
   padding-left: 12px;
   padding-right: 12px;
-  background-color: #1a1d22;
+  background-color: #0b0b0d;
   border-bottom-width: 1px;
-  border-bottom-color: #262b33;
+  border-bottom-color: #141416;
 }
 .pface {
   width: 40px;
@@ -784,7 +784,7 @@ function parseParentSegs(msg) {
   top: 44px;
   width: 960px;
   height: 30px;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   justify-content: center;
   padding-left: 16px;
   padding-right: 16px;
@@ -804,7 +804,7 @@ function parseParentSegs(msg) {
   padding-bottom: 2px;
   border-radius: 6px;
   margin-left: 8px;
-  background-color: #2f80ed;
+  background-color: #3ca5ec;
   color: #ffffff;
   justify-content: center;
 }
@@ -822,7 +822,7 @@ function parseParentSegs(msg) {
 }
 .status {
   font-size: 19px;
-  color: #e6a23c;
+  color: #fb7299;
   margin-top: 8px;
   margin-bottom: 8px;
   width: 100%;
@@ -833,7 +833,7 @@ function parseParentSegs(msg) {
   padding-top: 8px;
   padding-bottom: 8px;
   border-bottom-width: 1px;
-  border-bottom-color: #262b33;
+  border-bottom-color: #141416;
 }
 .face {
   width: 44px;
@@ -892,7 +892,7 @@ function parseParentSegs(msg) {
   padding-top: 2px;
   padding-bottom: 2px;
   border-radius: 6px;
-  background-color: #2b2f36;
+  background-color: #141416;
 }
 .meta-reply {
   font-size: 16px;
@@ -923,7 +923,7 @@ function parseParentSegs(msg) {
   height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: #21242b;
+  background-color: #141416;
   padding-left: 12px;
   padding-right: 12px;
 }
@@ -931,7 +931,7 @@ function parseParentSegs(msg) {
   width: 800px;
   height: 32px;
   border-radius: 16px;
-  background-color: #2a2f38;
+  background-color: #141416;
   justify-content: center;
   padding-left: 14px;
 }
@@ -958,9 +958,9 @@ function parseParentSegs(msg) {
 .meta-btn { flex-direction: row; align-items: center; padding-top: 4px; padding-bottom: 4px; margin-right: 8px; }
 .meta-btn-pic { margin-right: 0px; }
 .meta-text, .meta-reply, .meta-pic { margin-left: 6px; }
-.reply-pic-hit { border-radius: 8px; background-color: #232830; }
+.reply-pic-hit { border-radius: 8px; background-color: #141416; }
 /* ---------- 图片查看器 (transform 版) ---------- */
-.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
+.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; z-index: 200; }
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
 .iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }

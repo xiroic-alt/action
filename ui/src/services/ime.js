@@ -226,7 +226,7 @@ export function createIME() {
           shouldCloseOnConfirm: false,
           closeButtonVisible: true,
           returnButtonVisible: true,
-          micInputVisible: false,
+          micInputVisible: true,
           multiLinesEditVisible: false,
           action: 'input',
           type: 'text'

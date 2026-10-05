@@ -58,6 +58,9 @@ private:
     static GstPadProbeReturn audioSegProbe(GstPad* pad, GstPadProbeInfo* info, void* self);
     void checkKick();
     void busLoop();
+    // 视频面层级: waylandsink 的 layer 属性必须在 window 建好之后才设
+    // (构造期设会 SIGSEGV, 见 core.cpp applyLayer 注释)
+    void applyLayer();
 
     std::mutex m_lock;
     GstElement* m_pipeline = nullptr;
@@ -93,6 +96,7 @@ private:
     bool m_rectAuto = true;
     int m_videoW = 0;
     int m_videoH = 0;
+    bool m_layerApplied = false;   // 每个 window 一生只设一次层级
 
     EventFn m_eventFn = nullptr;
     void* m_eventData = nullptr;

@@ -1,66 +1,62 @@
 <template>
-  <!-- :key 绑 uiKey: 起播后整棵 UI 子树重建一次 = 一次完整的 surface 提交.
-       Weston 只在「真实输入」时抬升焦点 surface, 而 send_event 合成点击不经过 Weston,
-       所以只能靠重新提交 UI 让 app surface 重新排到视频面之上 (等效用户手点一下) -->
-  <div class="page" :key="'u' + uiKey">
-    <!-- hole: 全带挖透, 视频由设备侧等比拟合全带 (信箱居中, 不裁切不变形),
-         Weston 视频 surface 在 UI 之下透出 (references/transparent.md) -->
-    <hole v-if="holeOn" class="hole" :style="holeStyle"></hole>
+  <!-- 播放页 v3：UI 从第一帧就叠在播放器合成画面之上。
+       层级由 native 侧保证 —— gstplayerd 在 window 建好后把 waylandsink 的
+       layer 设为 bottom(2)，视频面钉在 Weston 层序最底，<hole> 挖洞透出画面。
+       页面侧不再有任何「踢一脚」逻辑（合成输入不进 Weston，那条路已实测无解）。 -->
+  <div class="page">
+    <hole class="hole"></hole>
 
-    <!-- 点击空白区域 显示/隐藏控制条; 控制条自身按钮拦截点击 -->
     <div class="stage" @click="toggleBar" @touchstart="markUserTouch">
-
-      <!-- 顶部悬浮栏: 返回 + 标题 (悬浮于视频上方) -->
-      <div v-if="barVisible" class="top-bar">
-        <div class="back" @click="goBack">
-          <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-          <text class="back-text">返回</text>
+      <!-- 顶部悬浮栏 -->
+      <div v-if="barVisible" class="topbar">
+        <div class="nav-back" @click="goBack">
+          <image class="nav-ic" :src="MI.back"></image>
+          <text class="nav-t">返回</text>
         </div>
-        <richtext class="title"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+        <richtext class="nav-title"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+        <text v-if="rateText !== ''" class="nav-tag">{{ rateText }}</text>
       </div>
 
-      <!-- 中央状态提示 -->
+      <!-- 中央状态 -->
       <div v-if="statusText !== ''" class="center">
         <text class="status">{{ statusText }}</text>
       </div>
 
-      <!-- 底部悬浮控制条: 播放/快进退 + 进度条 + 时间 (悬浮于视频上方) -->
+      <!-- 底部悬浮控制条 -->
       <div v-if="barVisible" class="ctrl">
-        <div class="btn btn-mini" @click="seekBack">
-          <image :src="MI.back10" :style="{ width: '28px', height: '28px' }"></image>
+        <div class="cbtn cbtn-mini" @click="seekBack">
+          <image class="cbtn-ic" :src="MI.back10"></image>
         </div>
-        <div class="btn btn-main" @click="togglePlay">
-          <image :src="playing ? MI.pause : MI.play" :style="{ width: '28px', height: '28px' }"></image>
+        <div class="cbtn cbtn-main" @click="togglePlay">
+          <image class="cbtn-ic" :src="playing ? MI.pause : MI.play"></image>
         </div>
-        <div class="btn btn-mini" @click="seekForward">
-          <image :src="MI.fwd10" :style="{ width: '28px', height: '28px' }"></image>
+        <div class="cbtn cbtn-mini cbtn-mini-last" @click="seekForward">
+          <image class="cbtn-ic" :src="MI.fwd10"></image>
         </div>
-        <!-- 进度条: 按 width% 渲染播放位置, 叠 N 个隐形点击分段实现点击调节 -->
-        <div class="seek">
+        <!-- 进度条: 自绘 + 拖动状态机 (对齐原厂 ProgressBar.vue: touchstart/move/end +
+             draging/isSeeking/dstPosition + 松手才 seek). 拖动期间进度条与时间跟手,
+             且不被轮询读数覆盖 —— 进度条回闪的根治做法. -->
+        <div class="seek" @touchstart="seekStart" @touchmove="seekMove" @touchend="seekEnd">
           <div class="track">
             <div class="fill" :style="fillStyle"></div>
             <div class="thumb" :style="thumbStyle"></div>
           </div>
-          <div class="segs">
-            <div v-for="seg in segList" :key="seg" class="seg" @click="seekBySeg(seg)"></div>
-          </div>
         </div>
-        <text class="time">{{ curText }}/{{ durText }}</text>
+        <text class="time">{{ curText }} / {{ durText }}</text>
       </div>
     </div>
   </div>
 </template>
 
 <script>
-// 播放页 v2 (全重写)
-// - 视频由 gstplayer 原生层 (gstplayerd 守护进程) 播放: waylandsink 进 Weston
-//   合成, 在 UI 之下; 本页全屏 <hole> 透出视频, 控制条悬浮在视频上方.
-// - 视频尺寸自动适配: 设备侧按视频分辨率等比拟合屏幕 UI 带 (信箱式), 页面零几何.
-// - 生命周期契约:
-//     首次 onShow        读 options -> 取流地址 -> open/start, 订阅原生状态
-//     onNewOptions       同一 player 页被 navTo 重开 -> 换源重播
-//     onHide             暂停播放并停轮询 (回前台由用户手动恢复)
-//     onUnload           单一 stop 路径: generation++ -> 停 timer/订阅 -> close native
+// 播放页 v3
+// - 视频由 gstplayerd 原生进程播放 (waylandsink 进 Weston 合成);
+//   native 侧在 window 建好后把 layer 设为 bottom, 视频面恒在 UI 之下,
+//   本页全屏 <hole> 透出视频, 控制条悬浮在视频之上 —— 第一帧即正确.
+// - 视频几何: 设备侧按分辨率等比拟合屏幕 UI 带 (信箱式), 页面零几何.
+// - 生命周期: 首次 onShow 读 options -> 取流地址 -> open/start, 订阅原生状态
+//             onNewOptions 同页重开 -> 换源重播
+//             onHide 暂停 + 停轮询 / onUnload 单一 stop 路径
 import * as player from '../../services/player.js'
 import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js'
@@ -125,27 +121,24 @@ export default {
       playing: false,
       started: false,      // 是否出过画面: 区分「未开播」与「暂停后重发 ready/buffering」
       titleText: '',
+      rateText: '',        // 右上角画质/分辨率标签 (V 行分辨率)
       statusText: '加载中…',
       barVisible: true,
-      lastUserTouchAt: 0,   // 最近一次用户真实触摸 (保活注入避让用)
+      lastUserTouchAt: 0,  // 最近一次用户真实触摸 (保活注入避让用)
       curMs: 0,
-    // 视频面(waylandsink)层级修复用: hole 重建 + 尺寸抖 1px 会强制 wayland 重新提交层级
-    holeOn: true,
-    holeNudge: 0,
-    uiKey: 0,          // 起播后自增 -> UI 子树整体重建, 强制一次完整 surface 提交
-    // seek 锁定窗: 期间丢弃「旧位置」的轮询读数, 进度条不再闪回去
-    seekHoldMs: null,
-    seekHoldUntil: 0,
       durMs: 0,
-      segList: (function () {
-        var a = []
-        for (var i = 0; i < SEG_COUNT; i++) a.push(i)
-        return a
-      })(),
+      // seek 锁定窗: 期间丢弃「旧位置」的轮询读数, 进度条不再闪回去
+      seekHoldMs: null,
+      seekHoldUntil: 0,
+      // 进度条拖动 (对齐原厂 ProgressBar.vue 的 draging / isSeeking / dstPosition)
+      seekDragging: false,
+      seekDstPct: -1,        // 拖动中的目标比例 0..1 (-1 = 未拖动)
+      seekDstMs: 0,          // 拖动中的目标毫秒 (松手才 seek)
+      seekMoved: false,      // 本次触摸是否位移过 (决定算不算「点击」)
       generation: 0,       // 异步世代: 换源/离开后过期回调不写界面
       pollTimer: null,
       hideTimer: null,
-      keepTimer: null      // 防息屏注入定时器 (播放中每 4s 一次)
+      keepTimer: null      // 防息屏注入定时器 (播放中每 6s 一次)
     }
   },
   computed: {
@@ -156,6 +149,7 @@ export default {
       try { return parseMessage(t, null, null) } catch (e) { return [{ t: 0, v: t }] }
     },
     fillPct: function () {
+      if (this.seekDragging && this.seekDstPct >= 0) return this.seekDstPct * 100
       if (!this.durMs) return 0
       var pct = (this.curMs / this.durMs) * 100
       if (pct < 0) return 0
@@ -164,12 +158,10 @@ export default {
     },
     fillStyle: function () { return { width: this.fillPct + '%' } },
     thumbStyle: function () { return { left: this.fillPct + '%' } },
-    curText: function () { return fmtMs(this.curMs) },
-  holeStyle: function () {
-    // 抖 1px: 尺寸变化才触发 subsurface 重新提交, 纯 v-if 重建在部分固件上不生效
-    const n = this.holeNudge
-    return { width: (960 - n) + 'px', height: (266 - n) + 'px' }
-  },
+    curText: function () {
+      if (this.seekDragging && this.seekDstMs > 0) return fmtMs(this.seekDstMs)
+      return fmtMs(this.curMs)
+    },
     durText: function () { return fmtMs(this.durMs) }
   },
   methods: {
@@ -302,8 +294,7 @@ export default {
         return
       }
       // open 可能同步派发错误状态 (此时 onNativeState 已置错误提示);
-      // playing/控制条自动隐藏一律由原生 play 状态驱动, 不在此乐观置位,
-      // 否则 open 报错后 playing 残留 true, 控制条 5s 后自动隐藏.
+      // playing/控制条自动隐藏一律由原生 play 状态驱动, 不在此乐观置位.
       if (this.statusText.indexOf('播放错误') === 0) return
       this.opened = true
       player.start()
@@ -331,8 +322,20 @@ export default {
         this.showBar()
         return
       }
+      // V <w> <h>: 分辨率行 (右上角标签)
+      if (s.charAt(0) === 'v' && s.indexOf('video') !== 0) {
+        var parts = String(state).split(' ')
+        if (parts.length >= 3) {
+          var h = parseInt(parts[2], 10)
+          if (h >= 1440) this.rateText = '4K'
+          else if (h >= 1000) this.rateText = '1080P'
+          else if (h >= 700) this.rateText = '720P'
+          else if (h >= 400) this.rateText = '480P'
+          else if (h > 0) this.rateText = '360P'
+        }
+        return
+      }
       // 注意: 'pause' 包含子串 'play', 必须先判 pause 再判 play
-      // (0.9.3 前 play 在前, pause 状态被误判为播放中)
       if (s.indexOf('pause') >= 0) {
         this.playing = false
         this.stopPolling()   // 暂停后 getPosition 可能返回 0, 轮询会把进度打回 0:00
@@ -341,67 +344,22 @@ export default {
         return
       }
       if (s.indexOf('play') >= 0) {
-        var firstPlay = !this.started
         this.playing = true
         this.started = true  // 已出过画面: 之后不再显示「加载中」过渡态
         if (this.statusText !== '') this.statusText = ''
         this.startPolling()
         this.startKeepAwake()
-        // 首播出画: 修复视频 surface 盖住 UI 的层级问题 (真机实测点一下屏幕恢复)
-        if (firstPlay) this.fixLayer()
         this.scheduleHideBar()
         return
       }
       // ready/buffering 过渡态只在「从未播过」时显示;
-      // 暂停后 native 常重发 ready/buffering, 用 started 区分, 否则暂停会误显示「加载中」
+      // 暂停后 native 常重发 ready/buffering, 用 started 区分.
       if (s === 'ready' || s === 'buffering' || s === 'loading') {
         if (!this.started) this.statusText = '加载中…'
       }
     },
 
-    // ---------------- 层级修复 + 防息屏 ----------------
-    // 真机实测: 视频面 (waylandsink) 初始盖在整个 UI 之上, 点一下屏幕 UI 重新置顶.
-    // 首播出画后自动等效「点一下」: exec 注入合成点击 (press+release);
-    // 起播后连踢三次 (0 / 0.8s / 2s), 覆盖 surface 创建 / 首帧渲染 / 稳定三个时机.
-    // exec 不可用时退化为控制条 v-if 翻转强制 UI 重新合成.
-    fixLayer: function () {
-      var self = this
-      // 两条腿一起上 (0.9.58: 单独注入合成点击在真机上仍会漏, 用户进播放页还要手点一下):
-      //   1) 重建 <hole> 并把尺寸抖 1px -> 强制视频面(subsurface)重新提交层级
-      //   2) 仍然补一次合成点击 -> 能生效的固件上更快
-      this.restackHole()
-      if (player.keepAwakeSupported()) this.kickLayer()
-      const marks = [500, 1200, 2400, 4000]
-      for (var i = 0; i < marks.length; i++) {
-        setTimer(this, marks[i], function () {
-          if (!self.opened) return
-          self.restackHole()
-          if (player.keepAwakeSupported()) self.kickLayer()
-        })
-      }
-    },
-
-    // 强制视频面重新排层: v-if 重建 + 尺寸 1px 抖动
-    restackHole: function () {
-      var self = this
-      this.holeOn = false
-      setTimer(this, 40, function () {
-        if (!self.opened) return
-        self.holeOn = true
-        self.holeNudge = self.holeNudge > 0 ? 0 : 1
-        self.uiKey++   // 完整重提交 UI (见模板注释)
-      })
-    },
-
-    // 合成一次点击 (让 UI 重新置顶), 随后把控制条恢复为显示态
-    kickLayer: function () {
-      var self = this
-      player.tapScreen()
-      setTimer(this, 260, function () { self.showBar() })
-    },
-
-    // 播放中防息屏: 官方 JSAPI 优先 (系统播放器同款三件套, 见 services/screenon.js),
-    // 不可用或持续失败时降级 exec 注入 touch move (重置输入空闲计时, 无副作用).
+    // ---------------- 防息屏 ----------------
     // 用户真实触摸 (拖进度条/点按钮) —— 保活注入要避让, 别打断操作
     markUserTouch: function () {
       this.lastUserTouchAt = Date.now()
@@ -432,21 +390,15 @@ export default {
     startKeepAwake: function () {
       if (this.keepTimer != null) return
       // 设置页可关闭防息屏 (services/config.js)
-
       if (typeof player.keepAwakeEnabled === 'function' && !player.keepAwakeEnabled()) {
-
         try { log('播放器', '防息屏: 设置里已关闭, 跳过保活') } catch (e) {}
-
         return
-
       }
-
       var self = this
       var jsapiOn = screenon.screenOnAvailable()
       if (jsapiOn) screenon.screenOnStart()
       try { log('播放器', '防息屏: JSAPI=' + (jsapiOn ? 'on' : 'off') + ' + 每 6s hal-screen on 保活') } catch (e) {}
-      // 系统息屏阈值实测 ~10s, 6s 一次留出余量; JSAPI 仍照调 (能生效更好)
-      // hal-screen on 首次立即调一次 (起播瞬间也容易黑) —— 走异步, 不阻塞主线程
+      // 系统息屏阈值实测 ~10s, 6s 一次留出余量
       self.keepAwakeTap()
       this.keepTimer = setTicker(this, 6000, function () {
         if (!self.playing) return
@@ -497,6 +449,9 @@ export default {
       if (this.playing) this.scheduleHideBar()
     },
     toggleBar: function () {
+      // 刚拖过进度条: 300ms 内忽略「点一下切控制条」, 否则一松手控制条就自己藏了
+      // (原厂用 isLastMoveX/isLastMoveY 做同一件事)
+      if (Date.now() < (this._suppressTapUntil || 0)) return
       if (this.barVisible) this.hideBar(); else this.showBar()
     },
     hideBar: function () {
@@ -525,7 +480,7 @@ export default {
         if (this.playing) {
           player.pause()
           this.playing = false
-          this.stopPolling()   // 立即停轮询, 保住当前进度 (暂停后 getPosition 可能返回 0)
+          this.stopPolling()   // 立即停轮询, 保住当前进度
         } else {
           player.resume()
           this.playing = true
@@ -546,13 +501,55 @@ export default {
       this.applySeek(player.getPosition() + deltaMs)
     },
 
-    // 进度条分段点击: segIndex 0..N-1 -> 跳到 (i+0.5)/SEG_COUNT 处
-    seekBySeg: function (segIndex) {
+    // ---------------- 进度条拖动 (学原厂 ProgressBar.vue) ----------------
+    // 触摸坐标即逻辑显示坐标 (0..960 / 0..266), 与 page.vue 的 txy 同一约定.
+    // .seek 用固定 left(256)/width(520) 绝对定位, 所以比例能直接算.
+    seekPt: function (e) {
+      try {
+        var t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0]) || e
+        if (t && typeof t.pageX === 'number') return { x: t.pageX, ok: true }
+      } catch (err) {}
+      return { x: 0, ok: false }
+    },
+    seekStart: function (e) {
       if (!this.opened) return
+      var p = this.seekPt(e)
+      if (!p.ok) return
+      this.seekMoved = false
+      this._seekX0 = p.x
       this.showBar()
+      this.seekToX(p.x)
+    },
+    seekMove: function (e) {
+      if (!this.opened) return
+      var p = this.seekPt(e)
+      if (!p.ok) return
+      if (!this.seekMoved && Math.abs(p.x - this._seekX0) > 6) this.seekMoved = true
+      if (!this.seekMoved) return
+      this.seekToX(p.x)
+    },
+    seekEnd: function (e) {
+      if (!this.opened) return
+      var p = this.seekPt(e)
+      if (p.ok) this.seekToX(p.x)
+      var dst = this.seekDstMs
+      this.seekDragging = false
+      this.seekDstPct = -1
+      this.seekMoved = false
+      if (dst > 0) this.applySeek(dst)
+      // 松手后短暂忽略 stage 的点击 (见 toggleBar)
+      this._suppressTapUntil = Date.now() + 300
+    },
+    // x -> 目标位置; min/max 夹在轨道内
+    seekToX: function (x) {
       var dur = this.durMs || player.getDuration()
       if (dur <= 0) return
-      this.applySeek(Math.round(((segIndex + 0.5) / SEG_COUNT) * dur))
+      var pct = (x - 256) / 520
+      if (pct < 0) pct = 0
+      if (pct > 1) pct = 1
+      this.seekDstPct = pct
+      this.seekDstMs = Math.round(pct * dur)
+      this.seekDragging = true
     },
 
     applySeek: function (targetMs) {
@@ -563,11 +560,11 @@ export default {
       try {
         player.seek(t)
         this.curMs = t
-        // 锁定窗 1.6s: 期间只认「已追上目标(±800ms)」的读数 (P6 进度条回闪修复)
+        // 锁定窗 1.6s: 期间只认「已追上目标(±800ms)」的读数 (进度条回闪修复)
         this.seekHoldMs = t
         this.seekHoldUntil = Date.now() + 1600
         this.seekDropN = 0
-        try { log('播放器', 'seek -> ' + Math.round(t / 1000) + 's (锁定 1.6s, 期间丢弃旧读数)') } catch (e2) {}
+        try { log('播放器', 'seek -> ' + Math.round(t / 1000) + 's (锁定 1.6s)') } catch (e2) {}
         if (this.statusText === '播放结束') this.statusText = ''
       } catch (e) {
         console.log('[player] seek error: ' + (e && e.message ? e.message : e))
@@ -582,17 +579,16 @@ export default {
 </script>
 
 <style scoped>
+/* ===== 统一 token (与全站一致: 纯黑底 / 白字 / B 站粉唯一强调色) ===== */
 .page {
   position: absolute;
   left: 0px;
   top: 0px;
   width: 960px;
   height: 266px;
-  /* 不透明黑: 信箱区/条带区无论视频面在 UI 上方还是下方都呈黑色,
-     hole 矩形与视频矩形由同一公式给出, 两种堆叠态视觉一致 */
   background-color: #000000;
 }
-/* 全带挖透: 视频由 native 等比拟合全带 (信箱居中, 不裁切), UI 之下透出 */
+/* 全带挖透: 视频由 native 等比拟合 UI 带 (信箱居中, 不裁切), UI 之下透出 */
 .hole {
   position: absolute;
   left: 0px;
@@ -607,7 +603,8 @@ export default {
   width: 960px;
   height: 266px;
 }
-.top-bar {
+/* 顶部栏 */
+.topbar {
   position: absolute;
   left: 0px;
   top: 0px;
@@ -615,30 +612,43 @@ export default {
   height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.55);
+  background-color: rgba(0, 0, 0, 0.62);
 }
-.back {
-  width: 132px;
-  height: 38px;
-  margin-left: 12px;
-  border-radius: 19px;
-  background-color: rgba(255, 255, 255, 0.18);
+.nav-back {
+  flex-direction: row;
+  width: 116px;
+  height: 32px;
+  margin-left: 14px;
+  border-radius: 16px;
+  background-color: rgba(255, 255, 255, 0.10);
   justify-content: center;
   align-items: center;
 }
-.back-text {
-  font-size: 22px;
+.nav-ic {
+  width: 20px;
+  height: 20px;
+  margin-right: 4px;
+}
+.nav-t {
+  font-size: 18px;
   color: #ffffff;
 }
-.title {
+.nav-title {
+  flex: 1;
   font-size: 22px;
   color: #ffffff;
-  margin-left: 16px;
-  /* Falcon 不支持 max-lines (0.9.3 前无效, 长标题换行溢出顶栏), 用 lines: 1 */
+  margin-left: 14px;
+  /* Falcon 不支持 max-lines, 用 lines: 1 */
   lines: 1;
   text-overflow: ellipsis;
   overflow: hidden;
 }
+.nav-tag {
+  font-size: 16px;
+  color: #a8a8b0;
+  margin-right: 16px;
+}
+/* 中央状态 */
 .center {
   position: absolute;
   left: 0px;
@@ -650,87 +660,89 @@ export default {
 }
 .status {
   font-size: 20px;
-  color: #e6a23c;
+  color: #fb7299;
 }
+/* 底部控制条 */
 .ctrl {
   position: absolute;
   left: 0px;
   top: 222px;
   width: 960px;
   height: 44px;
-  padding-left: 10px;
-  padding-right: 10px;
-  background-color: rgba(0, 0, 0, 0.55);
+  padding-left: 14px;
+  padding-right: 14px;
+  background-color: rgba(0, 0, 0, 0.62);
   flex-direction: row;
   align-items: center;
 }
-.btn {
-  height: 36px;
-  margin-right: 8px;
-  border-radius: 18px;
-  background-color: rgba(255, 255, 255, 0.18);
+/* 控制条按钮绝对定位: 与 .seek 的固定 left/width 配套, 拖动坐标才算得准 */
+.cbtn {
+  position: absolute;
+  top: 5px;
+  height: 34px;
+  border-radius: 17px;
+  background-color: rgba(255, 255, 255, 0.10);
   justify-content: center;
   align-items: center;
 }
-.btn-mini {
-  width: 72px;
+.cbtn-mini {
+  left: 14px;
+  width: 64px;
 }
-.btn-main {
-  width: 88px;
+.cbtn-main {
+  left: 88px;
+  width: 80px;
   background-color: #fb7299;
 }
-.btn-text {
-  font-size: 20px;
-  color: #ffffff;
+.cbtn-mini-last {
+  left: 178px;
 }
+.cbtn-ic {
+  width: 26px;
+  height: 26px;
+}
+/* 进度条绝对定位(左 256 / 宽 520): 拖动时坐标可直接算比例, 见 seekToX */
 .seek {
-  width: 500px;
+  position: absolute;
+  left: 256px;
+  top: 0px;
+  width: 520px;
   height: 44px;
-  flex-direction: row;
-  align-items: center;
 }
 .track {
   position: absolute;
   left: 0px;
-  top: 18px;
-  width: 500px;
-  height: 8px;
-  border-radius: 4px;
-  background-color: rgba(255, 255, 255, 0.25);
+  top: 19px;
+  width: 520px;
+  height: 6px;
+  border-radius: 3px;
+  background-color: rgba(255, 255, 255, 0.18);
 }
 .fill {
   position: absolute;
   left: 0px;
   top: 0px;
-  height: 8px;
-  border-radius: 4px;
+  height: 6px;
+  border-radius: 3px;
   background-color: #fb7299;
 }
 .thumb {
   position: absolute;
   top: -4px;
-  width: 16px;
-  height: 16px;
-  margin-left: -8px;
-  border-radius: 8px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 7px;
   background-color: #ffffff;
 }
-.segs {
-  width: 500px;
-  height: 44px;
-  flex-direction: row;
-}
-.seg {
-  width: 20.83px;
-  height: 44px;
-}
 .time {
+  position: absolute;
+  left: 790px;
+  top: 0px;
+  width: 156px;
+  height: 44px;
   font-size: 16px;
-  color: #ffffff;
-  width: 160px;
-  margin-left: 8px;
+  color: #a8a8b0;
+  text-align: right;
 }
-/* ---------- 图标 (material) ---------- */
-.back { flex-direction: row; }
-.back-ic { margin-right: 4px; }
 </style>

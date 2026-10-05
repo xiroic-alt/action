@@ -219,24 +219,27 @@ export default {
 .page {
   width: 960px;
   height: 266px;
-  background-color: #16181c;
+  background-color: #000000;
   flex-direction: column;
 }
 .topbar {
   width: 960px;
-  height: 34px;
+  height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
 }
 .back {
   padding-left: 16px;
   padding-right: 16px;
-  height: 34px;
+  height: 40px;
   justify-content: center;
+  width: 132px;
+  border-radius: 20px;
+  background-color: #141416;
 }
 .back-text {
-  font-size: 20px;
+  font-size: 22px;
   color: #ffffff;
 }
 .topbar-title {
@@ -260,7 +263,7 @@ export default {
   margin-left: 20px;
   margin-top: 12px;
   padding-bottom: 12px;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   border-radius: 12px;
   flex-direction: column;
 }
@@ -272,7 +275,7 @@ export default {
 }
 .card-desc {
   font-size: 17px;
-  color: #999999;
+  color: #a8a8b0;
   margin-left: 16px;
   margin-right: 16px;
   margin-top: 6px;
@@ -288,7 +291,7 @@ export default {
   padding-right: 18px;
   padding-top: 8px;
   padding-bottom: 8px;
-  background-color: #2f3238;
+  background-color: #141416;
   border-radius: 8px;
   justify-content: center;
 }
@@ -314,7 +317,7 @@ export default {
   padding-right: 14px;
   padding-top: 6px;
   padding-bottom: 6px;
-  background-color: #2f3238;
+  background-color: #141416;
   border-radius: 14px;
   margin-right: 10px;
   justify-content: center;
@@ -331,7 +334,7 @@ export default {
   padding-right: 22px;
   padding-top: 8px;
   padding-bottom: 8px;
-  background-color: #2f3238;
+  background-color: #141416;
   border-radius: 8px;
   justify-content: center;
 }
@@ -344,7 +347,7 @@ export default {
 }
 .info {
   font-size: 17px;
-  color: #888888;
+  color: #a8a8b0;
   margin-left: 16px;
   margin-top: 6px;
 }
@@ -352,7 +355,7 @@ export default {
   width: 100%;
   text-align: center;
   font-size: 16px;
-  color: #555555;
+  color: #6e6e76;
   margin-top: 14px;
   margin-bottom: 16px;
 }

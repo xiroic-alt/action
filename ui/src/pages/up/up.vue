@@ -288,7 +288,7 @@ export default {
 .page {
   width: 960px;
   height: 266px;
-  background-color: #141414;
+  background-color: #000000;
   display: flex;
   flex-direction: column;
   transition-property: transform;
@@ -304,14 +304,14 @@ export default {
   display: flex;
   flex-direction: row;
   align-items: center;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
 }
 .back {
   width: 132px;
   height: 40px;
   margin-left: 12px;
   border-radius: 20px;
-  background-color: #2c2c2c;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -326,7 +326,7 @@ export default {
 }
 .state {
   font-size: 22px;
-  color: #999999;
+  color: #a8a8b0;
   margin-left: 24px;
   margin-top: 8px;
   width: 100%;
@@ -344,7 +344,7 @@ export default {
   width: 72px;
   height: 72px;
   border-radius: 36px;
-  background-color: #2c2c2c;
+  background-color: #141416;
 }
 .pendant { position: absolute; right: -8px; bottom: -6px; width: 34px; height: 34px; }
 .info-col {
@@ -359,7 +359,7 @@ export default {
 .verify-per { background-color: #ffac2c; }
 .verify-org { background-color: #3ca5ec; }
 .verify-t { font-size: 16px; color: #8a94a6; lines: 1; text-overflow: ellipsis; overflow: hidden; }
-.dynentry { width: 150px; height: 56px; margin-right: 20px; border-radius: 28px; background-color: #2a2f38; justify-content: center; align-items: center; }
+.dynentry { width: 150px; height: 56px; margin-right: 20px; border-radius: 28px; background-color: #141416; justify-content: center; align-items: center; }
 .dynentry-t { font-size: 20px; color: #fb7299; }
 .name {
   font-size: 24px;
@@ -372,7 +372,7 @@ export default {
 }
 .sign {
   font-size: 18px;
-  color: #888888;
+  color: #a8a8b0;
   margin-top: 4px;
   /* Falcon 不支持 max-lines (0.8.7 教训), 限行用 lines: N */
   lines: 1;
@@ -389,7 +389,7 @@ export default {
   margin-top: 8px;
   display: flex;
   flex-direction: row;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   border-radius: 12px;
 }
 .cover {
@@ -416,13 +416,13 @@ export default {
 }
 .stat {
   font-size: 18px;
-  color: #888888;
+  color: #a8a8b0;
   margin-left: 16px;
   margin-top: 8px;
 }
 .empty {
   font-size: 22px;
-  color: #666666;
+  color: #6e6e76;
   text-align: center;
   margin-top: 16px;
 }

@@ -262,7 +262,7 @@ export default {
   top: 0px;
   width: 960px;
   height: 266px;
-  background-color: #141414;
+  background-color: #000000;
   flex-direction: column;
   transition-property: transform;
   transition-duration: 260ms;
@@ -276,14 +276,14 @@ export default {
   height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
 }
 .back {
   width: 132px;
   height: 40px;
   margin-left: 12px;
   border-radius: 20px;
-  background-color: #2c2c2c;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -301,7 +301,7 @@ export default {
 }
 .state {
   font-size: 20px;
-  color: #999999;
+  color: #a8a8b0;
   margin-left: 24px;
   margin-top: 6px;
   width: 100%;
@@ -320,7 +320,7 @@ export default {
   margin-top: 10px;
   flex-direction: row;
   align-items: center;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   border-radius: 12px;
   padding-left: 20px;
   padding-right: 20px;
@@ -335,7 +335,7 @@ export default {
 }
 .fitem-count {
   font-size: 18px;
-  color: #888888;
+  color: #a8a8b0;
 }
 .item {
   width: 920px;
@@ -343,7 +343,7 @@ export default {
   margin-top: 10px;
   display: flex;
   flex-direction: row;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   border-radius: 12px;
 }
 .cover {
@@ -376,14 +376,14 @@ export default {
 }
 .stat {
   font-size: 20px;
-  color: #888888;
+  color: #a8a8b0;
   margin-left: 16px;
   margin-top: 4px;
   margin-bottom: 8px;
 }
 .empty {
   font-size: 24px;
-  color: #666666;
+  color: #6e6e76;
   text-align: center;
   margin-top: 40px;
 }

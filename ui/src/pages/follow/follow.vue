@@ -302,15 +302,19 @@ export default {
 </script>
 
 <style scoped>
-.page { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #14161a; transition-property: transform; transition-duration: 260ms; transition-timing-function: ease-out; }
-.topbar { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #1b1e24; }
-.back { padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center; }
+.page { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; transition-property: transform; transition-duration: 260ms; transition-timing-function: ease-out; }
+.topbar { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #0b0b0d; }
+.back { padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center;
+  width: 132px;
+  border-radius: 20px;
+  background-color: #141416;
+}
 .back-ic { margin-right: 4px; }
-.back-text { font-size: 21px; color: #cfd5de; }
-.topbar-title { font-size: 19px; color: #e6eaf0; }
+.back-text { font-size: 22px; color: #ffffff; }
+.topbar-title { font-size: 22px; color: #ffffff; }
 .topbar-sub { font-size: 15px; color: #7c8592; margin-left: 12px; }
 .gtabs { position: absolute; left: 0px; top: 44px; width: 960px; height: 40px; flex-direction: row; background-color: #16181d; }
-.gtab { height: 28px; justify-content: center; align-items: center; padding-left: 14px; padding-right: 14px; margin-left: 8px; margin-top: 6px; border-radius: 14px; background-color: #232830; }
+.gtab { height: 28px; justify-content: center; align-items: center; padding-left: 14px; padding-right: 14px; margin-left: 8px; margin-top: 6px; border-radius: 14px; background-color: #141416; }
 .gtab-on { background-color: #fb7299; }
 .gtab-t { font-size: 16px; color: #cfd5de; }
 .gtab-t-on { color: #ffffff; }
@@ -320,9 +324,9 @@ export default {
 .gate-text { font-size: 18px; color: #8a93a0; }
 .gate-btn { margin-top: 16px; height: 48px; padding-left: 24px; padding-right: 24px; border-radius: 24px; background-color: #fb7299; justify-content: center; align-items: center; }
 .gate-btn-text { font-size: 19px; color: #ffffff; }
-.item { width: 928px; margin-left: 16px; margin-top: 8px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; flex-direction: row; align-items: center; background-color: #1f1f1f; border-radius: 12px; }
+.item { width: 928px; margin-left: 16px; margin-top: 8px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; flex-direction: row; align-items: center; background-color: #0b0b0d; border-radius: 12px; }
 .face-wrap { position: relative; width: 64px; height: 64px; margin-right: 14px; }
-.face { width: 64px; height: 64px; border-radius: 32px; background-color: #232830; }
+.face { width: 64px; height: 64px; border-radius: 32px; background-color: #141416; }
 .meta { flex: 1; flex-direction: column; }
 .namerow { flex-direction: row; align-items: center; }
 .name { font-size: 20px; color: #ffffff; }
@@ -330,25 +334,25 @@ export default {
 .vbadge-per { background-color: #ffac2c; }
 .vbadge-org { background-color: #3ca5ec; }
 .sptag { font-size: 14px; color: #ffffff; background-color: #fb7299; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-left: 8px; }
-.sign { font-size: 16px; color: #888888; margin-top: 4px; lines: 1; text-overflow: ellipsis; overflow: hidden; }
-.manage { width: 96px; height: 48px; border-radius: 24px; background-color: #2a2f38; justify-content: center; align-items: center; }
+.sign { font-size: 16px; color: #a8a8b0; margin-top: 4px; lines: 1; text-overflow: ellipsis; overflow: hidden; }
+.manage { width: 96px; height: 48px; border-radius: 24px; background-color: #141416; justify-content: center; align-items: center; }
 .manage-t { font-size: 18px; color: #cfd5de; }
-.more { font-size: 17px; color: #8fb8ff; text-align: center; padding-top: 12px; padding-bottom: 12px; }
+.more { font-size: 17px; color: #3ca5ec; text-align: center; padding-top: 12px; padding-bottom: 12px; }
 .empty { font-size: 17px; color: #8a93a0; text-align: center; margin-top: 24px; }
 .mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: rgba(0,0,0,0.55); flex-direction: column; justify-content: center; align-items: center; z-index: 150; }
-.panel { width: 560px; padding: 16px; background-color: #21242b; border-radius: 16px; flex-direction: column; }
+.panel { width: 560px; padding: 16px; background-color: #141416; border-radius: 16px; flex-direction: column; }
 .panel-title { font-size: 20px; color: #ffffff; text-align: center; margin-bottom: 12px; }
 .panel-row { flex-direction: row; justify-content: center; margin-bottom: 10px; }
-.panel-btn { height: 48px; padding-left: 20px; padding-right: 20px; margin-left: 6px; margin-right: 6px; border-radius: 24px; background-color: #2a2f38; flex-direction: row; justify-content: center; align-items: center; }
+.panel-btn { height: 48px; padding-left: 20px; padding-right: 20px; margin-left: 6px; margin-right: 6px; border-radius: 24px; background-color: #141416; flex-direction: row; justify-content: center; align-items: center; }
 .panel-ic { margin-right: 6px; }
 .panel-btn-t { font-size: 19px; color: #ffffff; }
 .panel-danger { background-color: #3a2733; }
 .panel-list { max-height: 120px; height: 120px; flex-direction: column; }
 .panel-state { font-size: 16px; color: #8a94a6; text-align: center; padding-top: 10px; }
-.panel-item { flex-direction: row; align-items: center; justify-content: space-between; padding-top: 10px; padding-bottom: 10px; padding-left: 12px; padding-right: 12px; border-bottom-width: 1px; border-bottom-color: #2b313a; }
+.panel-item { flex-direction: row; align-items: center; justify-content: space-between; padding-top: 10px; padding-bottom: 10px; padding-left: 12px; padding-right: 12px; border-bottom-width: 1px; border-bottom-color: #141416; }
 .panel-item-t { font-size: 18px; color: #e8edf3; }
 .panel-item-s { font-size: 15px; color: #8a94a6; }
-.panel-cancel { height: 44px; margin-top: 4px; border-radius: 22px; background-color: #1b1e24; justify-content: center; align-items: center; }
+.panel-cancel { height: 44px; margin-top: 4px; border-radius: 22px; background-color: #0b0b0d; justify-content: center; align-items: center; }
 .panel-cancel-t { font-size: 19px; color: #cfd5de; }
 /* 起始态: 页面在屏幕右侧外 (与 toview/up 一致), 去掉这个类即滑入 */
 .page-enter { transform: translateX(960px); }

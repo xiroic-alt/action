@@ -1613,7 +1613,7 @@ export default {
 
 <style scoped>
 /* ---------- 图片查看器 (纯黑底 + 居中悬浮工具栏; 与 feed.vue / 已删除的评论页同款) ---------- */
-.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
+.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; z-index: 200; }
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
 .iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
@@ -1639,7 +1639,7 @@ export default {
   top: 0px;
   width: 960px;
   height: 266px;
-  background-color: #141414;
+  background-color: #000000;
   flex-direction: row;
   /* 进入动画: 只允许 transform (Falcon transition 不支持 opacity, 0.9.1 加 opacity:0 导致黑屏) */
   transition-property: transform;
@@ -1661,7 +1661,7 @@ export default {
   background-color: #000000;
 }
 .cover-ph {
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
 }
 .dur {
   position: absolute;
@@ -1698,14 +1698,14 @@ export default {
   width: 660px;
   height: 266px;
   flex-direction: column;
-  background-color: #16181c;
+  background-color: #000000;
 }
 .tabbar {
   width: 660px;
   height: 36px;
   flex-direction: row;
   align-items: center;
-  background-color: #21242b;
+  background-color: #141416;
 }
 .tab {
   width: 96px;
@@ -1734,7 +1734,7 @@ export default {
   width: 52px;
   height: 32px;
   border-radius: 16px;
-  background-color: #37404a;
+  background-color: #1f1f23;
   justify-content: center;
   align-items: center;
   margin-right: 10px;
@@ -1770,7 +1770,7 @@ export default {
 }
 .stat {
   font-size: 16px;
-  color: #888888;
+  color: #a8a8b0;
   margin-top: 4px;
 }
 .btnrow {
@@ -1804,7 +1804,7 @@ export default {
 }
 .act-status {
   font-size: 16px;
-  color: #e6a23c;
+  color: #fb7299;
   margin-left: 14px;
   flex: 1;
 }
@@ -1817,7 +1817,7 @@ export default {
   flex: 1;
   height: 42px;
   border-radius: 21px;
-  background-color: #2a2f38;
+  background-color: #141416;
   flex-direction: row;
   justify-content: center;
   align-items: center;
@@ -1840,7 +1840,7 @@ export default {
 }
 .state-inline {
   font-size: 18px;
-  color: #e6a23c;
+  color: #fb7299;
   margin-top: 8px;
 }
 .section {
@@ -1878,7 +1878,7 @@ export default {
   padding-right: 14px;
   margin-right: 8px;
   border-radius: 19px;
-  background-color: #2a2f38;
+  background-color: #141416;
   color: #c8d2de;
   font-size: 16px;
   text-align: center;
@@ -1891,7 +1891,7 @@ export default {
   width: 632px;
   flex-direction: row;
   margin-top: 8px;
-  background-color: #1f1f1f;
+  background-color: #0b0b0d;
   border-radius: 10px;
 }
 .rcover {
@@ -1927,7 +1927,7 @@ export default {
 }
 .rstat {
   font-size: 15px;
-  color: #888888;
+  color: #a8a8b0;
 }
 .pull-hint {
   font-size: 14px;
@@ -1947,7 +1947,7 @@ export default {
   height: 32px;
   flex-direction: row;
   align-items: center;
-  background-color: #1a1d22;
+  background-color: #0b0b0d;
 }
 .sort-item {
   width: 92px;
@@ -1958,7 +1958,7 @@ export default {
   border-radius: 14px;
 }
 .sort-on {
-  background-color: #2c313a;
+  background-color: #141416;
 }
 .sort-text {
   font-size: 17px;
@@ -1976,7 +1976,7 @@ export default {
 }
 .c-status {
   font-size: 17px;
-  color: #e6a23c;
+  color: #fb7299;
   margin-top: 6px;
   margin-bottom: 6px;
 }
@@ -1985,7 +1985,7 @@ export default {
   padding-top: 8px;
   padding-bottom: 8px;
   border-bottom-width: 1px;
-  border-bottom-color: #262b33;
+  border-bottom-color: #141416;
 }
 .face {
   width: 44px;
@@ -2012,7 +2012,7 @@ export default {
   color: #ffffff;
 }
 .tag-up {
-  background-color: #2f80ed;
+  background-color: #3ca5ec;
   color: #ffffff;
 }
 .reply-pics {
@@ -2023,7 +2023,7 @@ export default {
 .reply-pic-hit {
   margin-right: 8px;
   border-radius: 8px;
-  background-color: #232830;
+  background-color: #141416;
 }
 .reply-pic {
   border-radius: 8px;
@@ -2063,7 +2063,7 @@ export default {
   padding-left: 8px;
   font-size: 18px;
   color: #e8edf3;
-  background-color: #16181c;
+  background-color: #000000;
 }
 .reply-msg-open {
   lines: 0;
@@ -2103,7 +2103,7 @@ export default {
   padding-top: 2px;
   padding-bottom: 2px;
   border-radius: 6px;
-  background-color: #2b2f36;
+  background-color: #141416;
 }
 .meta-reply {
   lines: 1;
@@ -2154,7 +2154,7 @@ export default {
   height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: #21242b;
+  background-color: #141416;
   padding-left: 12px;
   padding-right: 12px;
 }
@@ -2162,7 +2162,7 @@ export default {
   width: 500px;
   height: 36px;
   border-radius: 18px;
-  background-color: #2a2f38;
+  background-color: #141416;
   justify-content: center;
   padding-left: 14px;
 }
@@ -2200,7 +2200,7 @@ export default {
 }
 .picker {
   width: 520px;
-  background-color: #21242b;
+  background-color: #141416;
   border-radius: 14px;
   flex-direction: column;
   padding-top: 10px;
@@ -2230,7 +2230,7 @@ export default {
   flex-direction: row;
   align-items: center;
   border-bottom-width: 1px;
-  border-bottom-color: #2c313a;
+  border-bottom-color: #141416;
 }
 .picker-item-title {
   font-size: 19px;
@@ -2267,7 +2267,7 @@ export default {
 .picker-cancel {
   height: 44px;
   border-radius: 22px;
-  background-color: #2c313a;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
   margin-top: 8px;

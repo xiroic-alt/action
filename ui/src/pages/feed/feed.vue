@@ -716,14 +716,14 @@ export default {
 </script>
 
 <style scoped>
-.fpage { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #14161a; }
-.ftop { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #1b1e24; }
+.fpage { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; }
+.ftop { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #0b0b0d; }
 .fback { padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center; }
 .fback-ic { margin-right: 4px; }
 .fback-t { font-size: 21px; color: #cfd5de; }
 .ftitle { font-size: 19px; color: #e6eaf0; margin-right: 16px; }
 .cats { flex-direction: row; flex: 1; }
-.cat { padding-left: 12px; padding-right: 12px; height: 28px; border-radius: 6px; margin-right: 8px; background-color: #232830; justify-content: center; }
+.cat { padding-left: 12px; padding-right: 12px; height: 28px; border-radius: 6px; margin-right: 8px; background-color: #141416; justify-content: center; }
 .cat-on { background-color: #fb7299; }
 .cat-t { font-size: 17px; color: #aab2bd; }
 .cat-t-on { color: #ffffff; }
@@ -733,11 +733,11 @@ export default {
 .fstatus-t { font-size: 16px; color: #8a93a0; }
 .fwrap { padding-left: 20px; padding-right: 20px; padding-bottom: 12px; }
 .status { font-size: 17px; color: #8a93a0; text-align: center; padding-top: 14px; padding-bottom: 6px; }
-.dyn { width: 920px; margin-top: 10px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; background-color: #1f1f1f; border-radius: 12px; }
+.dyn { width: 920px; margin-top: 10px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; background-color: #0b0b0d; border-radius: 12px; }
 .dhead { flex-direction: row; align-items: center; }
 /* 头像 + 右下角头像框: 用相对定位包一层 (Falcon 支持 position: relative/absolute) */
 .dface-wrap { position: relative; width: 40px; height: 40px; margin-right: 10px; }
-.dface { width: 40px; height: 40px; border-radius: 20px; background-color: #232830; }
+.dface { width: 40px; height: 40px; border-radius: 20px; background-color: #141416; }
 .dpendant { position: absolute; right: -6px; bottom: -4px; width: 24px; height: 24px; }
 .dvbadge { width: 18px; height: 18px; border-radius: 9px; margin-left: 6px; justify-content: center; align-items: center; }
 .dvbadge-per { background-color: #ffac2c; }
@@ -745,49 +745,49 @@ export default {
 .fupsub { font-size: 16px; color: #8a94a6; margin-left: 14px; }
 .dface-ph { justify-content: center; align-items: center; }
 .dface-t { font-size: 18px; color: #7c8592; }
-.dauthor { font-size: 18px; color: #8fb8ff; }
+.dauthor { font-size: 18px; color: #3ca5ec; }
 .dtime { font-size: 15px; color: #7c8592; margin-left: 10px; }
 .dbadge { font-size: 15px; color: #ffffff; background-color: #fb7299; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-left: 10px; }
 /* 正文命中区: 事件挂在这个 div 上 (richtext 上的 @click 本机不触发) */
 .dtext-hit { width: 920px; min-height: 30px; margin-top: 4px; }
 .dtext { font-size: 19px; color: #dfe4ea; lines: 3; }
 .dtext-open { lines: 99; }
-.dhl { color: #8fb8ff; }
+.dhl { color: #3ca5ec; }
 .dmore { flex-direction: row; align-items: center; padding-top: 6px; padding-bottom: 6px; }
 .dmore-ic { margin-left: 2px; }
-.dmore-t { font-size: 16px; color: #8fb8ff; }
+.dmore-t { font-size: 16px; color: #3ca5ec; }
 .pics { margin-top: 6px; }
 .pic-row { flex-direction: row; }
-.pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; background-color: #232830; }
+.pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; background-color: #141416; }
 .pic-img { border-radius: 8px; }
-.vcard { flex-direction: row; margin-top: 6px; padding: 8px; background-color: #262b33; border-radius: 8px; }
+.vcard { flex-direction: row; margin-top: 6px; padding: 8px; background-color: #141416; border-radius: 8px; }
 .vcover { width: 160px; height: 100px; border-radius: 6px; margin-right: 10px; }
 .vmeta { flex: 1; }
 .vtitle { font-size: 18px; color: #ffffff; lines: 2; }
 .vstatrow { flex-direction: row; align-items: center; margin-top: 6px; }
 .vstat-ic { margin-right: 4px; }
-.vstat { font-size: 16px; color: #888888; }
-.ocard { margin-top: 6px; padding: 8px; background-color: #262b33; border-radius: 8px; }
+.vstat { font-size: 16px; color: #a8a8b0; }
+.ocard { margin-top: 6px; padding: 8px; background-color: #141416; border-radius: 8px; }
 .otitle { font-size: 18px; color: #ffffff; lines: 2; }
 .dread { flex-direction: row; align-items: center; margin-top: 6px; }
-.dread-t { font-size: 16px; color: #8fb8ff; }
+.dread-t { font-size: 16px; color: #3ca5ec; }
 .dread-ic { margin-left: 4px; }
 .osum { font-size: 17px; color: #aab2bd; lines: 2; margin-top: 4px; }
-.ostat { margin-top: 6px; padding: 8px; background-color: #1a1d22; border-radius: 8px; }
-.olabel { font-size: 17px; color: #8fb8ff; }
+.ostat { margin-top: 6px; padding: 8px; background-color: #0b0b0d; border-radius: 8px; }
+.olabel { font-size: 17px; color: #3ca5ec; }
 .dfoot { flex-direction: row; align-items: center; margin-top: 8px; }
 /* 点赞/评论/转发: 有尺寸的命中区 (事件必须挂在 div 上, text 上的 @click 本机不触发) */
-.dfoot-btn { flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; border-radius: 17px; background-color: #262b33; margin-right: 10px; }
+.dfoot-btn { flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; border-radius: 17px; background-color: #141416; margin-right: 10px; }
 .dfoot-static { background-color: #1f2329; }
 .dfoot-on { background-color: #3a2733; }
 .dfoot-ic { margin-right: 6px; }
 .dfoot-t { font-size: 16px; color: #9aa3af; }
 .dfoot-t-on { color: #fb7299; }
 .loadmore { height: 40px; justify-content: center; }
-.loadmore-t { font-size: 17px; color: #8fb8ff; }
+.loadmore-t { font-size: 17px; color: #3ca5ec; }
 .empty { margin-top: 20px; justify-content: center; }
 .empty-t { font-size: 18px; color: #8a93a0; }
-.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
+.iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; z-index: 200; }
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
 .iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }

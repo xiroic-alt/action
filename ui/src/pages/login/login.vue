@@ -345,7 +345,7 @@ function toRuns(m) {
   top: 0px;
   width: 960px;
   height: 266px;
-  background-color: #16181c;
+  background-color: #000000;
 }
 .left {
   position: absolute;
@@ -366,17 +366,17 @@ function toRuns(m) {
   height: 44px;
   flex-direction: row;
   align-items: center;
-  background-color: #21242b;
+  background-color: #0b0b0d;
 }
 .topbar-full {
   width: 960px;
 }
 .back {
-  width: 100px;
-  height: 34px;
+  width: 132px;
+  height: 40px;
   margin-left: 12px;
-  border-radius: 17px;
-  background-color: #37404a;
+  border-radius: 20px;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -385,7 +385,7 @@ function toRuns(m) {
   color: #ffffff;
 }
 .title {
-  font-size: 24px;
+  font-size: 22px;
   color: #ffffff;
   margin-left: 14px;
 }
@@ -403,7 +403,7 @@ function toRuns(m) {
   padding-right: 20px;
   border-radius: 20px;
   margin-right: 12px;
-  background-color: #2a2f38;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -475,7 +475,7 @@ function toRuns(m) {
   width: 936px;
   height: 42px;
   border-radius: 10px;
-  background-color: #21242b;
+  background-color: #141416;
   justify-content: center;
   padding-left: 14px;
 }
@@ -501,7 +501,7 @@ function toRuns(m) {
   top: 0px;
   width: 280px;
   height: 266px;
-  background-color: #21242b;
+  background-color: #141416;
   justify-content: center;
   align-items: center;
 }
@@ -522,7 +522,7 @@ function toRuns(m) {
 .qr-dark {
   position: absolute;
   top: 0px;
-  background-color: #16181c;
+  background-color: #000000;
 }
 /* 宽高由 :style 动态给出 (随二维码版本变化) */
 .qr-mask {
@@ -535,7 +535,7 @@ function toRuns(m) {
 }
 .qr-mask-text {
   font-size: 40px;
-  color: #16181c;
+  color: #000000;
 }
 /* 过期/出错覆盖层: 可点按刷新 */
 .qr-mask-tap {
