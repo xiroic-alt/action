@@ -228,7 +228,7 @@
   </div>
 </template>
 <script>
-import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply } from '../../services/bili.js'
+import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply, GRID_COLS } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { createIME } from '../../services/ime.js'
 import { log } from '../../services/log.js'
@@ -254,7 +254,7 @@ function setTimer(vm, ms, fn) {
   return setTimeout(fn, ms)
 }
 
-// 图片按 4 列切行 (与列表页 GRID_CELL=200 对齐)
+// 图片按 GRID_COLS 列切行 (列数与格子尺寸同源, 见 bili.js)
 function chunkRows(arr, n) {
   const out = []
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n))
@@ -475,8 +475,8 @@ export default {
           if (it) {
             self.item = it
             self.segs = it.segs || []
-            self.rows = chunkRows(it.pics || [], 4)
-            self.origRows = it.orig ? chunkRows(it.orig.pics || [], 4) : []
+            self.rows = chunkRows(it.pics || [], GRID_COLS)
+            self.origRows = it.orig ? chunkRows(it.orig.pics || [], GRID_COLS) : []
             self.liked = !!(it.stat && it.stat.liked)
             self.likeText = (it.stat && it.stat.likeText) || '0'
             self.replyText = (it.stat && it.stat.replyText) || '0'

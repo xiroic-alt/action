@@ -166,7 +166,7 @@
 </template>
 
 <script>
-import { getDynamicFeed, likeDynamic } from '../../services/bili.js'
+import { getDynamicFeed, likeDynamic, GRID_COLS } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
@@ -361,8 +361,9 @@ export default {
         if (gen !== this.generation) return
         const add = r.items || []
         for (let i = 0; i < add.length; i++) {
-          add[i].rows = chunk(add[i].pics || [], 3)
-          if (add[i].orig) add[i].orig.rows = chunk(add[i].orig.pics || [], 3)
+          // 列数取共享常量 (曾经硬编码 3, 与 GRID_CELL=200 不匹配 -> 3 列只占 618px)
+          add[i].rows = chunk(add[i].pics || [], GRID_COLS)
+          if (add[i].orig) add[i].orig.rows = chunk(add[i].orig.pics || [], GRID_COLS)
           add[i].expanded = false
         }
         if (reset) this.items = []

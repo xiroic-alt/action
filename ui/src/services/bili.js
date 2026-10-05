@@ -1287,6 +1287,11 @@ export async function getDynamicFeed(offset, type, fresh) {
   }
   // 封面诊断: 0.8.6 动态封面不显示过一次, 留下实际下发的 URL 便于设备上 curl 验证
   if (items.length > 0) log('动态', '首条封面 ' + items[0].pic)
+  // 九宫格缩略图打点: 真机上确认列表下的是 @200w_200h_1c 这类缩略图而不是原图
+  // (「照片加载慢」的根因就是原图直连, 原图实测有 6336px 宽的)
+  if (items.length > 0 && items[0].pics && items[0].pics.length > 0) {
+    log('动态', '首条图 ' + items[0].pics[0].src)
+  }
   const out = {
     items: items,
     offset: body.data.offset || '',
@@ -1547,6 +1552,9 @@ let dynDbg2 = 0
 // 演进: 0.9.58 按「3 列铺满卡片」算成 288px —— 用户反馈「照片小一点不要这么大」:
 //   288px 比整块屏幕(266 高)还高, 一条 4 图动态就吃掉两屏. 现在改 4 列 × 200px
 //   (4*200 + 3*6 间距 = 818 ≤ 896 卡片内容宽), 9 图动态从 3 行 882px 降到 3 行 618px.
+// 列数必须与 GRID_CELL 一起从这里取 —— 0.9.59 踩过: 只把 GRID_CELL 从 288 改成 200,
+// 页面上 chunk(pics, 3) 的列数还是硬编码 3, 结果 3 列 × 200px 只占 618px, 右边一大片空.
+export const GRID_COLS = 4
 const GRID_CELL = 200        // 4 列: (896 - 3*6) / 4 ≈ 219 为上限, 取 200 留右侧余量
 const GRID_ONE_W = 300       // 单图动态: 一张中等图 (cover 裁切, 点开看原图)
 const GRID_ONE_H = 200
