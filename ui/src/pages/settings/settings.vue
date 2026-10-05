@@ -122,10 +122,12 @@ export default {
   mounted() {
     this.reload()
   },
-  onShow() {
-    this.cfg = loadConfig()   // 从别的页返回时配置可能已变
-  },
   methods: {
+    // 必须放在 methods 里: 运行时只把 onShow 转发给页面根组件的方法
+    // (0.9.61 新增的体检断言抓到的既有问题: 原来写成组件根级选项, 永远不会被调用)
+    onShow() {
+      this.cfg = loadConfig()   // 从别的页返回时配置可能已变
+    },
     reload() {
       this.cfg = loadConfig()
       try {

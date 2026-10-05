@@ -93,7 +93,9 @@ export default {
       if (!d) return ''
       const pre = (this.info && this.info.officialType === 1) ? 'bilibili机构认证：' : 'bilibili个人认证：'
       return pre + d
-    },
+    }
+  },
+  methods: {
     startDots() {
       if (this._dotTimer) return
       const self = this
