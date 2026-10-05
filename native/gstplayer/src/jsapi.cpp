@@ -22,6 +22,8 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -109,6 +111,29 @@ public:
         }
         pid_t pid = fork();
         if (pid == 0) {
+            // 视频面层级: 本固件 libgstwayland 被原厂 patch 出 WAYLANDSINK_PLACE_ABOVE
+            // (另有 WAYLANDSINK_FORCE_OPAQUE 与 -stay-on-top|-stay-on-bottom 同族字样).
+            // 我们设 0 让视频面沉到 UI 之下 —— Falcon 页面的 <hole> 才能稳定透出画面,
+            // 不依赖「真实输入抬升焦点 surface」(合成输入不进 Weston, 那条路已证无解;
+            // 而 waylandsink 的 layer 属性在本固件 toplevel 窗口上会 SIGSEGV,
+            //  见 core.cpp readLayerPref 的注释与真机栈).
+            // 只在子进程里设, 不动宿主 miniapp 的环境.
+            // 可回退: /userdisk/xiro/vplace 写一行数字, 改完重播即生效, 不必重编 CI
+            //   0 或缺省 = 沉底 (默认, 目标状态)
+            //   1        = 放上层 (老行为, 若发现画面看不见就写 1)
+            //   -1       = 完全不设, 跟固件缺省走
+            {
+                int vplace = 0;
+                FILE* vf = fopen("/userdisk/xiro/vplace", "r");
+                if (vf) {
+                    int v = 99;
+                    if (fscanf(vf, "%d", &v) == 1 && v >= -1 && v <= 1) vplace = v;
+                    fclose(vf);
+                }
+                if (vplace >= 0) {
+                    setenv("WAYLANDSINK_PLACE_ABOVE", vplace ? "1" : "0", 1);
+                }
+            }
             dup2(inPipe[0], 0);
             dup2(outPipe[1], 1);
             ::close(inPipe[0]); ::close(inPipe[1]);

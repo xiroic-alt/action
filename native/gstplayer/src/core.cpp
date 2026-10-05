@@ -125,11 +125,15 @@ static int readBtAudioDelayMs()
 }
 
 // 视频面层级偏好: /userdisk/xiro/vlayer 覆盖 (整数, 见 applyLayer 注释).
-// 读不到用缺省 2 (bottom). 允许运行时改文件后重播生效, 不必重编 CI.
+// **缺省 -1 = 不设** —— 真机实测: 本固件 patch 的 gst_wl_window_ensure_layer 在
+// toplevel 窗口上直接 SIGSEGV (先是构造期 window 为 NULL 必崩; 改成 window 建好
+// 之后再设, 依然在 bus PLAYING 后崩, 日志停在 "bus PLAYING" 之后、没有
+// "layer applied" —— 说明 ensure_layer 对没有 parent 的 toplevel 窗口就是坏的).
+// 想试的话在设备上写 /userdisk/xiro/vlayer: 2=bottom 1=normal 0=top, 重播即生效.
 static int readLayerPref()
 {
     FILE* f = fopen("/userdisk/xiro/vlayer", "r");
-    if (!f) return 2;
+    if (!f) return -1;
     int v = 99;
     if (fscanf(f, "%d", &v) != 1) v = 99;
     fclose(f);
