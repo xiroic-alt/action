@@ -12,7 +12,7 @@
     <scroller class="results" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMoreVideos" @scroll="onListScroll"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <text v-if="upStatus !== ''" class="state">{{ upStatus }}</text>
+      <text v-if="upStatus !== ''" class="state">{{ upStatus }}{{ dots }}</text>
 
       <div class="info-row" v-if="info">
         <!-- 头像框: 官方 App 在头像右下角挂装饰 (acc/info 的 pendant) -->
@@ -83,6 +83,7 @@ export default {
       videosPage: 1,
       videosHasMore: false,
       upStatus: '加载中…',
+      dots: '',        // 「加载中…」后面的动画点 (与 fav/history/toview 同款; 之前漏声明, startDots 一跑就踩空)
       videosStatus: '',
       generation: 0,
       entering: true   // 页面进入动画
@@ -165,7 +166,9 @@ export default {
       const gen = ++this.generation
       this.info = null
       this.videos = []
+      this.stopDots()          // 重入先停旧动画, 避免多个 timer 叠加
       this.upStatus = '加载中…'
+      this.startDots()
 
       // 先进页面画完进入动画再发请求: bilinet.httpGet 同步阻塞 JS 线程
       afterPaint(async () => {
@@ -175,6 +178,7 @@ export default {
           if (gen !== this.generation) return
           this.info = info
           this.upStatus = ''
+          this.stopDots()
           // 粉丝数异步补充, 失败静默
           try {
             const fans = await getUpFans(this.mid)
@@ -185,6 +189,7 @@ export default {
           if (gen !== this.generation) return
           console.log('[bili] up info error: ' + (err && err.message ? err.message : err))
           this.upStatus = err && err.message ? err.message : String(err)
+          this.stopDots()
         }
 
         // 视频列表独立加载, 互不影响
@@ -279,6 +284,7 @@ export default {
 
     onUnload() {
       this.generation++
+      this.stopDots()   // 加载中点动画用全局 setInterval, 页面销毁必须自己清
     }
   }
 }

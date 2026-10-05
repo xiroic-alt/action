@@ -219,7 +219,7 @@
 import { createIME } from '../../services/ime.js'
 import { searchVideos, getPopular, getRecommend, getDynamicFeed, getMyInfo , parseMessage } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
-import { clearLogin, hasCookie, saveProfile } from '../../services/auth.js'
+import { hasCookie, saveProfile } from '../../services/auth.js'
 import { log, logStatus } from '../../services/log.js'
 import { storeStatus, addSearchHistory, getSearchHistory, clearSearchHistory } from '../../services/store.js'
 import pm from 'pm'
@@ -623,14 +623,7 @@ export default {
       try { $falcon.navTo('settings') } catch (e) { this.myStatus = '打开设置失败' }
     },
 
-    logout() {
-      clearLogin()
-      this.myInfo = { isLogin: false, uname: '', face: '', mid: 0, level: 0, coin: 0, money: 0, vip: '' }
-      this.myStatus = '已退出登录'
-      // 动态缓存态作废, 下次进入重新按登录态加载
-      this.dynLoaded = false
-      this.dynItems = []
-    },
+
 
     // ================= 搜索 =================
     async openKeyboard() {

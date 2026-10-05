@@ -136,6 +136,10 @@ jobs:
           for f in ui/libs/libjsapi_bilinet.so ui/libs/libjsapi_gstplayer.so ui/libs/gstplayerd; do
             aarch64-linux-gnu-strip --strip-debug "$f"
           done
+          # 红线: strip 只许删调试段, 不许动 .dynsym —— 导出符号没了模块就加载不起来.
+          # 两条都必须命中, 命中不到即让构建失败 (装机前拦住, 别到设备上才发现).
+          aarch64-linux-gnu-nm -D ui/libs/libjsapi_bilinet.so | grep -q custom_init_jsapis
+          aarch64-linux-gnu-nm -D ui/libs/libjsapi_gstplayer.so | grep -q custom_init_jsapis
           ls -l ui/libs/
       - name: Build AMR (production quickjs)
         run: pnpm -C ui package

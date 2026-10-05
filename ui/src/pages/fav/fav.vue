@@ -250,6 +250,7 @@ export default {
 
     onUnload() {
       this.generation++
+      this.stopDots()   // 加载中点动画用全局 setInterval, 页面销毁必须自己清
     }
   }
 }
