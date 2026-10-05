@@ -55,6 +55,7 @@
 <script>
 import { getUpInfo, getUpFans, getUpVideos , parseMessage } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
+import { log } from '../../services/log.js'
 
 // 进入动画 340ms 画完再发首条请求 (同步 http 阻塞 JS 会卡进入动画)
 var LOAD_DELAY_MS = 340
@@ -117,6 +118,7 @@ export default {
     beginLoad(options) {
       options = options || this.$page.options || {}
       const mid = parseInt(options.mid || '0', 10)
+      try { log('UP页', 'begin mid=' + mid + ' name=' + String(options.name || '')) } catch (e0) {}
       if (!mid) {
         this.upStatus = '缺少 UP 主参数'
         return

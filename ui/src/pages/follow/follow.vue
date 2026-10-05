@@ -104,7 +104,7 @@ export default {
   data() {
     return {
       MI: MI,
-      entering: false,
+      entering: true,      // 起始态在屏幕右侧外 (见 .page-enter), 挂载后 60ms 置 false 滑入
       logged: false,
       loaded: false,
       me: 0,
@@ -138,7 +138,17 @@ export default {
   methods: {
     onShow() {
       this.logged = hasCookie()
-      this.entering = true
+      // 进入动画: 首帧后把 entering 翻成 false 滑入 (与 toview/up 同一套约定;
+      // 0.9.61 踩过: 把 .page-enter 写成 translate(0,0) 且 entering 永远为 true,
+      // 动画状态机卡住 -> 任何 navTo 都只放出「关闭动画」, 目标页打不开)
+      if (this.entering) {
+        const self = this
+        try {
+          const p = this.$page
+          if (p && p.setTimeout) p.setTimeout(function () { self.entering = false }, 60)
+          else setTimeout(function () { self.entering = false }, 60)
+        } catch (e) { this.entering = false }
+      }
       try { log('关注页', 'onShow 到达 started=' + (this._started === true)) } catch (e0) {}
       if (this._started) return
       this._started = true
@@ -202,8 +212,11 @@ export default {
     },
     loadMore() { if (this.loading || !this.hasMore) return; this.load(false) },
     openUp(u) {
-      if (!u || !u.mid) return
-      try { $falcon.navTo('up', { mid: String(u.mid), name: u.name }) } catch (e) { this.status = '打开主页失败' }
+      if (!u || !u.mid) { this.status = '这条没有 UID'; return }
+      try {
+        log('关注页', '打开主页 mid=' + u.mid + ' name=' + u.name)
+        $falcon.navTo('up', { mid: String(u.mid), name: u.name })
+      } catch (e) { this.status = '打开主页失败: ' + (e && e.message ? e.message : e) }
     },
     openManage(u) {
       this.picker = { on: true, name: u.name, mid: u.mid, tagsOn: false }
@@ -278,7 +291,7 @@ export default {
 </script>
 
 <style scoped>
-.page { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #14161a; }
+.page { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #14161a; transition-property: transform; transition-duration: 260ms; transition-timing-function: ease-out; }
 .topbar { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #1b1e24; }
 .back { padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center; }
 .back-ic { margin-right: 4px; }
@@ -324,5 +337,6 @@ export default {
 .panel-item-s { font-size: 15px; color: #8a94a6; }
 .panel-cancel { height: 44px; margin-top: 4px; border-radius: 22px; background-color: #1b1e24; justify-content: center; align-items: center; }
 .panel-cancel-t { font-size: 19px; color: #cfd5de; }
-.page-enter { transition-property: transform; transition-duration: 220ms; transform: translate(0px, 0px); }
+/* 起始态: 页面在屏幕右侧外 (与 toview/up 一致), 去掉这个类即滑入 */
+.page-enter { transform: translateX(960px); }
 </style>
