@@ -1324,7 +1324,10 @@ function mapRichNodes(nodes) {
         segs.push({ t: 0, v: txt })
       }
     } else if (ty === '' || ty === 'RICH_TEXT_NODE_TYPE_TEXT') {
-      if (txt) segs.push({ t: 0, v: txt })
+      // 正文里的 unicode emoji (✨🐉⭐) 设备字体渲染不出, 直接当文本就是豆腐块.
+      // 复用评论/标题同一条通道 scanEmoji: emoji 切成 twemoji CDN 图片段, 其余保持文本.
+      // 列表页按既有决策不内置 PNG (require 只能写在 .vue 里, 不值得每个列表页复制 74 行).
+      if (txt) scanEmoji(txt, segs, null)
     } else if (txt) {
       segs.push({ t: 2, v: txt, rid: String(n.rid || ''), url: n.jump_url || '' })
     }
