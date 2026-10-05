@@ -41,6 +41,12 @@
             <div class="fill" :style="fillStyle"></div>
             <div class="thumb" :style="thumbStyle"></div>
           </div>
+          <!-- 点击兜底: 本机合成触摸 (adb send_event) 只产生 click、不产生 touch 事件序列,
+               所以纯 touch 的进度条在自动化里点不动。叠一层透明分段, 每段一个 @click,
+               真实手指走上面的 touch 拖动, 两种输入都能用. -->
+          <div class="segs">
+            <div v-for="seg in segList" :key="seg" class="seg" @click="seekBySeg(seg)"></div>
+          </div>
         </div>
         <text class="time">{{ curText }} / {{ durText }}</text>
       </div>
@@ -131,6 +137,11 @@ export default {
       seekHoldMs: null,
       seekHoldUntil: 0,
       // 进度条拖动 (对齐原厂 ProgressBar.vue 的 draging / isSeeking / dstPosition)
+      segList: (function () {
+        var a = []
+        for (var i = 0; i < SEG_COUNT; i++) a.push(i)
+        return a
+      })(),
       seekDragging: false,
       seekDstPct: -1,        // 拖动中的目标比例 0..1 (-1 = 未拖动)
       seekDstMs: 0,          // 拖动中的目标毫秒 (松手才 seek)
@@ -540,6 +551,15 @@ export default {
       // 松手后短暂忽略 stage 的点击 (见 toggleBar)
       this._suppressTapUntil = Date.now() + 300
     },
+    // 分段点击 (兜底通道): segIndex 0..N-1 -> 跳到 (i+0.5)/SEG_COUNT 处
+    seekBySeg: function (segIndex) {
+      if (!this.opened) return
+      this.showBar()
+      var dur = this.durMs || player.getDuration()
+      if (dur <= 0) return
+      this.applySeek(Math.round(((segIndex + 0.5) / SEG_COUNT) * dur))
+    },
+
     // x -> 目标位置; min/max 夹在轨道内
     seekToX: function (x) {
       var dur = this.durMs || player.getDuration()
@@ -734,6 +754,18 @@ export default {
   margin-left: -7px;
   border-radius: 7px;
   background-color: #ffffff;
+}
+.segs {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  width: 520px;
+  height: 44px;
+  flex-direction: row;
+}
+.seg {
+  width: 21.66px;
+  height: 44px;
 }
 .time {
   position: absolute;
