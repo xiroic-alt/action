@@ -1367,6 +1367,29 @@ export async function getOpusDetail(id) {
   return { id: did, title: title, author: author, blocks: blocks, stat: stat }
 }
 
+/**
+ * 动态点赞 (docs/dynamic/action.md, 需登录 + csrf)
+ * 实测: 新接口 x/dynamic/feed/dyn/thumb 只吃 JSON 体 (表单体回 4100001 参数错误),
+ * 而旧接口 dynamic_like 吃 application/x-www-form-urlencoded -> 与设备端 postJsonAsync 兼容, 客户端走这条.
+ * @param {string} dynId 动态 id (id_str)
+ * @param {boolean} want true=点赞 false=取消
+ */
+export async function likeDynamic(dynId, want) {
+  if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
+  const csrf = needCsrf()
+  const id = String(dynId == null ? '' : dynId)
+  if (!id) throw new Error('缺少动态 ID')
+  const data = 'dynamic_id=' + encodeURIComponent(id)
+    + '&up=' + (want === false ? 2 : 1) + '&csrf=' + encodeURIComponent(csrf)
+  const body = await postJsonAsync('https://api.vc.bilibili.com/dynamic_like/v1/dynamic_like/thumb', data, 15)
+  if (body.code !== 0) {
+    if (body.code === -101) throw new Error('登录已过期, 请重新登录')
+    if (body.code === -111) throw new Error('csrf 校验失败, 请重新登录')
+    throw new Error(body.message || ('点赞失败 code=' + body.code))
+  }
+  return true
+}
+
 // ===================== 动态流全类型映射 (0.9.54) =====================
 // 动态形态比视频复杂: 投稿(archive) / 图文(draw, 九宫格) / 纯文字(word) / 专栏(opus) / 转发(forward) / 直播(live_rcmd)
 // 正文必须按 desc.rich_text_nodes 保序渲染 —— 节点的 emoji.size (1=小 2=大) 决定字号,
@@ -1447,8 +1470,9 @@ function opusNodeSegs(nodes) {
 // 专栏正文: 段落数组 -> 渲染块. para_type (docs/opus/features.md):
 //   1 文本 / 2 图片 / 3 分割线 / 4 块引用 / 5 列表 / 6 链接卡片 / 7 代码
 // 图按原始比例缩: 内容宽 880, 图最多 720 宽 / 700 高 (设备屏只有 266 高, 巨图必须收, 点开可看原图)
-const OPUS_IMG_W = 720
-const OPUS_IMG_MAX_H = 700
+// 阅读页现在是「左内容 + 右评论」两栏: 左栏内容宽 546 -> 图最多 540 宽
+const OPUS_IMG_W = 540
+const OPUS_IMG_MAX_H = 640
 function mapOpusBlocks(paragraphs) {
   const out = []
   const arr = paragraphs || []
@@ -1657,8 +1681,14 @@ function mapDynamicItem(it) {
     stat: {
       like: (st.like && st.like.count) || 0,
       reply: (st.comment && st.comment.count) || 0,
-      forward: (st.forward && st.forward.count) || 0
+      forward: (st.forward && st.forward.count) || 0,
+      // 点赞按钮初始高亮: module_stat.like.status = 我是否已赞 (实测字段存在)
+      liked: !!(st.like && st.like.status)
     },
+    // 评论区坐标: type 用 basic.comment_type (11=动态 / 12=专栏),
+    // oid 用 basic.comment_id_str (不是动态 id) —— 详情页拉评论全靠这两个值
+    commentType: Number(it.basic && it.basic.comment_type) || 11,
+    commentOid: String((it.basic && (it.basic.comment_id_str || it.basic.rid_str)) || ''),
     expanded: false,
     // 旧字段 (首页列表沿用)
     bvid: archive ? archive.bvid : '',
@@ -1742,10 +1772,13 @@ function mapReply(r, upperMid, builtinEmoji, opts) {
   }
 }
 
-export async function getReplies(aid, pn, builtinEmoji, sort, fresh) {
+export async function getReplies(aid, pn, builtinEmoji, sort, fresh, type) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   const sortParam = sort === 'time' ? 0 : 2
-  const url = 'https://api.bilibili.com/x/v2/reply?type=1&oid=' + encodeURIComponent(aid)
+  // 评论区类型由来源决定: 1=视频(默认) / 11=动态 / 12=专栏 —— 用 basic.comment_type,
+  // oid 必须是 basic.comment_id_str, 不是动态 id (实测 type=11 + 动态 id 回 -404)
+  const oidType = Number(type) || 1
+  const url = 'https://api.bilibili.com/x/v2/reply?type=' + oidType + '&oid=' + encodeURIComponent(aid)
     + '&pn=' + (pn || 1) + '&ps=20&sort=' + sortParam + '&jsonp=json'
   const body = await getJsonAsync(url, 15)
   if (body.code !== 0 || !body.data) {
@@ -1755,7 +1788,7 @@ export async function getReplies(aid, pn, builtinEmoji, sort, fresh) {
   const page = body.data.page || {}
   const list = body.data.replies || []
   // 首页缓存 3 分钟: 进详情预取 + 再进同一视频都走缓存, 秒开 (手动刷新传 fresh 绕过)
-  const ckey = 'replies_' + aid + '_' + sortParam
+  const ckey = 'replies_' + oidType + '_' + aid + '_' + sortParam
   if ((pn || 1) === 1 && !fresh) {
     const c = cacheGet(ckey, 180000)
     if (c) return c
@@ -1795,9 +1828,9 @@ export async function getReplies(aid, pn, builtinEmoji, sort, fresh) {
  * @param {number} pn 页码
  * @param {object} builtinEmoji 内置 emoji 图片映射
  */
-export async function getSubReplies(aid, root, pn, builtinEmoji) {
+export async function getSubReplies(aid, root, pn, builtinEmoji, type) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  const url = 'https://api.bilibili.com/x/v2/reply/reply?type=1&oid=' + encodeURIComponent(aid)
+  const url = 'https://api.bilibili.com/x/v2/reply/reply?type=' + (Number(type) || 1) + '&oid=' + encodeURIComponent(aid)
     + '&root=' + encodeURIComponent(root) + '&pn=' + (pn || 1) + '&ps=20&jsonp=json'
   const body = await getJsonAsync(url, 15)
   if (body.code !== 0 || !body.data) {
@@ -1825,9 +1858,9 @@ export async function getSubReplies(aid, root, pn, builtinEmoji) {
  * @param {number} rpid 评论 rpid
  * @param {boolean} on true=点赞 false=取消
  */
-export async function likeReply(aid, rpid, on) {
+export async function likeReply(aid, rpid, on, type) {
   const csrf = needCsrf()
-  const data = 'oid=' + encodeURIComponent(aid) + '&type=1&rpid=' + encodeURIComponent(rpid)
+  const data = 'oid=' + encodeURIComponent(aid) + '&type=' + (Number(type) || 1) + '&rpid=' + encodeURIComponent(rpid)
     + '&action=' + (on === false ? 0 : 1) + '&csrf=' + encodeURIComponent(csrf)
   const body = await postJsonAsync('https://api.bilibili.com/x/v2/reply/action', data, 15)
   if (body.code !== 0) {
@@ -1845,12 +1878,12 @@ export async function likeReply(aid, rpid, on) {
  * @param {number} [root] 楼中楼: 顶层主评论 rpid (发主评论时不传)
  * @param {number} [parent] 楼中楼: 被直接回复的那条 rpid (默认等于 root)
  */
-export async function addReply(aid, message, root, parent) {
+export async function addReply(aid, message, root, parent, type) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   if (!auth.hasCookie()) throw new Error('登录后才能评论')
   const csrf = auth.getCsrf()
   if (!csrf) throw new Error('Cookie 缺少 bili_jct (请重新登录)')
-  let data = 'oid=' + encodeURIComponent(aid) + '&type=1&message='
+  let data = 'oid=' + encodeURIComponent(aid) + '&type=' + (Number(type) || 1) + '&message='
     + encodeURIComponent(message) + '&csrf=' + encodeURIComponent(csrf)
   if (root) {
     data += '&root=' + encodeURIComponent(root)

@@ -8,115 +8,179 @@
       <text class="dtitle">{{ headTitle }}</text>
       <text v-if="author !== ''" class="dtag">{{ author }}</text>
       <div class="dtop-spacer"></div>
+      <text v-if="pubText !== ''" class="dtime">{{ pubText }}</text>
     </div>
 
-    <div class="dstatus" v-if="status !== ''" @click="retry">
-      <image class="dstatus-ic" :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
-      <text class="dstatus-t">{{ status }}</text>
-    </div>
-
-    <scroller v-else class="dscroll" scroll-direction="vertical" :show-scrollbar="true">
-      <div class="dwrap">
-        <div class="ahead">
-          <image v-if="face !== ''" class="aface" :src="face" resize="cover"></image>
-          <div v-else class="aface aface-ph"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
-          <text class="aname">{{ author }}</text>
-          <text class="atime">{{ pubText }}</text>
+    <!-- ============ 左栏: 内容 (580px) ============ -->
+    <div class="dleft">
+      <!-- 交互行: 点赞 / 评论数 / 转发数 (固定在内容上方, 长文不用滚到底才点得到) -->
+      <div class="actrow">
+        <div :class="['act-btn', liked ? 'act-on' : '']" @click="doLike">
+          <text :class="['act-text', liked ? 'act-text-on' : '']">{{ liked ? '已赞' : '点赞' }}</text>
+          <text :class="['act-num', liked ? 'act-num-on' : '']">{{ likeText }}</text>
         </div>
+        <div class="act-btn act-static">
+          <text class="act-text">评论</text>
+          <text class="act-num">{{ replyText }}</text>
+        </div>
+        <div class="act-btn act-static">
+          <text class="act-text">转发</text>
+          <text class="act-num">{{ forwardText }}</text>
+        </div>
+        <text v-if="actStatus !== ''" class="act-status">{{ actStatus }}</text>
+      </div>
 
-        <!-- 专栏 / 图文全文 (opus/detail): 标题 + 结构化段落 -->
-        <template v-if="art">
-          <text v-if="art.title !== ''" class="artitle">{{ art.title }}</text>
-          <div class="pblock" v-for="(b, bi) in art.blocks" :key="'b' + bi">
-            <richtext v-if="b.k === 'text' || b.k === 'quote'" :class="['ptext', b.k === 'quote' ? 'pquote' : '']">
-              <template v-for="(seg, si) in b.segs">
-                <span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span>
-                <span v-else-if="seg.t === 2" :key="'th' + si" class="phl">{{ seg.v }}</span>
-                <image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
+      <div class="dstatus" v-if="status !== ''" @click="retry">
+        <image class="dstatus-ic" :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
+        <text class="dstatus-t">{{ status }}</text>
+      </div>
+
+      <scroller v-else class="dscroll" scroll-direction="vertical" :show-scrollbar="true">
+        <div class="dwrap">
+          <div class="ahead">
+            <image v-if="face !== ''" class="aface" :src="face" resize="cover"></image>
+            <div v-else class="aface aface-ph"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
+            <text class="aname">{{ author }}</text>
+            <text class="atime">{{ pubText }}</text>
+          </div>
+
+          <!-- 专栏 / 图文全文 (opus/detail): 标题 + 结构化段落 -->
+          <template v-if="art">
+            <text v-if="art.title !== ''" class="artitle">{{ art.title }}</text>
+            <div class="pblock" v-for="(b, bi) in art.blocks" :key="'b' + bi">
+              <richtext v-if="b.k === 'text' || b.k === 'quote'" :class="['ptext', b.k === 'quote' ? 'pquote' : '']">
+                <template v-for="(seg, si) in b.segs">
+                  <span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span>
+                  <span v-else-if="seg.t === 2" :key="'th' + si" class="phl">{{ seg.v }}</span>
+                  <image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
+                </template>
+              </richtext>
+              <div v-else-if="b.k === 'pic'" class="pimg" :style="{ width: b.w + 'px', height: b.h + 'px' }" @click="openPic(b)">
+                <image class="pimg-i" :src="b.src" resize="cover" :style="{ width: b.w + 'px', height: b.h + 'px' }"></image>
+              </div>
+              <div v-else-if="b.k === 'list'" class="plist">
+                <div class="plist-row" v-for="(r, ri) in b.rows" :key="'lr' + ri">
+                  <text class="plist-mark">{{ r.mark }}</text>
+                  <richtext class="plist-txt">
+                    <template v-for="(seg, si) in r.segs">
+                      <span v-if="seg.t === 0" :key="'ls' + si">{{ seg.v }}</span>
+                      <span v-else-if="seg.t === 2" :key="'lh' + si" class="phl">{{ seg.v }}</span>
+                      <image v-else :key="'le' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
+                    </template>
+                  </richtext>
+                </div>
+              </div>
+              <text v-else-if="b.k === 'code'" class="pcode">{{ b.text }}</text>
+              <div v-else-if="b.k === 'line'" class="pline"></div>
+              <div v-else-if="b.k === 'card'" class="pcard"><text class="pcard-t">{{ b.title }}</text></div>
+            </div>
+          </template>
+
+          <!-- 动态本体: 投稿 / 转发 / 纯文字 / 图文 (没有全文时兜底) -->
+          <template v-else>
+            <richtext v-if="segs.length > 0" class="ptext">
+              <template v-for="(seg, si) in segs">
+                <span v-if="seg.t === 0" :key="'ps' + si">{{ seg.v }}</span>
+                <span v-else-if="seg.t === 2" :key="'ph' + si" class="phl">{{ seg.v }}</span>
+                <image v-else :key="'pe' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
               </template>
             </richtext>
-            <div v-else-if="b.k === 'pic'" class="pimg" :style="{ width: b.w + 'px', height: b.h + 'px' }" @click="openPic(b)">
-              <image class="pimg-i" :src="b.src" resize="cover" :style="{ width: b.w + 'px', height: b.h + 'px' }"></image>
-            </div>
-            <div v-else-if="b.k === 'list'" class="plist">
-              <div class="plist-row" v-for="(r, ri) in b.rows" :key="'lr' + ri">
-                <text class="plist-mark">{{ r.mark }}</text>
-                <richtext class="plist-txt">
-                  <template v-for="(seg, si) in r.segs">
-                    <span v-if="seg.t === 0" :key="'ls' + si">{{ seg.v }}</span>
-                    <span v-else-if="seg.t === 2" :key="'lh' + si" class="phl">{{ seg.v }}</span>
-                    <image v-else :key="'le' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
-                  </template>
-                </richtext>
-              </div>
-            </div>
-            <text v-else-if="b.k === 'code'" class="pcode">{{ b.text }}</text>
-            <div v-else-if="b.k === 'line'" class="pline"></div>
-            <div v-else-if="b.k === 'card'" class="pcard"><text class="pcard-t">{{ b.title }}</text></div>
-          </div>
-        </template>
-
-        <!-- 动态本体: 投稿 / 转发 / 纯文字 / 图文 (没有全文时兜底) -->
-        <template v-else>
-          <richtext v-if="segs.length > 0" class="ptext">
-            <template v-for="(seg, si) in segs">
-              <span v-if="seg.t === 0" :key="'ps' + si">{{ seg.v }}</span>
-              <span v-else-if="seg.t === 2" :key="'ph' + si" class="phl">{{ seg.v }}</span>
-              <image v-else :key="'pe' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
-            </template>
-          </richtext>
-          <div class="pics" v-if="rows.length > 0">
-            <div class="pic-row" v-for="(row, ri) in rows" :key="'pr' + ri">
-              <div class="pic-box" v-for="(p, pi) in row" :key="'pb' + ri + '_' + pi"
-                   :style="{ width: p.w + 'px', height: p.h + 'px' }" @click="openPic(p)">
-                <image class="pic-img" :src="p.src" resize="cover"
-                       :style="{ width: p.w + 'px', height: p.h + 'px' }"></image>
-              </div>
-            </div>
-          </div>
-          <div class="vcard" v-if="archive" @click="openVideo(archive)">
-            <image class="vcover" :src="archive.cover" resize="cover"></image>
-            <div class="vmeta">
-              <text class="vtitle">{{ archive.title }}</text>
-              <div class="vstatrow">
-                <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
-                <text class="vstat">{{ archive.playText + '   ' + archive.duration }}</text>
-              </div>
-            </div>
-          </div>
-          <div class="ostat" v-if="orig">
-            <text class="olabel">{{ '转发 @' + orig.author }}</text>
-            <richtext v-if="orig.segs.length > 0" class="ptext">
-              <template v-for="(seg, si) in orig.segs">
-                <span v-if="seg.t === 0" :key="'os' + si">{{ seg.v }}</span>
-                <span v-else-if="seg.t === 2" :key="'oh' + si" class="phl">{{ seg.v }}</span>
-                <image v-else :key="'oe' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
-              </template>
-            </richtext>
-            <div class="pics" v-if="origRows.length > 0">
-              <div class="pic-row" v-for="(row, ri) in origRows" :key="'or' + ri">
-                <div class="pic-box" v-for="(p, pi) in row" :key="'ob' + ri + '_' + pi"
+            <div class="pics" v-if="rows.length > 0">
+              <div class="pic-row" v-for="(row, ri) in rows" :key="'pr' + ri">
+                <div class="pic-box" v-for="(p, pi) in row" :key="'pb' + ri + '_' + pi"
                      :style="{ width: p.w + 'px', height: p.h + 'px' }" @click="openPic(p)">
                   <image class="pic-img" :src="p.src" resize="cover"
                          :style="{ width: p.w + 'px', height: p.h + 'px' }"></image>
                 </div>
               </div>
             </div>
-          </div>
-        </template>
-
-        <div class="foot" v-if="footStat">
-          <image class="foot-ic" :src="MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
-          <text class="foot-t">{{ footStat.like }}</text>
-          <image class="foot-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
-          <text class="foot-t">{{ footStat.reply }}</text>
-          <image class="foot-ic" :src="MI.share" :style="{ width: '20px', height: '20px' }"></image>
-          <text class="foot-t">{{ footStat.forward }}</text>
+            <div class="vcard" v-if="archive" @click="openVideo(archive)">
+              <image class="vcover" :src="archive.cover" resize="cover"></image>
+              <div class="vmeta">
+                <text class="vtitle">{{ archive.title }}</text>
+                <div class="vstatrow">
+                  <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
+                  <text class="vstat">{{ archive.playText + '   ' + archive.duration }}</text>
+                </div>
+              </div>
+            </div>
+            <div class="ostat" v-if="orig">
+              <text class="olabel">{{ '转发 @' + orig.author }}</text>
+              <richtext v-if="orig.segs.length > 0" class="ptext">
+                <template v-for="(seg, si) in orig.segs">
+                  <span v-if="seg.t === 0" :key="'os' + si">{{ seg.v }}</span>
+                  <span v-else-if="seg.t === 2" :key="'oh' + si" class="phl">{{ seg.v }}</span>
+                  <image v-else :key="'oe' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
+                </template>
+              </richtext>
+              <div class="pics" v-if="origRows.length > 0">
+                <div class="pic-row" v-for="(row, ri) in origRows" :key="'or' + ri">
+                  <div class="pic-box" v-for="(p, pi) in row" :key="'ob' + ri + '_' + pi"
+                       :style="{ width: p.w + 'px', height: p.h + 'px' }" @click="openPic(p)">
+                    <image class="pic-img" :src="p.src" resize="cover"
+                           :style="{ width: p.w + 'px', height: p.h + 'px' }"></image>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
         </div>
-      </div>
-    </scroller>
+      </scroller>
+    </div>
 
-    <!-- 图片查看器: 与动态页同款 (手势期轻量图 + 每帧最多写一次 + 静置 260ms 才换原图) -->
+    <div class="dsep"></div>
+
+    <!-- ============ 右栏: 评论 (378px) ============ -->
+    <div class="dright">
+      <div class="sortbar">
+        <div :class="['sort-item', sortMode === 'hot' ? 'sort-on' : '']" @click="switchSort('hot')">
+          <text :class="['sort-text', sortMode === 'hot' ? 'sort-text-on' : '']">热度</text>
+        </div>
+        <div :class="['sort-item', sortMode === 'time' ? 'sort-on' : '']" @click="switchSort('time')">
+          <text :class="['sort-text', sortMode === 'time' ? 'sort-text-on' : '']">最新</text>
+        </div>
+        <text class="sort-count">{{ total > 0 ? ('共 ' + total) : '' }}</text>
+      </div>
+      <scroller class="clist" scroll-direction="vertical" :show-scrollbar="true"
+                :loadmoreoffset="100" @loadmore="loadMoreComments">
+        <text v-if="cStatus !== ''" class="c-status">{{ cStatus }}</text>
+        <div v-for="r in replies" :key="r.rpid" class="reply">
+          <image class="face" :src="r.face" resize="cover"></image>
+          <div class="reply-main">
+            <div class="reply-head">
+              <text class="reply-author">{{ r.author }}</text>
+              <text v-if="r.pinned" class="tag tag-pin">置顶</text>
+              <text v-if="r.isUp" class="tag tag-up">UP主</text>
+              <text class="reply-time">{{ r.timeText }}</text>
+            </div>
+            <div class="reply-wrap">
+              <richtext :key="'r' + r.rpid + (r.expanded ? 1 : 0)"
+                        :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" @click="toggleReplyText(r)">
+                <template v-for="(seg, si) in r.segs">
+                  <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
+                  <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
+                </template>
+              </richtext>
+              <text v-if="!r.expanded && r.long" class="reply-more" @click="toggleReplyText(r)">…</text>
+            </div>
+            <div class="reply-meta">
+              <div class="meta-btn" @click="toggleReplyLike(r)">
+                <image :src="r.liked ? MI.thumbupOn : MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
+                <text :class="['meta-text', r.liked ? 'meta-liked' : '']">{{ r.likeText }}</text>
+              </div>
+              <div class="meta-btn" @click="openSubReply(r)">
+                <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
+                <text class="meta-reply">{{ r.replyCount }}</text>
+              </div>
+            </div>
+          </div>
+        </div>
+        <text v-if="hasMore && replies.length > 0" class="load-more" @click="loadMoreComments">加载更多评论…</text>
+        <text v-if="!cLoading && replies.length === 0 && cStatus === ''" class="empty">还没有评论</text>
+      </scroller>
+    </div>
+
+    <!-- 图片查看器 (与动态页同款: 手势期轻量图 + 每帧最多写一次 + 静置 260ms 换原图) -->
     <div v-if="viewer.on" class="iview"
          @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
       <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"
@@ -146,7 +210,8 @@
 </template>
 
 <script>
-import { getDynamicDetail, getOpusDetail } from '../../services/bili.js'
+import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply } from '../../services/bili.js'
+import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
 import { afterPaint } from '../../base-page.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
@@ -157,8 +222,8 @@ const MI = {
   refresh: require('../../assets/mi/refresh_30_w.png'),
   play: require('../../assets/mi/play_18_w.png'),
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
-  comment: require('../../assets/mi/comment_20_m.png'),
-  share: require('../../assets/mi/share_20_m.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  reply: require('../../assets/mi/reply_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
 }
@@ -177,6 +242,102 @@ function chunkRows(arr, n) {
   return out
 }
 
+// 计数文案: 上万折成「1.2万」(设备屏窄, 原始数字太长会把交互行挤爆)
+function fmtNum(n) {
+  const v = Number(n) || 0
+  if (v >= 100000000) return (Math.round(v / 1000000) / 10) + '亿'
+  if (v >= 10000) return (Math.round(v / 1000) / 10) + '万'
+  return String(v)
+}
+
+// 点赞数 +1/-1 (接口返回可能是 "1.2万" 这类文本, 只能就地加减整数部分)
+function bumpCount(text, add) {
+  const t = String(text == null ? '' : text)
+  const m = /^(\d+)(.*)$/.exec(t)
+  if (!m) return t
+  const n = Math.max(0, parseInt(m[1], 10) + (add ? 1 : -1))
+  return n + m[2]
+}
+
+// 内置常用 emoji 映射: .vue 里的 require png 会被 aiot-cli 编译成 images/<hash>.png
+// (services/*.js 里的 require 不会被编译, QuickJS 无 require 会崩, 见 0.8.7 黑屏教训)
+const BUILTIN_EMOJI = {
+  '1f197': require('../../assets/emoji/1f197.png'),
+  '1f338': require('../../assets/emoji/1f338.png'),
+  '1f339': require('../../assets/emoji/1f339.png'),
+  '1f349': require('../../assets/emoji/1f349.png'),
+  '1f34b': require('../../assets/emoji/1f34b.png'),
+  '1f35a': require('../../assets/emoji/1f35a.png'),
+  '1f37a': require('../../assets/emoji/1f37a.png'),
+  '1f381': require('../../assets/emoji/1f381.png'),
+  '1f382': require('../../assets/emoji/1f382.png'),
+  '1f389': require('../../assets/emoji/1f389.png'),
+  '1f414': require('../../assets/emoji/1f414.png'),
+  '1f42e': require('../../assets/emoji/1f42e.png'),
+  '1f431': require('../../assets/emoji/1f431.png'),
+  '1f436': require('../../assets/emoji/1f436.png'),
+  '1f437': require('../../assets/emoji/1f437.png'),
+  '1f440': require('../../assets/emoji/1f440.png'),
+  '1f446': require('../../assets/emoji/1f446.png'),
+  '1f448': require('../../assets/emoji/1f448.png'),
+  '1f449': require('../../assets/emoji/1f449.png'),
+  '1f44d': require('../../assets/emoji/1f44d.png'),
+  '1f44e': require('../../assets/emoji/1f44e.png'),
+  '1f44f': require('../../assets/emoji/1f44f.png'),
+  '1f451': require('../../assets/emoji/1f451.png'),
+  '1f47b': require('../../assets/emoji/1f47b.png'),
+  '1f480': require('../../assets/emoji/1f480.png'),
+  '1f494': require('../../assets/emoji/1f494.png'),
+  '1f495': require('../../assets/emoji/1f495.png'),
+  '1f496': require('../../assets/emoji/1f496.png'),
+  '1f497': require('../../assets/emoji/1f497.png'),
+  '1f498': require('../../assets/emoji/1f498.png'),
+  '1f4a9': require('../../assets/emoji/1f4a9.png'),
+  '1f4aa': require('../../assets/emoji/1f4aa.png'),
+  '1f4ac': require('../../assets/emoji/1f4ac.png'),
+  '1f4af': require('../../assets/emoji/1f4af.png'),
+  '1f525': require('../../assets/emoji/1f525.png'),
+  '1f600': require('../../assets/emoji/1f600.png'),
+  '1f602': require('../../assets/emoji/1f602.png'),
+  '1f604': require('../../assets/emoji/1f604.png'),
+  '1f605': require('../../assets/emoji/1f605.png'),
+  '1f606': require('../../assets/emoji/1f606.png'),
+  '1f607': require('../../assets/emoji/1f607.png'),
+  '1f609': require('../../assets/emoji/1f609.png'),
+  '1f60a': require('../../assets/emoji/1f60a.png'),
+  '1f60d': require('../../assets/emoji/1f60d.png'),
+  '1f60f': require('../../assets/emoji/1f60f.png'),
+  '1f612': require('../../assets/emoji/1f612.png'),
+  '1f618': require('../../assets/emoji/1f618.png'),
+  '1f61c': require('../../assets/emoji/1f61c.png'),
+  '1f621': require('../../assets/emoji/1f621.png'),
+  '1f622': require('../../assets/emoji/1f622.png'),
+  '1f629': require('../../assets/emoji/1f629.png'),
+  '1f62a': require('../../assets/emoji/1f62a.png'),
+  '1f62d': require('../../assets/emoji/1f62d.png'),
+  '1f631': require('../../assets/emoji/1f631.png'),
+  '1f633': require('../../assets/emoji/1f633.png'),
+  '1f634': require('../../assets/emoji/1f634.png'),
+  '1f644': require('../../assets/emoji/1f644.png'),
+  '1f64f': require('../../assets/emoji/1f64f.png'),
+  '1f914': require('../../assets/emoji/1f914.png'),
+  '1f917': require('../../assets/emoji/1f917.png'),
+  '1f91d': require('../../assets/emoji/1f91d.png'),
+  '1f921': require('../../assets/emoji/1f921.png'),
+  '1f923': require('../../assets/emoji/1f923.png'),
+  '1f92c': require('../../assets/emoji/1f92c.png'),
+  '1f970': require('../../assets/emoji/1f970.png'),
+  '1f973': require('../../assets/emoji/1f973.png'),
+  '1f976': require('../../assets/emoji/1f976.png'),
+  '1f97a': require('../../assets/emoji/1f97a.png'),
+  '2615': require('../../assets/emoji/2615.png'),
+  '2705': require('../../assets/emoji/2705.png'),
+  '2728': require('../../assets/emoji/2728.png'),
+  '274c': require('../../assets/emoji/274c.png'),
+  '2753': require('../../assets/emoji/2753.png'),
+  '2764': require('../../assets/emoji/2764.png'),
+}
+
 export default {
   name: 'dyn',
   data() {
@@ -189,6 +350,24 @@ export default {
       segs: [],
       rows: [],
       origRows: [],
+      // 点赞 (动态维度, 与列表里的数字同源)
+      liked: false,
+      likeText: '0',
+      replyText: '0',
+      forwardText: '0',
+      actStatus: '',
+      liking: false,
+      // 评论
+      replies: [],
+      total: 0,
+      pn: 1,
+      hasMore: false,
+      cLoading: false,
+      cStatus: '',
+      sortMode: 'hot',
+      commentType: 11,
+      commentOid: '',
+      cGeneration: 0,
       loading: false,
       // 异步世代守卫: 必须声明在 data() 里, 否则 ++undefined=NaN 且 NaN!==NaN 恒真 ->
       // 结果被整段丢弃, loading 永不复位 (0.9.57 动态页「永远加载中」的根因)
@@ -199,7 +378,6 @@ export default {
   computed: {
     MI() { return MI },
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
-    // 顶部标题: 有全文就是专栏, 否则是动态
     headTitle() { return (this.art && this.art.title !== '') ? '专栏' : '动态' },
     author() {
       if (this.art && this.art.author && this.art.author.name) return this.art.author.name
@@ -214,11 +392,7 @@ export default {
       return this.item ? this.item.pubText : ''
     },
     archive() { return this.item ? this.item.archive : null },
-    orig() { return this.item ? this.item.orig : null },
-    footStat() {
-      if (this.art && this.art.stat) return this.art.stat
-      return this.item ? this.item.stat : null
-    }
+    orig() { return this.item ? this.item.orig : null }
   },
   methods: {
     onShow() {
@@ -232,7 +406,6 @@ export default {
       this._started = true
       this.begin()
     },
-    // 同一页面被 navTo 重新打开时只有 onNewOptions
     onNewOptions(options) { this.begin(options) },
     begin(options) {
       options = options || (this.$page ? this.$page.options : null) || {}
@@ -246,9 +419,17 @@ export default {
       this.segs = []
       this.rows = []
       this.origRows = []
+      this.replies = []
+      this.total = 0
+      this.pn = 1
+      this.hasMore = false
+      this.cStatus = ''
+      this.actStatus = ''
+      this.liked = false
+      this.likeText = '0'
       this.load()
     },
-    retry() { this.generation++; this.loading = false; this.load() },
+    retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load() },
     back() { try { this.$page.finish() } catch (e) {} },
     async load() {
       if (this.loading) return
@@ -257,10 +438,10 @@ export default {
       this.status = '加载中…'
       const self = this
       const gen = ++this.generation
-      // 先让「加载中…」画出来再发请求 (bilinet 的同步实现会阻塞 JS 线程)
+      // 先让「加载中…」画出来再发请求 (同步实现会阻塞 JS 线程)
       afterPaint(async function () {
         try {
-          // 1) 动态本体: 所有类型都有 (作者/时间/图/视频卡/转发)
+          // 1) 动态本体: 所有类型都有 (作者/时间/图/视频卡/转发 + 评论区坐标)
           let it = null
           try {
             it = await getDynamicDetail(self.id)
@@ -273,6 +454,12 @@ export default {
             self.segs = it.segs || []
             self.rows = chunkRows(it.pics || [], 4)
             self.origRows = it.orig ? chunkRows(it.orig.pics || [], 4) : []
+            self.liked = !!(it.stat && it.stat.liked)
+            self.likeText = fmtNum(it.stat ? it.stat.like : 0)
+            self.replyText = fmtNum(it.stat ? it.stat.reply : 0)
+            self.forwardText = fmtNum(it.stat ? it.stat.forward : 0)
+            self.commentType = it.commentType || 11
+            self.commentOid = it.commentOid || ''
           }
           // 2) 专栏/图文全文: 列表里的字只是摘要 (实测 211 字 + has_more), 全文只在 opus/detail
           let full = null
@@ -288,9 +475,13 @@ export default {
           } else {
             self.status = ''
             try {
-              log('动态详情', '渲染 id=' + self.id + ' 全文=' + (full ? full.blocks.length + '块' : '无') + ' 本体=' + (it ? it.kind : '无'))
+              log('动态详情', '渲染 id=' + self.id + ' 全文=' + (full ? full.blocks.length + '块' : '无')
+                + ' 本体=' + (it ? it.kind : '无') + ' 评论区=' + self.commentType + '/' + self.commentOid)
             } catch (e4) {}
           }
+          // 3) 评论: 用 basic.comment_type + comment_id_str (不是动态 id!)
+          if (self.commentOid) self.loadComments(true, false)
+          else self.cStatus = '这条动态没有评论区'
         } catch (err) {
           if (gen !== self.generation) return
           const msg = err && err.message ? err.message : String(err)
@@ -301,6 +492,101 @@ export default {
         }
       })
     },
+
+    // ---------------- 点赞 (动态) ----------------
+    async doLike() {
+      if (this.liking) return
+      if (!hasCookie()) { this.actStatus = '登录后才能点赞'; return }
+      const want = !this.liked
+      this.liking = true
+      // 乐观更新: 接口成功后列表计数有延迟, 先改 UI, 失败回滚
+      this.liked = want
+      this.likeText = bumpCount(this.likeText, want)
+      try {
+        await likeDynamic(this.id, want)
+        this.actStatus = want ? '已点赞' : '已取消赞'
+        try { log('动态详情', '点赞 ' + (want ? 'on' : 'off') + ' id=' + this.id) } catch (e0) {}
+      } catch (err) {
+        this.liked = !want
+        this.likeText = bumpCount(this.likeText, !want)
+        this.actStatus = (err && err.message) ? err.message : '点赞失败'
+        try { log('动态详情', '点赞失败 ' + this.actStatus) } catch (e1) {}
+      } finally {
+        this.liking = false
+      }
+    },
+
+    // ---------------- 评论 ----------------
+    switchSort(mode) {
+      if (this.sortMode === mode) return
+      this.sortMode = mode
+      this.replies = []
+      this.total = 0
+      this.pn = 1
+      this.hasMore = false
+      this.cGeneration++
+      this.cStatus = '加载中…'
+      this.loadComments(true, true)
+    },
+    async loadComments(reset, fresh) {
+      if (!this.commentOid) return
+      if (this.cLoading) return
+      if (!reset && !this.hasMore) return
+      this.cLoading = true
+      if (reset) this.cStatus = '加载中…'
+      const self = this
+      const gen = ++this.cGeneration
+      const pn = reset ? 1 : this.pn
+      try {
+        const r = await getReplies(this.commentOid, pn, BUILTIN_EMOJI, this.sortMode, fresh, this.commentType)
+        if (gen !== this.cGeneration) return
+        if (reset) this.replies = []
+        for (let i = 0; i < r.replies.length; i++) {
+          const item = r.replies[i]
+          item.expanded = false   // 推入时声明, 保证响应式 (点击展开用)
+          this.replies.push(item)
+        }
+        this.total = r.total || 0
+        this.hasMore = r.replies.length >= 20
+        this.pn = pn + 1
+        this.cStatus = ''
+        try { log('动态详情', '评论 ' + this.replies.length + ' 条 (total=' + this.total + ' pn=' + pn + ' type=' + this.commentType + ')') } catch (e0) {}
+      } catch (err) {
+        if (gen !== this.cGeneration) return
+        this.cStatus = (err && err.message) ? err.message : String(err)
+        try { log('动态详情', '评论失败 ' + this.cStatus) } catch (e2) {}
+      } finally {
+        if (gen === this.cGeneration) this.cLoading = false
+      }
+    },
+    loadMoreComments() { if (this.cLoading || !this.hasMore) return; this.loadComments(false, false) },
+    toggleReplyText(r) { r.expanded = !r.expanded },
+    async toggleReplyLike(r) {
+      if (!hasCookie()) { this.cStatus = '登录后才能点赞'; return }
+      const want = !r.liked
+      r.liked = want
+      const before = r.likeText
+      r.likeText = bumpCount(before, want)
+      try {
+        await likeReply(this.commentOid, r.rpid, want, this.commentType)
+        this.cStatus = want ? '已点赞' : '已取消赞'
+      } catch (err) {
+        r.liked = !want
+        r.likeText = before
+        this.cStatus = (err && err.message) ? err.message : '点赞失败'
+      }
+    },
+    // 楼中楼: aid 用评论区的 oid, ctype 透传给 subreply (默认 1=视频会取错数据)
+    openSubReply(r) {
+      if (!r || !r.rpid) return
+      try {
+        $falcon.navTo('subreply', {
+          aid: this.commentOid, root: r.rpid, ctype: this.commentType,
+          author: r.author, face: r.face, count: r.replyCount, msg: r.message
+        })
+      } catch (e) { this.cStatus = '打开楼中楼失败' }
+    },
+
     openVideo(a) {
       if (!a || !a.bvid) return
       try { $falcon.navTo('page', { bvid: a.bvid, title: a.title }) } catch (e) {}
@@ -353,7 +639,6 @@ export default {
       const t = Math.round(this.viewer.scale * 100) + '%'
       if (t !== this.viewer.text) this.viewer.text = t
     },
-    // 手势期间样式写入合并成「一帧最多一次」: 逐 move 写 transform 会让合成器边写边扫 -> 果冻
     ivFlush() {
       if (this._ivPend) return
       const self = this
@@ -517,47 +802,91 @@ export default {
 .dtitle { font-size: 19px; color: #e6eaf0; }
 .dtag { font-size: 15px; color: #ffffff; background-color: #2b313a; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-left: 10px; }
 .dtop-spacer { flex: 1; }
-.dstatus { position: absolute; left: 0px; top: 46px; width: 960px; height: 40px; flex-direction: row; justify-content: center; align-items: center; }
+.dtime { font-size: 15px; color: #7c8592; padding-right: 16px; }
+
+/* ---- 左栏: 内容 ---- */
+.dleft { position: absolute; left: 0px; top: 44px; width: 580px; height: 222px; flex-direction: column; }
+.actrow { height: 36px; flex-direction: row; align-items: center; padding-left: 16px; background-color: #16181d; }
+.act-btn { height: 26px; flex-direction: row; align-items: center; padding-left: 12px; padding-right: 12px; border-radius: 13px; background-color: #232830; margin-right: 10px; }
+.act-on { background-color: #3a2733; }
+.act-static { background-color: #1b1e24; }
+.act-text { font-size: 16px; color: #cfd5de; }
+.act-text-on { color: #fb7299; }
+.act-num { font-size: 15px; color: #8a94a6; margin-left: 6px; }
+.act-num-on { color: #fb7299; }
+.act-status { font-size: 15px; color: #e6a23c; margin-left: 2px; }
+.dstatus { position: absolute; left: 0px; top: 36px; width: 580px; height: 40px; flex-direction: row; justify-content: center; align-items: center; }
 .dstatus-ic { margin-right: 6px; }
 .dstatus-t { font-size: 17px; color: #8a93a0; }
-.dscroll { position: absolute; left: 0px; top: 46px; width: 960px; height: 220px; }
-.dwrap { padding-left: 40px; padding-right: 40px; padding-bottom: 16px; }
-.ahead { flex-direction: row; align-items: center; margin-top: 8px; }
-.aface { width: 40px; height: 40px; border-radius: 20px; margin-right: 10px; background-color: #232830; }
+.dscroll { position: absolute; left: 0px; top: 36px; width: 580px; height: 186px; }
+.dwrap { padding-left: 18px; padding-right: 16px; padding-bottom: 14px; }
+.ahead { flex-direction: row; align-items: center; margin-top: 6px; margin-bottom: 4px; }
+.aface { width: 36px; height: 36px; border-radius: 18px; margin-right: 8px; background-color: #232830; }
 .aface-ph { justify-content: center; align-items: center; }
-.aface-t { font-size: 18px; color: #7c8592; }
-.aname { font-size: 18px; color: #8fb8ff; }
-.atime { font-size: 15px; color: #7c8592; margin-left: 10px; }
-.artitle { font-size: 26px; color: #ffffff; margin-top: 10px; lines: 4; }
+.aface-t { font-size: 17px; color: #7c8592; }
+.aname { font-size: 17px; color: #8fb8ff; }
+.atime { font-size: 14px; color: #7c8592; margin-left: 8px; }
+.artitle { font-size: 24px; color: #ffffff; margin-top: 6px; margin-bottom: 2px; lines: 4; }
 .pblock { margin-top: 8px; }
-.ptext { font-size: 19px; color: #dfe4ea; }
-.pquote { font-size: 19px; color: #aab2bd; padding-left: 14px; background-color: #1a1d22; border-radius: 8px; padding-top: 6px; padding-bottom: 6px; }
+.ptext { font-size: 18px; color: #dfe4ea; }
+.pquote { font-size: 18px; color: #aab2bd; padding-left: 12px; padding-right: 8px; padding-top: 6px; padding-bottom: 6px; background-color: #1a1d22; border-radius: 8px; }
 .phl { color: #8fb8ff; }
 .pimg { border-radius: 10px; background-color: #232830; margin-top: 4px; }
 .pimg-i { border-radius: 10px; }
 .plist-row { flex-direction: row; margin-top: 4px; }
-.plist-mark { font-size: 19px; color: #8fb8ff; margin-right: 6px; }
-.plist-txt { font-size: 19px; color: #dfe4ea; }
-.pcode { font-size: 17px; color: #cfe0ff; background-color: #1a1d22; padding-left: 10px; padding-right: 10px; padding-top: 8px; padding-bottom: 8px; border-radius: 8px; }
+.plist-mark { font-size: 18px; color: #8fb8ff; margin-right: 6px; }
+.plist-txt { font-size: 18px; color: #dfe4ea; }
+.pcode { font-size: 16px; color: #cfe0ff; background-color: #1a1d22; padding-left: 10px; padding-right: 10px; padding-top: 8px; padding-bottom: 8px; border-radius: 8px; }
 .pline { height: 2px; background-color: #2b313a; margin-top: 10px; margin-bottom: 4px; }
 .pcard { padding: 8px; background-color: #262b33; border-radius: 8px; }
-.pcard-t { font-size: 17px; color: #8fb8ff; }
+.pcard-t { font-size: 16px; color: #8fb8ff; }
 .pics { margin-top: 6px; }
 .pic-row { flex-direction: row; }
 .pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; background-color: #232830; }
 .pic-img { border-radius: 8px; }
 .vcard { flex-direction: row; margin-top: 8px; padding: 8px; background-color: #262b33; border-radius: 8px; }
-.vcover { width: 160px; height: 100px; border-radius: 6px; margin-right: 10px; }
+.vcover { width: 140px; height: 88px; border-radius: 6px; margin-right: 10px; }
 .vmeta { flex: 1; }
-.vtitle { font-size: 18px; color: #ffffff; lines: 2; }
+.vtitle { font-size: 17px; color: #ffffff; lines: 2; }
 .vstatrow { flex-direction: row; align-items: center; margin-top: 6px; }
 .vstat-ic { margin-right: 4px; }
-.vstat { font-size: 16px; color: #888888; }
+.vstat { font-size: 15px; color: #888888; }
 .ostat { margin-top: 8px; padding: 8px; background-color: #1a1d22; border-radius: 8px; }
-.olabel { font-size: 17px; color: #8fb8ff; }
-.foot { flex-direction: row; align-items: center; margin-top: 12px; }
-.foot-ic { margin-right: 6px; }
-.foot-t { font-size: 16px; color: #9aa3af; margin-right: 18px; }
+.olabel { font-size: 16px; color: #8fb8ff; }
+
+/* ---- 右栏: 评论 ---- */
+.dsep { position: absolute; left: 580px; top: 44px; width: 2px; height: 222px; background-color: #232830; }
+.dright { position: absolute; left: 582px; top: 44px; width: 378px; height: 222px; flex-direction: column; }
+.sortbar { height: 30px; flex-direction: row; align-items: center; padding-left: 8px; background-color: #1a1d22; }
+.sort-item { height: 24px; justify-content: center; align-items: center; padding-left: 10px; padding-right: 10px; border-radius: 12px; margin-right: 6px; }
+.sort-on { background-color: #2c313a; }
+.sort-text { font-size: 15px; color: #8a94a6; }
+.sort-text-on { color: #fb7299; }
+.sort-count { font-size: 14px; color: #5c6672; margin-left: 4px; }
+.clist { position: absolute; left: 0px; top: 30px; width: 378px; height: 192px; flex-direction: column; padding-left: 12px; padding-right: 12px; }
+.c-status { font-size: 16px; color: #e6a23c; margin-top: 6px; margin-bottom: 6px; }
+.reply { flex-direction: row; padding-top: 8px; padding-bottom: 8px; border-bottom-width: 1px; border-bottom-color: #262b33; }
+.face { width: 44px; height: 44px; border-radius: 22px; margin-right: 10px; }
+.reply-main { width: 300px; flex-direction: column; }
+.reply-head { flex-direction: row; align-items: center; margin-bottom: 2px; }
+.reply-author { font-size: 16px; color: #8a94a6; margin-right: 10px; }
+.reply-time { font-size: 14px; color: #5c6672; }
+.tag { font-size: 14px; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-right: 8px; justify-content: center; }
+.tag-pin { background-color: #fb7299; color: #ffffff; }
+.tag-up { background-color: #2f80ed; color: #ffffff; }
+.reply-wrap { position: relative; width: 100%; }
+.reply-msg { font-size: 17px; color: #e8edf3; lines: 3; text-overflow: ellipsis; overflow: hidden; margin-top: 2px; }
+.reply-msg-open { lines: 0; }
+.reply-more { position: absolute; right: 0px; bottom: 0px; padding-left: 8px; font-size: 17px; color: #e8edf3; background-color: #14161a; }
+.reply-meta { flex-direction: row; align-items: center; margin-top: 3px; }
+.meta-btn { flex-direction: row; align-items: center; padding-top: 6px; padding-bottom: 6px; margin-right: 18px; }
+.meta-text { lines: 1; font-size: 15px; color: #8a94a6; margin-left: 4px; }
+.meta-liked { color: #fb7299; }
+.meta-reply { font-size: 15px; color: #8a94a6; margin-left: 4px; }
+.load-more { font-size: 16px; color: #8fb8ff; text-align: center; padding-top: 10px; padding-bottom: 10px; }
+.empty { font-size: 16px; color: #8a93a0; text-align: center; margin-top: 16px; }
+
+/* ---- 图片查看器 ---- */
 .iview { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #05070a; z-index: 200; }
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }

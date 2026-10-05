@@ -223,6 +223,7 @@ export default {
   data() {
     return {
       aid: 0,
+      ctype: 1,     // 评论区类型: 1=视频 / 11=动态 / 12=专栏 (由来源页透传)
       // 图片查看器 (transform 版): 楼中楼里的图原来点不开 —— 模板引用了 ivOpen, 但整页没有实现
       viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       root: 0,
@@ -276,9 +277,11 @@ export default {
       try { log('楼中楼', 'applyOptions aid=' + (options && options.aid) + ' root=' + (options && options.root) + ' count=' + (options && options.count)) } catch (e) {}
       const aid = parseInt(options.aid || '0', 10) || 0
       const root = parseInt(options.root || '0', 10) || 0
+      const ctype = parseInt(options.ctype || '1', 10) || 1
       if (root === this.root && (this.replies.length > 0 || this.loading)) return
       this.aid = aid
       this.root = root
+      this.ctype = ctype
       this.parentAuthor = options.author || ''
       this.parentFace = options.face || ''
       this.total = parseInt(options.count || '0', 10) || 0
@@ -304,7 +307,7 @@ export default {
       const runLoad = async () => {
         log('楼中楼', '开始加载 aid=' + this.aid + ' root=' + this.root + ' pn=' + this.pn)
         try {
-          const r = await getSubReplies(this.aid, this.root, this.pn, BUILTIN_EMOJI)
+          const r = await getSubReplies(this.aid, this.root, this.pn, BUILTIN_EMOJI, this.ctype)
           if (gen !== this.generation) return
           if (reset) this.replies = []
           for (let i = 0; i < r.replies.length; i++) {
@@ -392,7 +395,7 @@ export default {
       const before = r.likeText
       r.likeText = bumpCount(before, want)
       try {
-        await likeReply(this.aid, r.rpid, want)
+        await likeReply(this.aid, r.rpid, want, this.ctype)
         this.status = want ? '已点赞' : '已取消赞'
       } catch (err) {
         r.liked = !want
@@ -662,7 +665,7 @@ export default {
       this.status = '发送中…'
       const parent = this.target ? this.target.rpid : this.root
       try {
-        await addReply(this.aid, message, this.root, parent)
+        await addReply(this.aid, message, this.root, parent, this.ctype)
         this.target = null
         this.pn = 1
         this.replies = []
