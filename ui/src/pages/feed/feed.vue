@@ -39,13 +39,18 @@
           </div>
 
           <!-- 无正文时不要渲染空 richtext: lines:3 仍会占 3 行高度 -> 卡片里一大片空白 -->
-          <richtext v-if="d.segs && d.segs.length > 0" class="dtext" @click="openDyn(d)">
-            <template v-for="(seg, si) in d.segs">
-              <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
-              <span v-else-if="seg.t === 2" :key="'h' + si" class="dhl">{{ seg.v }}</span>
-              <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
-            </template>
-          </richtext>
+          <!-- 命中区必须是 div: 本机 richtext/text 上的 @click 不触发 (真机实测:
+               同一位置挂在 div 上的作者行点击生效, 挂在 richtext 上的正文点击无反应)
+               -> 点正文一律进详情页 (收起 / 展开都一样) -->
+          <div class="dtext-hit" @click="openDyn(d)">
+            <richtext v-if="d.segs && d.segs.length > 0" class="dtext">
+              <template v-for="(seg, si) in d.segs">
+                <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
+                <span v-else-if="seg.t === 2" :key="'h' + si" class="dhl">{{ seg.v }}</span>
+                <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
+              </template>
+            </richtext>
+          </div>
           <!-- 点文字 / 点这里都进详情页 (用户要求: 收起和展开都一样进详情), 不再就地展开 -->
           <div v-if="d.isLong || d.kind === 'opus' || d.kind === 'draw'" class="dmore" @click="openDynRow(d)">
             <text class="dmore-t">查看全文</text>
@@ -698,7 +703,9 @@ export default {
 .dauthor { font-size: 18px; color: #8fb8ff; }
 .dtime { font-size: 15px; color: #7c8592; margin-left: 10px; }
 .dbadge { font-size: 15px; color: #ffffff; background-color: #fb7299; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-left: 10px; }
-.dtext { font-size: 19px; color: #dfe4ea; lines: 3; margin-top: 4px; }
+/* 正文命中区: 事件挂在这个 div 上 (richtext 上的 @click 本机不触发) */
+.dtext-hit { width: 920px; min-height: 30px; margin-top: 4px; }
+.dtext { font-size: 19px; color: #dfe4ea; lines: 3; }
 .dtext-open { lines: 99; }
 .dhl { color: #8fb8ff; }
 .dmore { flex-direction: row; align-items: center; padding-top: 6px; padding-bottom: 6px; }

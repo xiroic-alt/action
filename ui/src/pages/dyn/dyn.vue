@@ -163,9 +163,10 @@
               <text v-if="r.isUp" class="tag tag-up">UP主</text>
               <text class="reply-time">{{ r.timeText }}</text>
             </div>
-            <div class="reply-wrap">
+            <!-- 事件挂在 .reply-wrap 这个 div 上 (richtext 上的 @click 本机不触发) -->
+            <div class="reply-wrap" @click="toggleReplyText(r)">
               <richtext :key="'r' + r.rpid + (r.expanded ? 1 : 0)"
-                        :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" @click="toggleReplyText(r)">
+                        :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']">
                 <template v-for="(seg, si) in r.segs">
                   <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
                   <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
