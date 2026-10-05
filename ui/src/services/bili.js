@@ -713,6 +713,7 @@ export async function getUpInfo(mid) {
       levelText: 'Lv' + (d.level !== undefined ? d.level : '?'),
       // 个人主页的认证标识 + 头像框 (acc/info 的 official / pendant)
       officialType: (d.official && typeof d.official.type === 'number') ? d.official.type : -1,
+      officialRole: (d.official && typeof d.official.role === 'number') ? d.official.role : -1,
       officialDesc: (d.official && (d.official.title || d.official.desc)) || '',
       pendant: (d.pendant && Number(d.pendant.pid) > 0) ? dynHttps(d.pendant.image_enhance || d.pendant.image || '') : '',
       vipText: (d.vip && d.vip.label && d.vip.label.text) || ''
@@ -1412,6 +1413,23 @@ export async function likeDynamic(dynId, want) {
 export const TAG_SPECIAL = -10
 export const TAG_DEFAULT = 0
 
+/**
+ * 认证徽章的类别 (决定颜色): 黄标 = 个人认证, 蓝标 = 机构认证, '' = 未认证
+ * official_verify.type: -1 无 / 0 个人认证(UP主) / 1 机构认证
+ * acc/info 的 official.role 更细 (见 docs/user/official_role.md):
+ *   1 知名UP主 / 2 大V达人 / 7 高能主播 / 9 社会知名人士 -> 个人认证(黄)
+ *   3 企业 / 4 组织 / 5 媒体 / 6 政府                 -> 机构认证(蓝)
+ */
+export function badgeKind(type, role) {
+  const t = Number(type)
+  const r = Number(role)
+  if (r >= 3 && r <= 6) return 'org'
+  if (r === 1 || r === 2 || r === 7 || r === 9) return 'per'
+  if (t === 1) return 'org'
+  if (t === 0) return 'per'
+  return ''
+}
+
 // 认证 + 头像框: 动态流的 module_author 与空间的 acc/info / card 语义一致, 统一在这里归一
 function badgeOf(ma) {
   const ov = ma && ma.official_verify ? ma.official_verify : null
@@ -1420,7 +1438,8 @@ function badgeOf(ma) {
   const pd = ma && ma.pendant ? ma.pendant : null
   // 头像框是**带透明通道的 PNG**, 绝不能套 thumb() 的 @Ww_Hh_1c.jpg (会转成 JPG, 透明底变黑)
   const raw = (pd && Number(pd.pid) > 0) ? dynHttps(pd.image_enhance || pd.image || '') : ''
-  return { officialType: ot, officialDesc: (ov && ov.desc) || '', pendant: raw }
+  const role = (ov && typeof ov.role === 'number') ? ov.role : -1
+  return { officialType: ot, officialRole: role, officialDesc: (ov && ov.desc) || '', pendant: raw }
 }
 
 /**

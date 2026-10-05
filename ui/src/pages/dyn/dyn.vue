@@ -49,7 +49,9 @@
               </div>
               <!-- 认证标识 (图2 的样式) -->
               <div v-if="verifyText !== ''" class="averify">
-                <image class="averify-ic" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
+                <div :class="['averify-badge', (item && item.officialType === 1) ? 'averify-org' : 'averify-per']">
+                  <image class="averify-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+                </div>
                 <text class="averify-t">{{ verifyText }}</text>
               </div>
             </div>
@@ -255,7 +257,7 @@ const MI = {
   play: require('../../assets/mi/play_18_w.png'),
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
   thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
-  verified: require('../../assets/mi/verified_16_y.png'),
+  bolt: require('../../assets/mi/bolt_16_w.png'),
   reply: require('../../assets/mi/reply_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
@@ -910,7 +912,9 @@ export default {
 .aname { font-size: 17px; color: #8fb8ff; }
 .atime { font-size: 14px; color: #7c8592; margin-left: 8px; }
 .averify { flex-direction: row; align-items: center; margin-top: 2px; }
-.averify-ic { margin-right: 5px; }
+.averify-badge { width: 18px; height: 18px; border-radius: 9px; margin-right: 6px; justify-content: center; align-items: center; }
+.averify-per { background-color: #ffac2c; }
+.averify-org { background-color: #3ca5ec; }
 .averify-t { font-size: 14px; color: #8a94a6; width: 460px; lines: 1; text-overflow: ellipsis; overflow: hidden; }
 .artitle { font-size: 24px; color: #ffffff; margin-top: 6px; margin-bottom: 2px; lines: 4; }
 .pblock { margin-top: 8px; }

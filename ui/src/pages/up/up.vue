@@ -24,7 +24,9 @@
           <text class="name">{{ info.name }}</text>
           <!-- 认证标识: 「bilibili个人认证：xxx」(图2 的样式) -->
           <div v-if="info.officialDesc" class="verify">
-            <image class="verify-ic" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
+            <div :class="['verify-badge', (info.officialType === 1 || info.officialRole === 3 || info.officialRole === 4 || info.officialRole === 5 || info.officialRole === 6) ? 'verify-org' : 'verify-per']">
+              <image class="verify-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+            </div>
             <text class="verify-t">{{ verifyText }}</text>
           </div>
           <text class="meta">{{ info.levelText }} · 粉丝 {{ fansText }}</text>
@@ -65,7 +67,7 @@ var PULL_DY = 55
 const MI = {
   back: require('../../assets/mi/back_26_w.png'),
   play: require('../../assets/mi/play_18_w.png'),
-  verified: require('../../assets/mi/verified_16_y.png')
+  bolt: require('../../assets/mi/bolt_16_w.png')
 }
 
 export default {
@@ -353,7 +355,9 @@ export default {
   flex-direction: column;
 }
 .verify { flex-direction: row; align-items: center; margin-top: 3px; }
-.verify-ic { margin-right: 6px; }
+.verify-badge { width: 18px; height: 18px; border-radius: 9px; margin-right: 6px; justify-content: center; align-items: center; }
+.verify-per { background-color: #ffac2c; }
+.verify-org { background-color: #3ca5ec; }
 .verify-t { font-size: 16px; color: #8a94a6; lines: 1; text-overflow: ellipsis; overflow: hidden; }
 .dynentry { width: 150px; height: 56px; margin-right: 20px; border-radius: 28px; background-color: #2a2f38; justify-content: center; align-items: center; }
 .dynentry-t { font-size: 20px; color: #fb7299; }

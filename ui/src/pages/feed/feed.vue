@@ -40,8 +40,10 @@
               <image v-if="d.pendant" class="dpendant" :src="d.pendant" resize="contain"></image>
             </div>
             <text class="dauthor">{{ d.author }}</text>
-            <!-- 认证徽章 (黄 i): official_verify.type >= 0 才显示, -1 = 未认证 -->
-            <image v-if="d.officialType >= 0" class="dvbadge" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
+            <!-- 认证徽章: 黄标=个人认证 / 蓝标=机构认证 (官方样式是彩色圆底 + 白闪电) -->
+            <div v-if="d.officialType >= 0" :class="['dvbadge', d.officialType === 1 ? 'dvbadge-org' : 'dvbadge-per']">
+              <image class="dvbadge-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+            </div>
             <text class="dtime">{{ d.pubText }}</text>
             <text class="dbadge">{{ kindName(d.kind) }}</text>
           </div>
@@ -193,7 +195,7 @@ const MI = {
   expand: require('../../assets/mi/expand_20_m.png'),
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
   thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
-  verified: require('../../assets/mi/verified_16_y.png'),
+  bolt: require('../../assets/mi/bolt_16_w.png'),
   comment: require('../../assets/mi/comment_20_m.png'),
   share: require('../../assets/mi/share_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
@@ -735,7 +737,9 @@ export default {
 .dface-wrap { position: relative; width: 40px; height: 40px; margin-right: 10px; }
 .dface { width: 40px; height: 40px; border-radius: 20px; background-color: #232830; }
 .dpendant { position: absolute; right: -6px; bottom: -4px; width: 24px; height: 24px; }
-.dvbadge { margin-left: 6px; }
+.dvbadge { width: 18px; height: 18px; border-radius: 9px; margin-left: 6px; justify-content: center; align-items: center; }
+.dvbadge-per { background-color: #ffac2c; }
+.dvbadge-org { background-color: #3ca5ec; }
 .fupsub { font-size: 16px; color: #8a94a6; margin-left: 14px; }
 .dface-ph { justify-content: center; align-items: center; }
 .dface-t { font-size: 18px; color: #7c8592; }

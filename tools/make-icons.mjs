@@ -63,7 +63,9 @@ const ICONS = [
   { file: 'image_20_m', icon: 'image', size: 20, color: 'm' },           // 图 N
   { file: 'comment_20_m', icon: 'comment', size: 20, color: 'm' },       // 评论数
   { file: 'share_20_m', icon: 'share', size: 20, color: 'm' },           // 转发数
-  { file: 'verified_16_y', icon: 'info-fill', size: 16, color: 'y' },    // 个人认证徽章(黄 i)
+  // 认证徽章: 官方样式是「彩色圆底 + 白闪电」, 所以图标本身只要一个白闪电,
+  // 黄标(个人认证)/蓝标(机构认证) 由页面上那层圆底的背景色区分
+  { file: 'bolt_16_w', icon: 'electric_bolt-fill', size: 16, color: 'w' },
   { file: 'star_20_m', icon: 'star', size: 20, color: 'm' },             // 特别关注(未设置)
   { file: 'star_20_p', icon: 'star-fill', size: 20, color: 'p' },        // 特别关注(已设置)
   { file: 'folder_20_m', icon: 'folder', size: 20, color: 'm' },         // 关注分组

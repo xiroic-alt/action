@@ -39,7 +39,9 @@
           <div class="meta">
             <div class="namerow">
               <text class="name">{{ u.name }}</text>
-              <image v-if="u.officialType >= 0" class="vbadge" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
+              <div v-if="u.officialType >= 0" :class="['vbadge', u.officialType === 1 ? 'vbadge-org' : 'vbadge-per']">
+                <image class="vbadge-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+              </div>
               <text v-if="u.special" class="sptag">特别关注</text>
             </div>
             <text class="sign">{{ u.sign !== '' ? u.sign : '这个人很神秘，什么都没有写' }}</text>
@@ -95,7 +97,7 @@ import { log } from '../../services/log.js'
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
 const MI = {
   back: require('../../assets/mi/back_26_w.png'),
-  verified: require('../../assets/mi/verified_16_y.png'),
+  bolt: require('../../assets/mi/bolt_16_w.png'),
   folder: require('../../assets/mi/folder_20_m.png')
 }
 
@@ -315,7 +317,9 @@ export default {
 .meta { flex: 1; flex-direction: column; }
 .namerow { flex-direction: row; align-items: center; }
 .name { font-size: 20px; color: #ffffff; }
-.vbadge { margin-left: 6px; }
+.vbadge { width: 18px; height: 18px; border-radius: 9px; margin-left: 6px; justify-content: center; align-items: center; }
+.vbadge-per { background-color: #ffac2c; }
+.vbadge-org { background-color: #3ca5ec; }
 .sptag { font-size: 14px; color: #ffffff; background-color: #fb7299; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-left: 8px; }
 .sign { font-size: 16px; color: #888888; margin-top: 4px; lines: 1; text-overflow: ellipsis; overflow: hidden; }
 .manage { width: 96px; height: 48px; border-radius: 24px; background-color: #2a2f38; justify-content: center; align-items: center; }
