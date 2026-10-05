@@ -1412,6 +1412,22 @@ export async function likeDynamic(dynId, want) {
 // 所以「加入特别关注」不是独立接口, 而是「把人加进 -10 分组」
 export const TAG_SPECIAL = -10
 export const TAG_DEFAULT = 0
+// 「全部」的哨兵值: 必须与真实 tagid 区分开 —— 真实值只有 -10(特别关注) / 0(默认分组) / 正整数,
+// 所以取 -999. (0.9.61 踩过: 把 0 当「全部」的标记, 结果「全部」和「默认分组」绑成了一个 tab)
+export const TAG_ALL = -999
+
+/**
+ * 关注列表的分组筛选判定 (单一口径, 页面只调用它):
+ *   -999 全部 / -10 特别关注 / 0 默认分组(= 没归入任何自定义分组的关注) / 正整数 某个自定义分组
+ */
+export function inTagGroup(u, tagid) {
+  const tags = (u && u.tags) ? u.tags : []
+  const t = Number(tagid)
+  if (t === TAG_ALL) return true
+  if (t === TAG_SPECIAL) return !!(u && u.special) || tags.indexOf(TAG_SPECIAL) >= 0
+  if (t === TAG_DEFAULT) return tags.length === 0 || tags.indexOf(TAG_DEFAULT) >= 0
+  return tags.indexOf(t) >= 0
+}
 
 // 用户认证类型一览 —— 原表照抄 docs/user/official_role.md, 不自己造规则:
 //   ID | 认证类型 | 详细类型

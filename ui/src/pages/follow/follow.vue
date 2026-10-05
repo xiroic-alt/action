@@ -11,11 +11,14 @@
 
     <!-- 分组筛选: 全部 / 特别关注 / 自定义分组 (分组列表来自 x/relation/tags) -->
     <scroller class="gtabs" scroll-direction="horizontal" :show-scrollbar="false">
-      <div :class="['gtab', tagFilter === 0 ? 'gtab-on' : '']" @click="setFilter(0)">
-        <text :class="['gtab-t', tagFilter === 0 ? 'gtab-t-on' : '']">全部</text>
+      <!-- 「全部」用哨兵 TAG_ALL(-999): 不能拿 0 当全部 —— 0 是「默认分组」的真实 tagid -->
+      <div :class="['gtab', tagFilter === TAG_ALL ? 'gtab-on' : '']" @click="setFilter(TAG_ALL)">
+        <text :class="['gtab-t', tagFilter === TAG_ALL ? 'gtab-t-on' : '']">全部</text>
       </div>
-      <div :class="['gtab', tagFilter === -10 ? 'gtab-on' : '']" @click="setFilter(-10)">
-        <text :class="['gtab-t', tagFilter === -10 ? 'gtab-t-on' : '']">特别关注</text>
+      <!-- 特别关注(-10) 与 默认分组(0) 本来就由接口的分组列表给出 (x/relation/tags 里就有这两条),
+           这里只在接口没给的情况下兜一个 —— 否则会出现两个「特别关注」tab (0.9.61 踩过) -->
+      <div v-if="!hasSpecialTag" :class="['gtab', tagFilter === TAG_SPECIAL ? 'gtab-on' : '']" @click="setFilter(TAG_SPECIAL)">
+        <text :class="['gtab-t', tagFilter === TAG_SPECIAL ? 'gtab-t-on' : '']">特别关注</text>
       </div>
       <div v-for="t in tags" :key="'t' + t.tagid" :class="['gtab', tagFilter === t.tagid ? 'gtab-on' : '']" @click="setFilter(t.tagid)">
         <text :class="['gtab-t', tagFilter === t.tagid ? 'gtab-t-on' : '']">{{ t.name + ' ' + t.count }}</text>
@@ -89,7 +92,7 @@
 </template>
 
 <script>
-import { getMyInfo, getFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL, badgeKind } from '../../services/bili.js'
+import { getMyInfo, getFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL, TAG_ALL, inTagGroup, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -112,7 +115,7 @@ export default {
       me: 0,
       items: [],
       tags: [],
-      tagFilter: 0,      // 0 全部 / -10 特别关注 / 其它 = 分组 id
+      tagFilter: TAG_ALL,   // -999 全部 / -10 特别关注 / 0 默认分组 / 其它 = 自定义分组 id
       total: 0,
       pn: 0,
       hasMore: false,
@@ -126,13 +129,12 @@ export default {
   },
   computed: {
     // 分组筛选走客户端过滤: 关注列表每一项都带 tags[] 与 special (接口实测字段),
-    // 所以「全部」以外不需要再发一次请求 —— 代价是每页 20 条, 翻页前只筛已加载部分
+    // 所以「全部」以外不需要再发一次请求 —— 代价是每页 20 条, 翻页前只筛已加载部分.
+    // 判定口径统一在 bili.js 的 inTagGroup (全部=-999 / 特别关注=-10 / 默认分组=0 / 自定义=正整数)
     shown() {
-      if (this.tagFilter === 0) return this.items
       const out = []
       for (let i = 0; i < this.items.length; i++) {
-        const u = this.items[i]
-        if (this.tagFilter === TAG_SPECIAL) { if (u.special) out.push(u) } else if (u.tags.indexOf(this.tagFilter) >= 0) out.push(u)
+        if (inTagGroup(this.items[i], this.tagFilter)) out.push(this.items[i])
       }
       return out
     }
@@ -160,10 +162,16 @@ export default {
     goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true) },
     badgeCls(u) { return badgeKind(u && u.officialType, u && u.officialRole) === 'org' ? 'vbadge-org' : 'vbadge-per' },
+    // 接口的分组列表里是否已经带了「特别关注」(-10): 带了就不再渲染兜底那个
+    hasSpecialTag() {
+      for (let i = 0; i < this.tags.length; i++) { if (this.tags[i].tagid === TAG_SPECIAL) return true }
+      return false
+    },
     setFilter(id) {
       if (this.tagFilter === id) return
       this.tagFilter = id
-      try { log('关注页', '筛选分组 ' + id) } catch (e) {}
+      const n = this.shown.length
+      try { log('关注页', '筛选分组 ' + id + ' -> ' + n + ' 人') } catch (e) {}
     },
     async load(reset) {
       if (this.loading) return
