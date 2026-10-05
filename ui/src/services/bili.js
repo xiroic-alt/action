@@ -1413,21 +1413,53 @@ export async function likeDynamic(dynId, want) {
 export const TAG_SPECIAL = -10
 export const TAG_DEFAULT = 0
 
-/**
- * 认证徽章的类别 (决定颜色): 黄标 = 个人认证, 蓝标 = 机构认证, '' = 未认证
- * official_verify.type: -1 无 / 0 个人认证(UP主) / 1 机构认证
- * acc/info 的 official.role 更细 (见 docs/user/official_role.md):
- *   1 知名UP主 / 2 大V达人 / 7 高能主播 / 9 社会知名人士 -> 个人认证(黄)
- *   3 企业 / 4 组织 / 5 媒体 / 6 政府                 -> 机构认证(蓝)
- */
+// 用户认证类型一览 —— 原表照抄 docs/user/official_role.md, 不自己造规则:
+//   ID | 认证类型 | 详细类型
+//   0  | 无       |
+//   1  | 个人认证 | 知名UP主
+//   2  | 个人认证 | 大V达人
+//   3  | 机构认证 | 企业
+//   4  | 机构认证 | 组织
+//   5  | 机构认证 | 媒体
+//   6  | 机构认证 | 政府
+//   7  | 个人认证 | 高能主播
+//   9  | 个人认证 | 社会知名人士
+// 徽章分色按表中的「认证类型」: 个人认证 = 黄标(#ffac2c) / 机构认证 = 蓝标(#3ca5ec)
+export const OFFICIAL_ROLES = {
+  0: { official: 'none', kind: '', label: '' },
+  1: { official: '个人认证', kind: 'per', label: '知名UP主' },
+  2: { official: '个人认证', kind: 'per', label: '大V达人' },
+  3: { official: '机构认证', kind: 'org', label: '企业' },
+  4: { official: '机构认证', kind: 'org', label: '组织' },
+  5: { official: '机构认证', kind: 'org', label: '媒体' },
+  6: { official: '机构认证', kind: 'org', label: '政府' },
+  7: { official: '个人认证', kind: 'per', label: '高能主播' },
+  9: { official: '个人认证', kind: 'per', label: '社会知名人士' }
+}
+
+/** 徽章底色类别: 'per' 黄 / 'org' 蓝 / '' 不显示 (查官方表, 表外 ID 按 type 回落) */
 export function badgeKind(type, role) {
+  const row = OFFICIAL_ROLES[Number(role)]
+  if (row) return row.kind
+  // 动态流只有 official_verify.type: -1 无 / 0 UP主认证(个人) / 1 机构认证
   const t = Number(type)
-  const r = Number(role)
-  if (r >= 3 && r <= 6) return 'org'
-  if (r === 1 || r === 2 || r === 7 || r === 9) return 'per'
   if (t === 1) return 'org'
   if (t === 0) return 'per'
   return ''
+}
+
+/**
+ * 认证行文案: 接口给的 desc 优先 (例「bilibili 知名UP主」), 没有就用官方表的详细类型,
+ * 前缀按表中的「认证类型」拼 (bilibili个人认证：/ bilibili机构认证：)
+ */
+export function badgeLabel(type, role, desc) {
+  const row = OFFICIAL_ROLES[Number(role)]
+  const text = String(desc || '') || (row ? row.label : '')
+  if (!text) return ''
+  const t = Number(type)
+  const kind = row ? row.kind : (t === 1 ? 'org' : (t === 0 ? 'per' : ''))
+  if (kind === '') return ''
+  return (kind === 'org' ? 'bilibili机构认证：' : 'bilibili个人认证：') + text
 }
 
 // 认证 + 头像框: 动态流的 module_author 与空间的 acc/info / card 语义一致, 统一在这里归一
@@ -1849,6 +1881,7 @@ function mapDynamicItem(it) {
       authorMid: oma.mid || 0,
       face: oma.face ? thumb(dynHttps(oma.face), 80, 80) : '',
       officialType: obadge.officialType,
+      officialRole: obadge.officialRole,
       officialDesc: obadge.officialDesc,
       pendant: obadge.pendant,
       segs: osegs,
@@ -1882,6 +1915,7 @@ function mapDynamicItem(it) {
     face: ma.face ? thumb(dynHttps(ma.face), 80, 80) : '',
     // 认证徽章 + 头像框 (用户反馈: 要像官方 App 一样有头像框和认证图标)
     officialType: abadge.officialType,
+    officialRole: abadge.officialRole,
     officialDesc: abadge.officialDesc,
     pendant: abadge.pendant,
     pubText: ma.pub_time || '',

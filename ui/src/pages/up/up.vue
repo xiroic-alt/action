@@ -24,7 +24,7 @@
           <text class="name">{{ info.name }}</text>
           <!-- 认证标识: 「bilibili个人认证：xxx」(图2 的样式) -->
           <div v-if="info.officialDesc" class="verify">
-            <div :class="['verify-badge', (info.officialType === 1 || info.officialRole === 3 || info.officialRole === 4 || info.officialRole === 5 || info.officialRole === 6) ? 'verify-org' : 'verify-per']">
+            <div :class="['verify-badge', badgeCls()]">
               <image class="verify-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
             <text class="verify-t">{{ verifyText }}</text>
@@ -55,7 +55,7 @@
 </template>
 
 <script>
-import { getUpInfo, getUpFans, getUpVideos , parseMessage } from '../../services/bili.js'
+import { getUpInfo, getUpFans, getUpVideos , parseMessage, badgeKind, badgeLabel } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
 
@@ -90,12 +90,11 @@ export default {
   },
   computed: {
     // 「bilibili个人认证：xxx」/ 机构认证同理 (official.type: 0 个人 1 机构)
+    // 认证文案: 接口 desc 优先, 没有就用官方表的详细类型 (acc/info 的 official.role 就是表里的 ID)
     verifyText() {
-      const d = this.info ? this.info.officialDesc : ''
-      if (!d) return ''
-      const pre = (this.info && this.info.officialType === 1) ? 'bilibili机构认证：' : 'bilibili个人认证：'
-      return pre + d
-    }
+      if (!this.info) return ''
+      return badgeLabel(this.info.officialType, this.info.officialRole, this.info.officialDesc)
+    },
   },
   methods: {
     startDots() {
@@ -269,6 +268,7 @@ export default {
     },
 
     // 进该 UP 的空间动态 (动态页带 mid 走 feed/space, 不加 mid 就是关注流)
+    badgeCls() { const i = this.info || {}; return badgeKind(i.officialType, i.officialRole) === 'org' ? 'verify-org' : 'verify-per' },
     openDynFeed() {
       if (!this.mid) return
       try { $falcon.navTo('feed', { mid: String(this.mid), name: this.name }) } catch (e) { this.upStatus = '打开动态失败' }

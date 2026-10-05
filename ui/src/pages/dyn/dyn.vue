@@ -49,7 +49,7 @@
               </div>
               <!-- 认证标识 (图2 的样式) -->
               <div v-if="verifyText !== ''" class="averify">
-                <div :class="['averify-badge', (item && item.officialType === 1) ? 'averify-org' : 'averify-per']">
+                <div :class="['averify-badge', badgeCls()]">
                   <image class="averify-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
                 </div>
                 <text class="averify-t">{{ verifyText }}</text>
@@ -243,7 +243,7 @@
   </div>
 </template>
 <script>
-import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply, GRID_COLS } from '../../services/bili.js'
+import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply, GRID_COLS, badgeKind, badgeLabel } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { createIME } from '../../services/ime.js'
 import { log } from '../../services/log.js'
@@ -421,11 +421,11 @@ export default {
     orig() { return this.item ? this.item.orig : null },
     // 认证徽章 + 头像框: 都来自动态本体 item (getDynamicDetail -> mapDynamicItem)
     pendant() { return (this.item && this.item.pendant) || '' },
+    // 认证文案: 接口 desc 优先, 没有就用官方表的详细类型 (查表见 bili.js OFFICIAL_ROLES)
     verifyText() {
       const it = this.item
-      const desc = (it && it.officialDesc) || ''
-      if (!desc) return ''
-      return ((it.officialType === 1) ? 'bilibili机构认证：' : 'bilibili个人认证：') + desc
+      if (!it) return ''
+      return badgeLabel(it.officialType, it.officialRole, it.officialDesc)
     }
   },
   methods: {
@@ -469,6 +469,7 @@ export default {
     },
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load() },
     back() { try { this.$page.finish() } catch (e) {} },
+    badgeCls() { const it = this.item || {}; return badgeKind(it.officialType, it.officialRole) === 'org' ? 'averify-org' : 'averify-per' },
     goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },
     openUp() {
       const mid = (this.item && this.item.mid) || 0

@@ -41,7 +41,7 @@
             </div>
             <text class="dauthor">{{ d.author }}</text>
             <!-- 认证徽章: 黄标=个人认证 / 蓝标=机构认证 (官方样式是彩色圆底 + 白闪电) -->
-            <div v-if="d.officialType >= 0" :class="['dvbadge', d.officialType === 1 ? 'dvbadge-org' : 'dvbadge-per']">
+            <div v-if="d.officialType >= 0" :class="['dvbadge', badgeCls(d)]">
               <image class="dvbadge-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
             <text class="dtime">{{ d.pubText }}</text>
@@ -181,7 +181,7 @@
 </template>
 
 <script>
-import { getDynamicFeed, getDynamicSpace, likeDynamic, GRID_COLS } from '../../services/bili.js'
+import { getDynamicFeed, getDynamicSpace, likeDynamic, GRID_COLS, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
@@ -314,6 +314,8 @@ export default {
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true, true) },
     back() { try { this.$page.finish() } catch (e) {} },
     kindName(k) { return KIND_NAME[k] || '动态' },
+    // 徽章底色: 查官方认证类型表 (badgeKind), 黄标=个人认证 蓝标=机构认证
+    badgeCls(d) { return badgeKind(d && d.officialType, d && d.officialRole) === 'org' ? 'dvbadge-org' : 'dvbadge-per' },
     setCat(k) {
       if (this.cat === k) return
       this.cat = k

@@ -39,7 +39,7 @@
           <div class="meta">
             <div class="namerow">
               <text class="name">{{ u.name }}</text>
-              <div v-if="u.officialType >= 0" :class="['vbadge', u.officialType === 1 ? 'vbadge-org' : 'vbadge-per']">
+              <div v-if="u.officialType >= 0" :class="['vbadge', badgeCls(u)]">
                 <image class="vbadge-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
               </div>
               <text v-if="u.special" class="sptag">特别关注</text>
@@ -89,7 +89,7 @@
 </template>
 
 <script>
-import { getMyInfo, getFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL } from '../../services/bili.js'
+import { getMyInfo, getFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -159,6 +159,7 @@ export default {
     goBack() { try { this.$page.finish() } catch (e) {} },
     goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true) },
+    badgeCls(u) { return badgeKind(u && u.officialType, u && u.officialRole) === 'org' ? 'vbadge-org' : 'vbadge-per' },
     setFilter(id) {
       if (this.tagFilter === id) return
       this.tagFilter = id
