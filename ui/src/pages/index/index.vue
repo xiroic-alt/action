@@ -189,6 +189,9 @@
             <div class="entry-btn" @click="openListPage('toview')">
               <text class="entry-text">稍后再看</text>
             </div>
+            <div class="entry-btn" @click="openFollow">
+              <text class="entry-text">我的关注</text>
+            </div>
           </div>
           <text v-if="myInfo.isLogin && myInfo.vip" class="ph-desc2">{{ myInfo.vip }}</text>
           <div v-if="!myInfo.isLogin && myLoaded" class="login-cta" @click="openLogin">
@@ -612,7 +615,11 @@ export default {
     },
 
     // 打开设置页
-    openSettings() {
+    // 我的关注 (含分组筛选与管理): 独立页 pages/follow
+  openFollow() {
+    try { $falcon.navTo('follow', {}) } catch (e) { this.myStatus = '打开关注页失败' }
+  },
+  openSettings() {
       try { $falcon.navTo('settings') } catch (e) { this.myStatus = '打开设置失败' }
     },
 

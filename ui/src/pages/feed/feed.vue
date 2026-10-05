@@ -5,13 +5,15 @@
         <image class="fback-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="fback-t">返回</text>
       </div>
-      <text class="ftitle">动态</text>
-      <div class="cats">
+      <text class="ftitle">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
+      <!-- UP 空间动态模式 (从 UP 主页进来): 分类栏没有意义, 换成 UP 名 -->
+      <div class="cats" v-if="mid === ''">
         <div v-for="(c, ci) in cats" :key="'c' + ci"
              :class="['cat', cat === c.k ? 'cat-on' : '']" @click="setCat(c.k)">
           <text :class="['cat-t', cat === c.k ? 'cat-t-on' : '']">{{ c.n }}</text>
         </div>
       </div>
+      <text v-else class="fupsub">{{ upName !== '' ? upName : ('UID ' + mid) }}</text>
     </div>
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
@@ -31,9 +33,15 @@
 
         <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)">
           <div class="dhead" @click="openUp(d)">
-            <image v-if="d.face" class="dface" :src="d.face" resize="cover"></image>
-            <div v-else class="dface dface-ph"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
+            <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
+            <div class="dface-wrap">
+              <image v-if="d.face" class="dface" :src="d.face" resize="cover"></image>
+              <div v-else class="dface dface-ph"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
+              <image v-if="d.pendant" class="dpendant" :src="d.pendant" resize="contain"></image>
+            </div>
             <text class="dauthor">{{ d.author }}</text>
+            <!-- 认证徽章 (黄 i): official_verify.type >= 0 才显示, -1 = 未认证 -->
+            <image v-if="d.officialType >= 0" class="dvbadge" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
             <text class="dtime">{{ d.pubText }}</text>
             <text class="dbadge">{{ kindName(d.kind) }}</text>
           </div>
@@ -171,7 +179,7 @@
 </template>
 
 <script>
-import { getDynamicFeed, likeDynamic, GRID_COLS } from '../../services/bili.js'
+import { getDynamicFeed, getDynamicSpace, likeDynamic, GRID_COLS } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
@@ -185,6 +193,7 @@ const MI = {
   expand: require('../../assets/mi/expand_20_m.png'),
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
   thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  verified: require('../../assets/mi/verified_16_y.png'),
   comment: require('../../assets/mi/comment_20_m.png'),
   share: require('../../assets/mi/share_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
@@ -239,6 +248,8 @@ export default {
       hasMore: false,
       loading: false,
       status: '加载中…',
+      mid: '',        // 非空 = UP 空间动态模式
+      upName: '',
       feedType: 'all',    // 当前走服务端的 type (换分类时会变)
       pullHint: '',       // 下拉刷新提示
       viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
@@ -267,16 +278,35 @@ export default {
   methods: {
     // 生命周期: BasePage 只把 onShow/onHide/onUnload 转发给页面根组件
     onShow() {
-      try { log('动态页', 'onShow 到达 started=' + (this._started === true)) } catch (e0) {}
+      const opts = (this.$page && this.$page.options) ? this.$page.options : null
+      try { log('动态页', 'onShow 到达 started=' + (this._started === true) + ' mid=' + String((opts || {}).mid || '')) } catch (e0) {}
       if (this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
         const self = this
-        this.$page.onNewOptions = function () { self.load(true) }
+        this.$page.onNewOptions = function (o) { self.begin(o) }
       }
-      // 二次进入: 上次没拿到数据(超时/失败)就自动再试一次
-      if (this._started) { if (this.items.length === 0) this.load(true); return }
+      if (!this._started) { this.begin(opts); return }
+      // 二次进入: 目标 UP 变了就重载; 否则只在没数据时自动再试一次
+      const wantMid = String((opts || {}).mid || '')
+      if (wantMid !== this.mid) { this.begin(opts); return }
+      if (this.items.length === 0) this.load(true)
+    },
+    // 两种入口: 不带 mid = 关注动态流; 带 options.mid = 该 UP 的空间动态 (UP 主页「TA 的动态」)
+    begin(options) {
+      const o = options || (this.$page ? this.$page.options : null) || {}
+      const mid = String(o.mid || '')
+      this.mid = mid
+      this.upName = String(o.name || '')
+      this.items = []
+      this.offset = ''
+      this.hasMore = false
+      this._catPulls = 0
       this._started = true
-      this.load(true)
+      this.generation++
+      this.loading = false
+      this.status = '加载中…'
+      try { log('动态页', 'begin mid=' + mid + ' name=' + this.upName) } catch (e0) {}
+      this.load(true, true)
     },
     // 接口偶发不返回(实测有 1 分钟不 resolve 的情况) -> 给用户一个明确的重试入口
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true, true) },
@@ -362,7 +392,11 @@ export default {
         setTimer(self, 12000, function () { rej(new Error('加载超时，点这里重试')) })
       })
       try {
-        const r = await Promise.race([getDynamicFeed(reset ? '' : this.offset, this.feedType, fresh), watchdog])
+        const off = reset ? '' : this.offset
+        const r = await Promise.race([
+          this.mid ? getDynamicSpace(this.mid, off, fresh) : getDynamicFeed(off, this.feedType, fresh),
+          watchdog
+        ])
         if (gen !== this.generation) return
         const add = r.items || []
         for (let i = 0; i < add.length; i++) {
@@ -376,7 +410,7 @@ export default {
         this.offset = r.offset || ''
         this.hasMore = !!r.hasMore
         this._catPulls = 0
-        this.status = this.items.length === 0 ? '关注的 UP 主暂无动态' : ''
+        this.status = this.items.length === 0 ? (this.mid !== '' ? 'TA 还没有发过动态' : '关注的 UP 主暂无动态') : ''
         // 客户端过滤的分类: 首页可能是空的 -> 自动往后翻
         this.ensureCatItems()
         let nd = 0
@@ -697,7 +731,12 @@ export default {
 .status { font-size: 17px; color: #8a93a0; text-align: center; padding-top: 14px; padding-bottom: 6px; }
 .dyn { width: 920px; margin-top: 10px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; background-color: #1f1f1f; border-radius: 12px; }
 .dhead { flex-direction: row; align-items: center; }
-.dface { width: 40px; height: 40px; border-radius: 20px; margin-right: 10px; background-color: #232830; }
+/* 头像 + 右下角头像框: 用相对定位包一层 (Falcon 支持 position: relative/absolute) */
+.dface-wrap { position: relative; width: 40px; height: 40px; margin-right: 10px; }
+.dface { width: 40px; height: 40px; border-radius: 20px; background-color: #232830; }
+.dpendant { position: absolute; right: -6px; bottom: -4px; width: 24px; height: 24px; }
+.dvbadge { margin-left: 6px; }
+.fupsub { font-size: 16px; color: #8a94a6; margin-left: 14px; }
 .dface-ph { justify-content: center; align-items: center; }
 .dface-t { font-size: 18px; color: #7c8592; }
 .dauthor { font-size: 18px; color: #8fb8ff; }

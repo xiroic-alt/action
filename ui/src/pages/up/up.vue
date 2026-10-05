@@ -15,11 +15,24 @@
       <text v-if="upStatus !== ''" class="state">{{ upStatus }}</text>
 
       <div class="info-row" v-if="info">
-        <image class="face" :src="info.face" resize="cover"></image>
+        <!-- 头像框: 官方 App 在头像右下角挂装饰 (acc/info 的 pendant) -->
+        <div class="face-wrap">
+          <image class="face" :src="info.face" resize="cover"></image>
+          <image v-if="info.pendant" class="pendant" :src="info.pendant" resize="contain"></image>
+        </div>
         <div class="info-col">
           <text class="name">{{ info.name }}</text>
+          <!-- 认证标识: 「bilibili个人认证：xxx」(图2 的样式) -->
+          <div v-if="info.officialDesc" class="verify">
+            <image class="verify-ic" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
+            <text class="verify-t">{{ verifyText }}</text>
+          </div>
           <text class="meta">{{ info.levelText }} · 粉丝 {{ fansText }}</text>
           <text class="sign">{{ info.sign !== '' ? info.sign : '这个人很神秘，什么都没有写' }}</text>
+        </div>
+        <!-- TA 的动态: 复用动态页 (带 mid 进去走空间动态接口) -->
+        <div class="dynentry" @click="openDynFeed">
+          <text class="dynentry-t">TA 的动态</text>
         </div>
       </div>
 
@@ -50,7 +63,8 @@ var PULL_DY = 55
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
 const MI = {
   back: require('../../assets/mi/back_26_w.png'),
-  play: require('../../assets/mi/play_18_w.png')
+  play: require('../../assets/mi/play_18_w.png'),
+  verified: require('../../assets/mi/verified_16_y.png')
 }
 
 export default {
@@ -71,7 +85,14 @@ export default {
       entering: true   // 页面进入动画
     }
   },
-  methods: {
+  computed: {
+    // 「bilibili个人认证：xxx」/ 机构认证同理 (official.type: 0 个人 1 机构)
+    verifyText() {
+      const d = this.info ? this.info.officialDesc : ''
+      if (!d) return ''
+      const pre = (this.info && this.info.officialType === 1) ? 'bilibili机构认证：' : 'bilibili个人认证：'
+      return pre + d
+    },
     startDots() {
       if (this._dotTimer) return
       const self = this
@@ -241,6 +262,11 @@ export default {
       $falcon.navTo('page', { bvid: item.bvid, title: item.title })
     },
 
+    // 进该 UP 的空间动态 (动态页带 mid 走 feed/space, 不加 mid 就是关注流)
+    openDynFeed() {
+      if (!this.mid) return
+      try { $falcon.navTo('feed', { mid: String(this.mid), name: this.name }) } catch (e) { this.upStatus = '打开动态失败' }
+    },
     goBack() {
       this.$page.finish()
     },
@@ -307,20 +333,26 @@ export default {
   flex-direction: row;
   align-items: center;
 }
+.face-wrap { position: relative; width: 72px; height: 72px; margin-left: 20px; }
 .face {
   width: 72px;
   height: 72px;
-  margin-left: 20px;
   border-radius: 36px;
   background-color: #2c2c2c;
 }
+.pendant { position: absolute; right: -8px; bottom: -6px; width: 34px; height: 34px; }
 .info-col {
-  width: 840px;
+  width: 660px;
   height: 96px;
   margin-left: 16px;
   display: flex;
   flex-direction: column;
 }
+.verify { flex-direction: row; align-items: center; margin-top: 3px; }
+.verify-ic { margin-right: 6px; }
+.verify-t { font-size: 16px; color: #8a94a6; lines: 1; text-overflow: ellipsis; overflow: hidden; }
+.dynentry { width: 150px; height: 56px; margin-right: 20px; border-radius: 28px; background-color: #2a2f38; justify-content: center; align-items: center; }
+.dynentry-t { font-size: 20px; color: #fb7299; }
 .name {
   font-size: 24px;
   color: #ffffff;

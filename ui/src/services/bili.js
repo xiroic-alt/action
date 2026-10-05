@@ -562,6 +562,8 @@ export async function getVideoDetail(bvid, noCache) {
     // 封面原始宽高 (按比例显示用; rotate=1 表示横竖互换)
     dimW: dimW, dimH: dimH,
     desc: d.desc || '',
+    // 警示标识 (官方 App 的「个人观点，仅供参考」): 详情接口的 argue_info.argue_msg
+    argue: (d.argue_info && d.argue_info.argue_msg) ? String(d.argue_info.argue_msg) : '',
     author: (d.owner && d.owner.name) || '',
     duration: formatDuration(d.duration),
     pubdateText: formatDate(d.pubdate),
@@ -708,7 +710,12 @@ export async function getUpInfo(mid) {
       name: d.name || '',
       sign: d.sign || '',
       face: thumb(face, 96, 96),
-      levelText: 'Lv' + (d.level !== undefined ? d.level : '?')
+      levelText: 'Lv' + (d.level !== undefined ? d.level : '?'),
+      // 个人主页的认证标识 + 头像框 (acc/info 的 official / pendant)
+      officialType: (d.official && typeof d.official.type === 'number') ? d.official.type : -1,
+      officialDesc: (d.official && (d.official.title || d.official.desc)) || '',
+      pendant: (d.pendant && Number(d.pendant.pid) > 0) ? dynHttps(d.pendant.image_enhance || d.pendant.image || '') : '',
+      vipText: (d.vip && d.vip.label && d.vip.label.text) || ''
     }
     cacheSet('upinfo:' + mid, out)
     return out
@@ -731,7 +738,11 @@ export async function getUpInfo(mid) {
     name: cd.name || '',
     sign: cd.sign || '',
     face: thumb(face, 96, 96),
-    levelText: 'Lv' + (lv !== undefined ? lv : '?')
+    levelText: 'Lv' + (lv !== undefined ? lv : '?'),
+    officialType: (cd.Official && typeof cd.Official.type === 'number') ? cd.Official.type : -1,
+    officialDesc: (cd.Official && (cd.Official.title || cd.Official.desc)) || '',
+    pendant: (cd.pendant && Number(cd.pendant.pid) > 0) ? dynHttps(cd.pendant.image_enhance || cd.pendant.image || '') : '',
+    vipText: ''
   }
   cacheSet('upinfo:' + mid, cardOut)
   return cardOut
@@ -1395,6 +1406,166 @@ export async function likeDynamic(dynId, want) {
   return true
 }
 
+// ===================== 关系链 / 关注分组 (0.9.61) =====================
+// 特别关注 = 分组 id -10: x/relation/tags 的返回里就有这一条 (docs/user/relation.md §2056),
+// 所以「加入特别关注」不是独立接口, 而是「把人加进 -10 分组」
+export const TAG_SPECIAL = -10
+export const TAG_DEFAULT = 0
+
+// 认证 + 头像框: 动态流的 module_author 与空间的 acc/info / card 语义一致, 统一在这里归一
+function badgeOf(ma) {
+  const ov = ma && ma.official_verify ? ma.official_verify : null
+  let ot = -1
+  if (ov && typeof ov.type === 'number') ot = ov.type
+  const pd = ma && ma.pendant ? ma.pendant : null
+  // 头像框是**带透明通道的 PNG**, 绝不能套 thumb() 的 @Ww_Hh_1c.jpg (会转成 JPG, 透明底变黑)
+  const raw = (pd && Number(pd.pid) > 0) ? dynHttps(pd.image_enhance || pd.image || '') : ''
+  return { officialType: ot, officialDesc: (ov && ov.desc) || '', pendant: raw }
+}
+
+/**
+ * 与某用户的关系 (x/relation?fid=; 免 csrf)
+ * attribute: 0 未关注 / 2 已关注 / 6 互粉 / 128 拉黑
+ */
+export async function getRelation(mid) {
+  const url = 'https://api.bilibili.com/x/relation?fid=' + encodeURIComponent(mid)
+  const body = await getJsonAsync(url, 10)
+  if (body.code !== 0) throw new Error(body.message || ('关系接口错误 code=' + body.code))
+  const d = body.data || {}
+  const tags = []
+  const arr = d.tag || []
+  for (let i = 0; i < arr.length; i++) {
+    const t = arr[i]
+    tags.push(typeof t === 'number' ? t : Number((t && t.tagid) || 0))
+  }
+  const attr = Number(d.attribute || 0)
+  return {
+    attribute: attr,
+    special: Number(d.special || 0) === 1 || tags.indexOf(TAG_SPECIAL) >= 0,
+    tags: tags,
+    following: attr === 2 || attr === 6
+  }
+}
+
+/** 关注 (act=1) / 取关 (act=2) —— x/relation/modify, 表单体 + csrf */
+export async function modifyRelation(mid, act) {
+  if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
+  const body = await postJsonAsync('https://api.bilibili.com/x/relation/modify', {
+    fid: String(mid), act: Number(act) || 1, re_src: 11, csrf: needCsrf()
+  }, 15)
+  if (body.code !== 0) {
+    if (body.code === -101) throw new Error('登录已过期, 请重新登录')
+    if (body.code === -111) throw new Error('csrf 校验失败, 请重新登录')
+    if (body.code === 22001) throw new Error('不能关注自己')
+    if (body.code === 22002) throw new Error('对方隐私设置, 无法关注')
+    throw new Error(body.message || ('操作失败 code=' + body.code))
+  }
+  return true
+}
+
+/** 关注分组列表 (x/relation/tags; 返回含 -10 特别关注 / 0 默认分组) */
+export async function getRelationTags() {
+  const body = await getJsonAsync('https://api.bilibili.com/x/relation/tags', 10)
+  if (body.code !== 0) throw new Error(body.message || ('分组接口错误 code=' + body.code))
+  const out = []
+  const arr = body.data || []
+  for (let i = 0; i < arr.length; i++) {
+    const t = arr[i] || {}
+    out.push({ tagid: Number(t.tagid) || 0, name: String(t.name || ''), count: Number(t.count) || 0 })
+  }
+  return out
+}
+
+/** 设置分组: 把一个人从 before 分组集合移动到 after 集合 (x/relation/tags/moveUsers) */
+export async function setUserTags(mid, beforeTagids, afterTagids) {
+  const before = (beforeTagids && beforeTagids.length) ? beforeTagids.join(',') : String(TAG_DEFAULT)
+  const after = (afterTagids && afterTagids.length) ? afterTagids.join(',') : String(TAG_DEFAULT)
+  const body = await postJsonAsync('https://api.bilibili.com/x/relation/tags/moveUsers', {
+    beforeTagids: before, afterTagids: after, fids: String(mid), csrf: needCsrf()
+  }, 15)
+  if (body.code !== 0) {
+    if (body.code === 22105) throw new Error('还没关注这个人')
+    if (body.code === 22104) throw new Error('分组不存在')
+    throw new Error(body.message || ('设置分组失败 code=' + body.code))
+  }
+  return true
+}
+
+/** 加入某个分组 (x/relation/tags/addUsers) —— 特别关注(-10) 走这里 */
+export async function addUserTag(mid, tagids) {
+  const ids = (tagids && tagids.length) ? tagids.join(',') : String(TAG_SPECIAL)
+  const body = await postJsonAsync('https://api.bilibili.com/x/relation/tags/addUsers', {
+    fids: String(mid), tagids: ids, csrf: needCsrf()
+  }, 15)
+  if (body.code !== 0) throw new Error(body.message || ('加入分组失败 code=' + body.code))
+  return true
+}
+
+/** 我的关注列表 (x/relation/followings; 需登录 + referer 为 bilibili 子域) */
+export async function getFollowings(vmid, pn, ps) {
+  const url = 'https://api.bilibili.com/x/relation/followings?vmid=' + encodeURIComponent(vmid)
+    + '&pn=' + (Number(pn) || 1) + '&ps=' + (Number(ps) || 20)
+  const body = await getJsonAsync(url, 15)
+  if (body.code !== 0) {
+    if (body.code === -101) throw new Error('登录已过期, 请重新登录')
+    if (body.code === -352) throw new Error('接口风控, 稍后再试')
+    throw new Error(body.message || ('关注列表接口错误 code=' + body.code))
+  }
+  const d = body.data || {}
+  const list = []
+  const arr = d.list || []
+  for (let i = 0; i < arr.length; i++) {
+    const u = arr[i] || {}
+    let face = dynHttps(u.face || '')
+    const tags = []
+    const ta = u.tag || []
+    for (let j = 0; j < ta.length; j++) tags.push(Number(ta[j]) || 0)
+    const b = badgeOf({ official_verify: u.official_verify })
+    list.push({
+      mid: Number(u.mid) || 0,
+      name: String(u.uname || ''),
+      sign: String(u.sign || ''),
+      face: face ? thumb(face, 80, 80) : '',
+      officialType: b.officialType,
+      officialDesc: b.officialDesc,
+      special: Number(u.special || 0) === 1 || tags.indexOf(TAG_SPECIAL) >= 0,
+      tags: tags
+    })
+  }
+  return { list: list, total: Number(d.total) || 0 }
+}
+
+/** UP 空间动态 (x/polymer/web-dynamic/v1/feed/space; item 结构与动态流同构) */
+export async function getDynamicSpace(mid, offset, fresh) {
+  if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
+  const m = String(mid == null ? '' : mid)
+  if (!m) throw new Error('缺少 UP 主 UID')
+  const key = 'dynspace:' + m + ':' + (offset || '')
+  if (!fresh) {
+    const hit = cacheGet(key, DYN_TTL)
+    if (hit) { log('UP动态', '命中缓存 mid=' + m + ' 条数=' + ((hit.items || []).length)); return hit }
+  }
+  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=' + encodeURIComponent(m)
+    + '&timezone_offset=-480&platform=web&features=' + DYN_FEATURES
+    + (offset ? '&offset=' + encodeURIComponent(offset) : '')
+  const body = await getJsonAsync(url, 15)
+  if (body.code === -101) throw new Error('未登录或登录已过期')
+  if (body.code !== 0 || !body.data) {
+    if (body.code === -352) throw new Error('接口风控, 稍后再试')
+    throw new Error(body.message || ('空间动态接口错误 code=' + body.code))
+  }
+  const list = body.data.items || []
+  const items = []
+  for (let i = 0; i < list.length; i++) {
+    const full = mapDynamicItem(list[i])
+    if (full) items.push(full)
+  }
+  const out = { items: items, offset: body.data.offset || '', hasMore: hasMoreOf(body.data.has_more) }
+  log('UP动态', 'mid=' + m + ' 条数=' + items.length + ' hasMore=' + out.hasMore)
+  cacheSet(key, out)
+  return out
+}
+
 // ===================== 动态流全类型映射 (0.9.54) =====================
 // 动态形态比视频复杂: 投稿(archive) / 图文(draw, 九宫格) / 纯文字(word) / 专栏(opus) / 转发(forward) / 直播(live_rcmd)
 // 正文必须按 desc.rich_text_nodes 保序渲染 —— 节点的 emoji.size (1=小 2=大) 决定字号,
@@ -1608,6 +1779,7 @@ function mapDynamicItem(it) {
   const md = modules.module_dynamic || {}
   const ma = modules.module_author || {}
   const st = modules.module_stat || {}
+  const abadge = badgeOf(ma)
   const major = md.major || {}
   const kind = dynKindOf(String(it.type || ''))
   const desc = md.desc || {}
@@ -1643,6 +1815,7 @@ function mapDynamicItem(it) {
   if (it.orig) {
     const omd = (it.orig.modules || {}).module_dynamic || {}
     const oma = (it.orig.modules || {}).module_author || {}
+  const obadge = badgeOf(oma)
     const omajor = omd.major || {}
     const odesc = omd.desc || {}
     let osegs = mapRichNodes(odesc.rich_text_nodes)
@@ -1656,6 +1829,9 @@ function mapDynamicItem(it) {
       author: oma.name || '',
       authorMid: oma.mid || 0,
       face: oma.face ? thumb(dynHttps(oma.face), 80, 80) : '',
+      officialType: obadge.officialType,
+      officialDesc: obadge.officialDesc,
+      pendant: obadge.pendant,
       segs: osegs,
       pics: opics,
       archive: dynArchive(omajor.archive)
@@ -1685,6 +1861,10 @@ function mapDynamicItem(it) {
     author: ma.name || '',
     mid: ma.mid || 0,        // 作者 UID: 列表/详情点头像或昵称进 UP 主页
     face: ma.face ? thumb(dynHttps(ma.face), 80, 80) : '',
+    // 认证徽章 + 头像框 (用户反馈: 要像官方 App 一样有头像框和认证图标)
+    officialType: abadge.officialType,
+    officialDesc: abadge.officialDesc,
+    pendant: abadge.pendant,
     pubText: ma.pub_time || '',
     segs: segs,
     isLong: isLongMessage(segAll),   // 超 3 行才显示「展开全文」

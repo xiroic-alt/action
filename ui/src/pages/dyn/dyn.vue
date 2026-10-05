@@ -37,10 +37,22 @@
       <scroller v-else class="dscroll" scroll-direction="vertical" :show-scrollbar="true">
         <div class="dwrap">
           <div class="ahead" @click="openUp">
-            <image v-if="face !== ''" class="aface" :src="face" resize="cover"></image>
-            <div v-else class="aface aface-ph"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
-            <text class="aname">{{ author }}</text>
-            <text class="atime">{{ pubText }}</text>
+            <div class="aface-wrap">
+              <image v-if="face !== ''" class="aface" :src="face" resize="cover"></image>
+              <div v-else class="aface aface-ph"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
+              <image v-if="pendant !== ''" class="apendant" :src="pendant" resize="contain"></image>
+            </div>
+            <div class="acol">
+              <div class="anamerow">
+                <text class="aname">{{ author }}</text>
+                <text class="atime">{{ pubText }}</text>
+              </div>
+              <!-- 认证标识 (图2 的样式) -->
+              <div v-if="verifyText !== ''" class="averify">
+                <image class="averify-ic" :src="MI.verified" :style="{ width: '16px', height: '16px' }"></image>
+                <text class="averify-t">{{ verifyText }}</text>
+              </div>
+            </div>
           </div>
 
           <!-- 专栏 / 图文全文 (opus/detail): 标题 + 结构化段落 -->
@@ -243,6 +255,7 @@ const MI = {
   play: require('../../assets/mi/play_18_w.png'),
   thumbup: require('../../assets/mi/thumbup_20_m.png'),
   thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  verified: require('../../assets/mi/verified_16_y.png'),
   reply: require('../../assets/mi/reply_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
@@ -403,7 +416,15 @@ export default {
       return this.item ? this.item.pubText : ''
     },
     archive() { return this.item ? this.item.archive : null },
-    orig() { return this.item ? this.item.orig : null }
+    orig() { return this.item ? this.item.orig : null },
+    // 认证徽章 + 头像框: 都来自动态本体 item (getDynamicDetail -> mapDynamicItem)
+    pendant() { return (this.item && this.item.pendant) || '' },
+    verifyText() {
+      const it = this.item
+      const desc = (it && it.officialDesc) || ''
+      if (!desc) return ''
+      return ((it.officialType === 1) ? 'bilibili机构认证：' : 'bilibili个人认证：') + desc
+    }
   },
   methods: {
     onShow() {
@@ -879,11 +900,18 @@ export default {
 .dscroll { position: absolute; left: 0px; top: 36px; width: 580px; height: 186px; }
 .dwrap { padding-left: 18px; padding-right: 16px; padding-bottom: 14px; }
 .ahead { flex-direction: row; align-items: center; margin-top: 6px; margin-bottom: 4px; }
-.aface { width: 36px; height: 36px; border-radius: 18px; margin-right: 8px; background-color: #232830; }
+.aface-wrap { position: relative; width: 36px; height: 36px; margin-right: 8px; }
+.aface { width: 36px; height: 36px; border-radius: 18px; background-color: #232830; }
+.apendant { position: absolute; right: -5px; bottom: -4px; width: 22px; height: 22px; }
 .aface-ph { justify-content: center; align-items: center; }
 .aface-t { font-size: 17px; color: #7c8592; }
+.acol { flex-direction: column; }
+.anamerow { flex-direction: row; align-items: center; }
 .aname { font-size: 17px; color: #8fb8ff; }
 .atime { font-size: 14px; color: #7c8592; margin-left: 8px; }
+.averify { flex-direction: row; align-items: center; margin-top: 2px; }
+.averify-ic { margin-right: 5px; }
+.averify-t { font-size: 14px; color: #8a94a6; width: 460px; lines: 1; text-overflow: ellipsis; overflow: hidden; }
 .artitle { font-size: 24px; color: #ffffff; margin-top: 6px; margin-bottom: 2px; lines: 4; }
 .pblock { margin-top: 8px; }
 .ptext { font-size: 18px; color: #dfe4ea; }

@@ -32,7 +32,8 @@ const OUT = path.join(__dirname, '..', 'ui', 'src', 'assets', 'mi')
 const DRY = process.argv.indexOf('--dry') >= 0
 
 // 统一色板 (与 ui 里现有配色一致): w 白 / p B站粉 / m 次要灰 / d 深底 / g 浅灰
-const COLORS = { w: '#ffffff', p: '#fb7299', m: '#8a94a6', d: '#16181c', g: '#c8d2de' }
+// y 个人认证黄: 官方 App 的认证徽章底色 (#FFAC2C), 只有认证图标用
+const COLORS = { w: '#ffffff', p: '#fb7299', m: '#8a94a6', d: '#16181c', g: '#c8d2de', y: '#ffac2c' }
 
 // file: 产物名(ui 里 require 的名字) / icon: material-symbols 文件名 / size: 显示尺寸(px) / color: 色板键
 const ICONS = [
@@ -61,7 +62,13 @@ const ICONS = [
   { file: 'reply_20_m', icon: 'reply', size: 20, color: 'm' },           // 回复
   { file: 'image_20_m', icon: 'image', size: 20, color: 'm' },           // 图 N
   { file: 'comment_20_m', icon: 'comment', size: 20, color: 'm' },       // 评论数
-  { file: 'share_20_m', icon: 'share', size: 20, color: 'm' }            // 转发数
+  { file: 'share_20_m', icon: 'share', size: 20, color: 'm' },           // 转发数
+  { file: 'verified_16_y', icon: 'info-fill', size: 16, color: 'y' },    // 个人认证徽章(黄 i)
+  { file: 'star_20_m', icon: 'star', size: 20, color: 'm' },             // 特别关注(未设置)
+  { file: 'star_20_p', icon: 'star-fill', size: 20, color: 'p' },        // 特别关注(已设置)
+  { file: 'folder_20_m', icon: 'folder', size: 20, color: 'm' },         // 关注分组
+  { file: 'alert_20_m', icon: 'error', size: 20, color: 'm' },           // 警示标识(视频争议提示)
+  { file: 'person_20_m', icon: 'person', size: 20, color: 'm' }          // 我的关注
 ]
 
 const require_ = createRequire(import.meta.url)

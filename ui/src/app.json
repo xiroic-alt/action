@@ -23,7 +23,8 @@
     "toview": "pages/toview/toview.vue",
     "settings": "pages/settings/settings.vue",
     "feed": "pages/feed/feed.vue",
-    "dyn": "pages/dyn/dyn.vue"
+    "dyn": "pages/dyn/dyn.vue",
+    "follow": "pages/follow/follow.vue"
   },
   "options": {
     "external": ["bilinet", "gstplayer", "brightness"],

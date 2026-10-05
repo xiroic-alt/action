@@ -79,10 +79,20 @@
           <div :class="['act-btn', detail.reqToview ? 'act-on' : '']" @click="doToview">
             <text :class="['act-text', detail.reqToview ? 'act-text-on' : '']">{{ detail.reqToview ? '已加' : '稍后看' }}</text>
           </div>
+          <!-- 关注: 未关注点一下就关注; 已关注点开菜单 (特别关注 / 设置分组 / 取消关注) -->
+          <div :class="['act-btn', rel.following ? 'act-on' : '']" @click="onFollowTap">
+            <text :class="['act-text', rel.following ? 'act-text-on' : '']">{{ rel.following ? '已关注' : '关注' }}</text>
+          </div>
         </div>
 
         <text v-if="error !== ''" class="state-inline">{{ error }}</text>
         <text v-if="loading" class="state-inline">加载中…</text>
+
+        <!-- 警示标识 (官方 App 的「个人观点，仅供参考」): view 接口的 argue_info.argue_msg -->
+        <div v-if="detail && detail.argue" class="argue">
+          <image class="argue-ic" :src="MI.alert" :style="{ width: '20px', height: '20px' }"></image>
+          <text class="argue-t">{{ detail.argue }}</text>
+        </div>
 
         <div v-if="detail" class="section">
           <text class="sec-title">简介</text>
@@ -223,7 +233,37 @@
     <!-- 选择器浮层: 收藏夹 / 投币数量 (遮罩不绑点击, 只能点「取消」关闭, 防误触) -->
     <div v-if="pickerMode !== ''" class="picker-mask">
       <div class="picker">
-        <text class="picker-title">{{ pickerMode === 'fav' ? '选择收藏夹' : '投币数量' }}</text>
+        <text class="picker-title">{{ pickerTitle }}</text>
+        <!-- 关注菜单 (图4) -->
+        <div v-if="pickerMode === 'follow'" class="picker-row">
+          <div class="picker-coin" @click="toggleSpecial">
+            <image class="picker-ico" :src="rel.special ? MI.starOn : MI.star" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="picker-coin-text">{{ rel.special ? '取消特别关注' : '加入特别关注' }}</text>
+          </div>
+          <div class="picker-coin" @click="openTagPicker">
+            <image class="picker-ico" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
+            <text class="picker-coin-text">设置分组</text>
+          </div>
+        </div>
+        <div v-if="pickerMode === 'follow'" class="picker-row">
+          <div class="picker-coin picker-danger" @click="doUnfollow">
+            <text class="picker-coin-text">取消关注</text>
+          </div>
+        </div>
+        <!-- 分组多选 (保存后走 tags/moveUsers) -->
+        <scroller v-if="pickerMode === 'tags'" class="picker-list" scroll-direction="vertical" :show-scrollbar="true">
+          <text v-if="tagsLoading" class="picker-state">加载分组…</text>
+          <text v-else-if="tags.length === 0" class="picker-state">还没有分组 (可在官方 App 里创建)</text>
+          <div v-for="t in tags" :key="t.tagid" class="picker-item" @click="toggleTag(t)">
+            <text class="picker-item-title">{{ (tagSel.indexOf(t.tagid) >= 0 ? '☑ ' : '☐ ') + t.name }}</text>
+            <text class="picker-item-sub">{{ t.count }} 人</text>
+          </div>
+        </scroller>
+        <div v-if="pickerMode === 'tags'" class="picker-row">
+          <div class="picker-coin" @click="saveTags">
+            <text class="picker-coin-text">保存分组</text>
+          </div>
+        </div>
         <div v-if="pickerMode === 'coin'" class="picker-row">
           <div class="picker-coin" @click="pickCoin(1)">
             <text class="picker-coin-text">投 1 币</text>
@@ -232,7 +272,7 @@
             <text class="picker-coin-text">投 2 币</text>
           </div>
         </div>
-        <scroller v-else class="picker-list" scroll-direction="vertical" :show-scrollbar="true">
+        <scroller v-if="pickerMode === 'fav'" class="picker-list" scroll-direction="vertical" :show-scrollbar="true">
           <text v-if="favLoading" class="picker-state">加载收藏夹…</text>
           <text v-else-if="favFolders.length === 0" class="picker-state">没有可用收藏夹 (可在网页端创建)</text>
           <div v-for="f in favFolders" :key="f.id" class="picker-item" @click="pickFolder(f)">
@@ -286,7 +326,8 @@ import { createIME } from '../../services/ime.js'
 import {
   getVideoDetail, getRelatedVideos, getReplies, addReply,
   likeVideo, addCoin, dealFav, addToViewLater, delToViewLater, isInToView, getFavFolders,
-  getInteractState, isFavoured, cancelFav, parseMessage, likeReply
+  getInteractState, isFavoured, cancelFav, parseMessage, likeReply,
+  getRelation, modifyRelation, getRelationTags, setUserTags, addUserTag, TAG_SPECIAL
 } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
@@ -296,6 +337,10 @@ import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
 // require 只能写在 .vue 里 —— aiot-cli 只处理 .vue 内的图片 require
 const MI = {
+  alert: require('../../assets/mi/alert_20_m.png'),
+  star: require('../../assets/mi/star_20_m.png'),
+  starOn: require('../../assets/mi/star_20_p.png'),
+  folder: require('../../assets/mi/folder_20_m.png'),
   back: require('../../assets/mi/back_26_w.png'),
   home: require('../../assets/mi/home_30_w.png'),
   play18: require('../../assets/mi/play_18_w.png'),
@@ -439,7 +484,13 @@ export default {
       favFolders: [],     // 收藏夹列表 (含 favoured 状态, 按当前 aid 拉取)
       favFoldersAid: 0,   // 缓存对应的 aid (0 = 未加载)
       favLoading: false,
-      pickerMode: '',     // '' | 'fav'(收藏夹选择) | 'coin'(投币数量选择)
+      pickerMode: '',     // '' | 'fav'(收藏夹) | 'coin'(投币) | 'follow'(关注菜单) | 'tags'(分组)
+      // 关注关系: 特别关注(= 分组 -10) / 已关注 / 当前分组 (图4 的菜单用)
+      rel: { following: false, special: false, tags: [] },
+      tags: [],
+      tagSel: [],
+      tagsLoading: false,
+      followBusy: false,
       // ---- 评论区状态 ----
       sortMode: 'hot',   // 'hot'=热度 / 'time'=最新
       replies: [],
@@ -462,6 +513,12 @@ export default {
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
     // 状态行是否成功态: 成功才配一个勾图标 (失败/加载中不配)
+    pickerTitle() {
+      if (this.pickerMode === 'fav') return '选择收藏夹'
+      if (this.pickerMode === 'coin') return '投币数量'
+      if (this.pickerMode === 'tags') return '设置分组'
+      return this.detail ? this.detail.author : '关注'
+    },
     actOk() { return this.actStatus !== '' && this.actStatus.indexOf('失败') < 0 && this.actStatus.indexOf('中') < 0 },
     cOk() { return this.cStatus !== '' && this.cStatus.indexOf('失败') < 0 && this.cStatus.indexOf('中') < 0 && this.cStatus.indexOf('需要') < 0 },
     // 评论 tab 宽度: 基础 72px + 每位数字 12px (19px 字号下 "评论 28176" 也放得下, 不再截断末尾)
@@ -594,6 +651,8 @@ export default {
           const d = await getVideoDetail(this.bvid)
           if (gen !== this.generation) return
           this.detail = d
+          this.rel = { following: false, special: false, tags: [] }
+          this.loadRelation(d.mid)
           // 评论数直接用详情接口的 stat.reply: 一进页面 tab 上就有数字, 不需要额外请求.
           // (评论列表本身仍然「进评论 tab 才加载」—— 后台预取当年会拖死整个应用)
           if (!this.cLoaded && d.replyCount > 0) this.total = d.replyCount
@@ -807,6 +866,120 @@ export default {
       return false
     },
 
+    // ================= 关注 (图4: 特别关注 / 设置分组 / 取消关注) =================
+    // 特别关注 = 分组 id -10, 所以「加入特别关注」= addUsers(tagids=-10)
+    loadRelation(mid) {
+      if (!mid || !hasCookie()) return
+      const self = this
+      getRelation(mid).then(function (r) {
+        self.rel = { following: r.following, special: r.special, tags: r.tags }
+        try { log('关注', 'mid=' + mid + ' 已关注=' + r.following + ' 特别=' + r.special + ' 分组=' + r.tags.join('/')) } catch (e0) {}
+      }).catch(function (err) {
+        try { log('关注', '关系查询失败 ' + (err && err.message ? err.message : err)) } catch (e1) {}
+      })
+    },
+    onFollowTap() {
+      if (!hasCookie()) { this.goLogin(); return }
+      if (this.rel.following) { this.pickerMode = 'follow'; this.actStatus = ''; return }
+      this.doFollow()
+    },
+    async doFollow() {
+      if (!this.detail || !this.detail.mid) return
+      if (this.followBusy) return
+      this.followBusy = true
+      this.actStatus = '关注中…'
+      try {
+        await modifyRelation(this.detail.mid, 1)
+        this.rel = { following: true, special: false, tags: [] }
+        this.actStatus = '已关注'
+        try { log('关注', '关注成功 mid=' + this.detail.mid) } catch (e0) {}
+      } catch (err) {
+        this.actStatus = (err && err.message) ? err.message : '关注失败'
+      } finally {
+        this.followBusy = false
+      }
+    },
+    async doUnfollow() {
+      if (!this.detail || !this.detail.mid) return
+      if (this.followBusy) return
+      this.pickerMode = ''
+      this.followBusy = true
+      this.actStatus = '取消中…'
+      try {
+        await modifyRelation(this.detail.mid, 2)
+        this.rel = { following: false, special: false, tags: [] }
+        this.actStatus = '已取消关注'
+        try { log('关注', '取关成功 mid=' + this.detail.mid) } catch (e0) {}
+      } catch (err) {
+        this.actStatus = (err && err.message) ? err.message : '取关失败'
+      } finally {
+        this.followBusy = false
+      }
+    },
+    async toggleSpecial() {
+      if (!this.detail || !this.detail.mid) return
+      const want = !this.rel.special
+      const mid = this.detail.mid
+      this.pickerMode = ''
+      this.actStatus = want ? '设置中…' : '取消中…'
+      try {
+        if (want) {
+          await addUserTag(mid, [TAG_SPECIAL])
+          const t = this.rel.tags.slice()
+          if (t.indexOf(TAG_SPECIAL) < 0) t.push(TAG_SPECIAL)
+          this.rel = { following: true, special: true, tags: t }
+        } else {
+          const before = this.rel.tags.slice()
+          const after = []
+          for (let i = 0; i < before.length; i++) { if (before[i] !== TAG_SPECIAL) after.push(before[i]) }
+          await setUserTags(mid, before, after)
+          this.rel = { following: true, special: false, tags: after }
+        }
+        this.actStatus = want ? '已加入特别关注' : '已取消特别关注'
+        try { log('关注', '特别关注 ' + (want ? 'on' : 'off') + ' mid=' + mid) } catch (e0) {}
+      } catch (err) {
+        this.actStatus = (err && err.message) ? err.message : '特别关注失败'
+      }
+    },
+    openTagPicker() {
+      const self = this
+      this.pickerMode = 'tags'
+      this.tagSel = this.rel.tags.slice()
+      if (this.tags.length > 0) return
+      this.tagsLoading = true
+      getRelationTags().then(function (list) {
+        self.tagsLoading = false
+        self.tags = list
+        try { log('关注', '分组 ' + list.length + ' 个') } catch (e0) {}
+      }).catch(function (err) {
+        self.tagsLoading = false
+        self.actStatus = (err && err.message) ? err.message : '分组加载失败'
+      })
+    },
+    toggleTag(t) {
+      const id = t.tagid
+      const i = this.tagSel.indexOf(id)
+      if (i >= 0) this.tagSel.splice(i, 1)
+      else this.tagSel.push(id)
+      this.tagSel = this.tagSel.slice()
+    },
+    async saveTags() {
+      if (!this.detail || !this.detail.mid) return
+      const mid = this.detail.mid
+      const before = this.rel.tags.slice()
+      const after = this.tagSel.slice()
+      this.pickerMode = ''
+      this.actStatus = '保存中…'
+      try {
+        await setUserTags(mid, before, after)
+        const sp = after.indexOf(TAG_SPECIAL) >= 0
+        this.rel = { following: true, special: sp, tags: after }
+        this.actStatus = '分组已保存'
+        try { log('关注', '分组保存 ' + before.join('/') + ' -> ' + after.join('/')) } catch (e0) {}
+      } catch (err) {
+        this.actStatus = (err && err.message) ? err.message : '保存分组失败'
+      }
+    },
     async doLike() {
       if (!this.detail || !this.detail.aid || this.actBusy) return
       if (!this.requireLogin()) return
@@ -1685,6 +1858,12 @@ export default {
   lines: 3;
   text-overflow: ellipsis;
 }
+/* 警示标识: 「个人观点，仅供参考」这类争议提示 (video/info.md 的 argue_info) */
+.argue { flex-direction: row; align-items: center; margin-left: 16px; margin-right: 16px; margin-top: 10px; padding-left: 12px; padding-right: 12px; padding-top: 8px; padding-bottom: 8px; border-radius: 8px; background-color: #2a2620; }
+.argue-ic { margin-right: 8px; }
+.argue-t { font-size: 17px; color: #d8b46a; lines: 2; text-overflow: ellipsis; overflow: hidden; }
+.picker-ico { margin-right: 8px; }
+.picker-danger { background-color: #3a2733; }
 .desc-open {
   lines: 0;
 }
