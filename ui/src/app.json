@@ -22,7 +22,8 @@
     "fav": "pages/fav/fav.vue",
     "toview": "pages/toview/toview.vue",
     "settings": "pages/settings/settings.vue",
-    "feed": "pages/feed/feed.vue"
+    "feed": "pages/feed/feed.vue",
+    "dyn": "pages/dyn/dyn.vue"
   },
   "options": {
     "external": ["bilinet", "gstplayer", "brightness"],

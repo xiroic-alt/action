@@ -29,7 +29,7 @@
               @touchstart="onPullStart" @touchmove="onPullMove" @touchend="onPullEnd">
       <div class="fwrap">
 
-        <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)">
+        <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)">
           <div class="dhead">
             <image v-if="d.face" class="dface" :src="d.face" resize="cover"></image>
             <div v-else class="dface dface-ph"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
@@ -75,6 +75,12 @@
           <!-- 专栏/图文(opus) 的标题块: summary 就是主正文, 已在上面 richtext 里渲染过, 这里不再重复 -->
           <div class="ocard" v-if="d.opus && d.opus.title">
             <text class="otitle">{{ d.opus.title }}</text>
+          </div>
+
+          <!-- 专栏/图文: 列表里只是摘要, 全文在阅读页 -> 给一个明确的入口 (整张卡片也可点) -->
+          <div class="dread" v-if="d.kind === 'opus' || d.kind === 'draw'" @click="openDynRow(d)">
+            <text class="dread-t">阅读全文</text>
+            <image class="dread-ic" :src="MI.expand" :style="{ width: '18px', height: '18px' }"></image>
           </div>
 
           <div class="ostat" v-if="d.orig">
@@ -363,12 +369,28 @@ export default {
       }
     },
     loadMore() { if (this.loading || !this.hasMore) return; this.load(false) },
-    toggle(d) { d.expanded = !d.expanded },
+    // 卡片内部的点击(展开全文/开图/开视频)会冒泡到卡片本身: 本运行时没有验证过 .stop 修饰符,
+    // 用时间窗兜底 —— 内部点击先落一个时间戳, 卡片的 handler 在 500ms 内直接让路.
+    innerTap() { this._innerTap = Date.now() },
+    toggle(d) { this.innerTap(); d.expanded = !d.expanded },
     openVideo(a) {
       if (!a || !a.bvid) return
+      this.innerTap()
       try { $falcon.navTo('page', { bvid: a.bvid, title: a.title }) } catch (e) {}
     },
-    openPic(p) { if (p && p.full) this.ivOpen(p.full) },
+    openPic(p) { this.innerTap(); if (p && p.full) this.ivOpen(p.full) },
+    // 「阅读全文」入口: 先落 innerTap, 避免冒泡到卡片再打开一次
+    openDynRow(d) { this.innerTap(); this.openDyn(d) },
+    // 卡片 -> 动态阅读页 (投稿仍走视频详情页, 其余进动态/专栏阅读页)
+    openDyn(d) {
+      if (this._innerTap && (Date.now() - this._innerTap) < 500) return
+      if (!d) return
+      if (d.bvid) { this.openVideo(d); return }
+      const id = d.id ? String(d.id) : ''
+      if (!id) return
+      try { log('动态页', '打开详情 id=' + id + ' kind=' + (d.kind || '')) } catch (e0) {}
+      try { $falcon.navTo('dyn', { id: id, kind: d.kind || '' }) } catch (e) { this.status = '打开动态详情失败' }
+    },
     // 打开: 只把大图 URL 交给 <image resize="contain">, 缩放/平移用 transform (不落盘/不阻塞/不受图片缓存影响)
     ivOpen(url) {
       const self = this
@@ -644,6 +666,9 @@ export default {
 .vstat { font-size: 16px; color: #888888; }
 .ocard { margin-top: 6px; padding: 8px; background-color: #262b33; border-radius: 8px; }
 .otitle { font-size: 18px; color: #ffffff; lines: 2; }
+.dread { flex-direction: row; align-items: center; margin-top: 6px; }
+.dread-t { font-size: 16px; color: #8fb8ff; }
+.dread-ic { margin-left: 4px; }
 .osum { font-size: 17px; color: #aab2bd; lines: 2; margin-top: 4px; }
 .ostat { margin-top: 6px; padding: 8px; background-color: #1a1d22; border-radius: 8px; }
 .olabel { font-size: 17px; color: #8fb8ff; }

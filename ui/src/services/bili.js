@@ -1250,6 +1250,10 @@ const DYN_TTL = 60000
 // 服务端按它切换「动态卡片协议版本」—— 不带就是老结构, 图文/专栏的正文根本不下发.
 const DYN_FEATURES = 'itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote,decorationCard,onlyfansAssetsV2,forwardListHidden,ugcDelete,onlyfansQaCard,commentsNewVersion,avatarAutoTheme,sunflowerStyle,cardsEnhance,eva3CardOpus,eva3CardVideo,eva3CardComment,eva3CardVote,eva3CardUser'
 
+// 专栏/图文全文接口 (x/polymer/web-dynamic/v1/opus/detail) 的 features:
+// 照搬 docs/opus/detail.md 那一串 —— 其中 htmlNewStyle 决定「旧版专栏」是否只回 fallback 空壳.
+const OPUS_FEATURES = 'onlyfansVote,onlyfansAssetsV2,decorationCard,htmlNewStyle,ugcDelete,editable,opusPrivateVisible,tribeeEdit,avatarAutoTheme,avatarTypeOpus'
+
 export async function getDynamicFeed(offset, type, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   if (!auth.hasCookie()) throw new Error('未登录')
@@ -1290,6 +1294,77 @@ export async function getDynamicFeed(offset, type, fresh) {
   }
   cacheSet(key, out)
   return out
+}
+
+// ===================== 动态详情 / 专栏全文 (0.9.59) =====================
+// 用户反馈「希望可以点击打开动态页面」「希望可以进入专栏」:
+//   1) 列表卡片里的字只是摘要 —— 实测专栏 summary.text 211 字且 has_more=true,
+//      全文只在 opus/detail 里 (实测 22 段结构化正文)
+//   2) detail 返回的 data.item 与 feed/all 的 item 同构 -> 直接复用 mapDynamicItem, 不写第二套映射
+//   3) opus/detail 的 item.modules 是「数组」(feed 里是对象), 段落结构见 docs/opus/features.md
+export async function getDynamicDetail(id) {
+  if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
+  const did = String(id == null ? '' : id)
+  if (!did) throw new Error('缺少动态 ID')
+  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/detail?id=' + encodeURIComponent(did)
+    + '&timezone_offset=-480&platform=web&features=' + DYN_FEATURES
+  const body = await getJsonAsync(url, 15)
+  if (body.code === -101) throw new Error('未登录或登录已过期')
+  if (body.code !== 0 || !body.data || !body.data.item) {
+    throw new Error(body.message || ('动态详情接口错误 code=' + body.code))
+  }
+  const item = mapDynamicItem(body.data.item)
+  if (!item) throw new Error('这条动态没有可显示的内容')
+  return item
+}
+
+// 专栏 / 图文全文 -> { id, title, author:{name,face,pubText}, blocks[], stat }
+// blocks 的 k: text / quote / pic / list / code / line / card (页面按 k 渲染)
+export async function getOpusDetail(id) {
+  if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
+  const did = String(id == null ? '' : id)
+  if (!did) throw new Error('缺少动态 ID')
+  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/opus/detail?id=' + encodeURIComponent(did)
+    + '&timezone_offset=-480&features=' + OPUS_FEATURES
+  const body = await getJsonAsync(url, 15)
+  // 旧版专栏 / 非图文动态: code=0 但没有 item (只回 {fallback:{...}} 空壳) -> 交给调用方走动态详情兜底
+  if (body.code === 0 && (!body.data || !body.data.item)) return null
+  if (body.code === -352) throw new Error('专栏被风控拦截，稍后再试')
+  if (body.code !== 0 || !body.data || !body.data.item) {
+    throw new Error(body.message || ('专栏接口错误 code=' + body.code))
+  }
+  const item = body.data.item
+  const mods = item.modules
+  const list = (mods && typeof mods.length === 'number') ? mods : []
+  let title = ''
+  let author = null
+  let paras = null
+  let stat = null
+  for (let i = 0; i < list.length; i++) {
+    const m = list[i] || {}
+    if (title === '' && m.module_title) title = String(m.module_title.text || '')
+    if (!author && m.module_author) {
+      const a = m.module_author
+      author = {
+        name: String(a.name || ''),
+        face: a.face ? thumb(dynHttps(a.face), 80, 80) : '',
+        pubText: String(a.pub_time || '')
+      }
+    }
+    if (!paras && m.module_content) paras = m.module_content.paragraphs || []
+    if (!stat && m.module_stat) {
+      const s = m.module_stat
+      stat = {
+        like: (s.like && s.like.count) || 0,
+        reply: (s.comment && s.comment.count) || 0,
+        forward: (s.forward && s.forward.count) || 0
+      }
+    }
+  }
+  const blocks = mapOpusBlocks(paras)
+  if (title === '' && blocks.length === 0) return null
+  log('专栏', '全文 id=' + did + ' 块=' + blocks.length + ' 标题=' + (title === '' ? '无' : title.length + '字'))
+  return { id: did, title: title, author: author, blocks: blocks, stat: stat }
 }
 
 // ===================== 动态流全类型映射 (0.9.54) =====================
@@ -1334,6 +1409,101 @@ function mapRichNodes(nodes) {
   }
   return segs
 }
+
+// opus 段落里的文本节点 -> 渲染段 (与动态正文同一套 t:0/1/2 语义)
+// 实测 (opus/detail): TEXT_NODE_TYPE_WORD -> word.words;
+//   TEXT_NODE_TYPE_RICH -> rich.text + rich.type (EMOJI 带 rich.emoji.icon_url);
+//   TEXT_NODE_TYPE_FORMULA -> formula.latex_content
+function opusNodeSegs(nodes) {
+  const segs = []
+  const arr = nodes || []
+  for (let i = 0; i < arr.length; i++) {
+    const n = arr[i]
+    if (!n) continue
+    const ty = String(n.type || '')
+    if (ty === 'TEXT_NODE_TYPE_WORD' && n.word) {
+      scanEmoji(String(n.word.words || ''), segs, null)
+    } else if (ty === 'TEXT_NODE_TYPE_RICH' && n.rich) {
+      const r = n.rich
+      const rt = String(r.type || '')
+      const u = (rt === 'RICH_TEXT_NODE_TYPE_EMOJI' && r.emoji)
+        ? dynHttps(r.emoji.icon_url || r.emoji.webp_url || r.emoji.gif_url || '') : ''
+      if (u) {
+        segs.push({ t: 1, v: u, w: 30, h: 30 })
+      } else if (rt === 'RICH_TEXT_NODE_TYPE_TEXT' || rt === '') {
+        scanEmoji(String(r.text || r.orig_text || ''), segs, null)
+      } else {
+        const txt = String(r.text || r.orig_text || '')
+        if (txt) segs.push({ t: 2, v: txt, rid: String(r.rid || ''), url: r.jump_url || '' })
+      }
+    } else if (ty === 'TEXT_NODE_TYPE_FORMULA' && n.formula) {
+      const f = String(n.formula.latex_content || '')
+      if (f) segs.push({ t: 0, v: f })
+    }
+  }
+  return segs
+}
+
+// 专栏正文: 段落数组 -> 渲染块. para_type (docs/opus/features.md):
+//   1 文本 / 2 图片 / 3 分割线 / 4 块引用 / 5 列表 / 6 链接卡片 / 7 代码
+// 图按原始比例缩: 内容宽 880, 图最多 720 宽 / 700 高 (设备屏只有 266 高, 巨图必须收, 点开可看原图)
+const OPUS_IMG_W = 720
+const OPUS_IMG_MAX_H = 700
+function mapOpusBlocks(paragraphs) {
+  const out = []
+  const arr = paragraphs || []
+  for (let i = 0; i < arr.length; i++) {
+    const p = arr[i]
+    if (!p) continue
+    const ty = Number(p.para_type || 0)
+    if (ty === 1 || ty === 4) {
+      const segs = opusNodeSegs(p.text && p.text.nodes)
+      if (segs.length) out.push({ k: ty === 4 ? 'quote' : 'text', segs: segs })
+    } else if (ty === 2) {
+      // 文档写 paragraphs[].pics, 实测响应是 paragraphs[].pic (再往里 .pics[] 才是数组) -> 两种都认
+      const box = p.pic || p.pics || {}
+      const list = box.pics || (box.url ? [box] : [])
+      for (let j = 0; j < list.length; j++) {
+        const q = list[j] || {}
+        const raw = dynHttps(q.url || '')
+        if (!raw) continue
+        const w0 = Number(q.width) || 0
+        const h0 = Number(q.height) || 0
+        let w = OPUS_IMG_W
+        let h = 480
+        if (w0 > 0 && h0 > 0) {
+          w = w0 < OPUS_IMG_W ? w0 : OPUS_IMG_W
+          h = Math.round(h0 * w / w0)
+          if (h > OPUS_IMG_MAX_H) { h = OPUS_IMG_MAX_H; w = Math.round(w0 * h / h0) }
+        }
+        out.push({ k: 'pic', src: thumbAspect(raw, w), full: raw, w: w, h: h })
+      }
+    } else if (ty === 3) {
+      out.push({ k: 'line' })
+    } else if (ty === 5) {
+      const box = p.list || {}
+      const items = box.items || []
+      const rows = []
+      for (let j = 0; j < items.length; j++) {
+        const it = items[j] || {}
+        const segs = opusNodeSegs(it.nodes)
+        if (!segs.length) continue
+        rows.push({ mark: box.style === 1 ? (String(it.order || (j + 1)) + '.') : '·', segs: segs })
+      }
+      if (rows.length) out.push({ k: 'list', rows: rows })
+    } else if (ty === 7) {
+      const c = p.code || {}
+      const t = String(c.content == null ? (c.text || '') : c.content)
+      if (t) out.push({ k: 'code', text: t })
+    } else if (ty === 6) {
+      const card = (p.link_card && p.link_card.card) || {}
+      const common = card.common || {}
+      const t = String(common.title || card.title || '')
+      if (t) out.push({ k: 'card', title: t })
+    }
+  }
+  return out
+}
 // 正文节点 -> { segs, text }: 兼容字符串与对象两种形态.
 // 新版图文/专栏把正文放在 major.opus.summary = { text, rich_text_nodes } (对象),
 // 旧版 module_dynamic.desc.text 是纯字符串 —— 只读 desc 就会出现「只渲染照片, 字没了」.
@@ -1349,12 +1519,13 @@ function textOf(node) {
 let dynDbg = 0
 let dynDbg2 = 0
 
-// 九宫格图: 统一输出正方形格子, 页面按 3 列切行.
-// 旧版按原图比例缩到 <=132px -> 一行 3 张只占 ~400px, 卡片右侧一大片空白
-// (用户反馈「4 张照片都放不到一行」「很大的空白」). 现在格子按「3 列铺满卡片」算.
-const GRID_CELL = 288        // (920 - 24 内边距 - 2*6 间距) / 3 ≈ 288, 3 列刚好铺满卡片
-const GRID_ONE_W = 430       // 单图动态: 一张大图 (cover 裁切, 点开看原图)
-const GRID_ONE_H = 300
+// 九宫格图: 统一输出正方形格子, 页面按 4 列切行.
+// 演进: 0.9.58 按「3 列铺满卡片」算成 288px —— 用户反馈「照片小一点不要这么大」:
+//   288px 比整块屏幕(266 高)还高, 一条 4 图动态就吃掉两屏. 现在改 4 列 × 200px
+//   (4*200 + 3*6 间距 = 818 ≤ 896 卡片内容宽), 9 图动态从 3 行 882px 降到 3 行 618px.
+const GRID_CELL = 200        // 4 列: (896 - 3*6) / 4 ≈ 219 为上限, 取 200 留右侧余量
+const GRID_ONE_W = 300       // 单图动态: 一张中等图 (cover 裁切, 点开看原图)
+const GRID_ONE_H = 200
 function dynPics(list, cell) {
   const out = []
   const arr = list || []

@@ -134,7 +134,7 @@
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreDynamic"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
         <div v-for="(item, i) in dynItems" :key="item.bvid || ('draw' + i)" class="item"
-             @click="item.type === 'video' ? openVideo(item) : null">
+             @click="openDynItem(item)">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
             <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
@@ -228,7 +228,7 @@ const MI = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P9features'
+const BUILD_TAG = 'P16reader'
 export default {
   name: 'index',
   data() {
@@ -736,6 +736,14 @@ export default {
     openVideo(item) {
       console.log('open video', item.bvid, item.title)
       $falcon.navTo('page', { bvid: item.bvid, title: item.title })
+    },
+    // 动态卡片: 投稿走视频详情页, 其余(图文/专栏/文字/转发)进动态阅读页
+    openDynItem(item) {
+      if (!item) return
+      if (item.bvid) { this.openVideo(item); return }
+      const id = item.id ? String(item.id) : ''
+      if (!id) return
+      try { $falcon.navTo('dyn', { id: id, kind: item.kind || '' }) } catch (e) { this.dynStatus = '打开动态失败' }
     },
 
     // 页面生命周期 (由 base-page.js 代理调用)
