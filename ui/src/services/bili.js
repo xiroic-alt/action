@@ -1246,6 +1246,10 @@ export async function getMyInfo() {
 // 动态首屏缓存 TTL: B 站这个接口一次要 1s+, 缓存一下让二次进入秒开
 const DYN_TTL = 60000
 
+// 浏览器端 feed/all 真实请求里带的一长串 features (抓包照搬, 一字不改):
+// 服务端按它切换「动态卡片协议版本」—— 不带就是老结构, 图文/专栏的正文根本不下发.
+const DYN_FEATURES = 'itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote,decorationCard,onlyfansAssetsV2,forwardListHidden,ugcDelete,onlyfansQaCard,commentsNewVersion,avatarAutoTheme,sunflowerStyle,cardsEnhance,eva3CardOpus,eva3CardVideo,eva3CardComment,eva3CardVote,eva3CardUser'
+
 export async function getDynamicFeed(offset, type, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   if (!auth.hasCookie()) throw new Error('未登录')
@@ -1253,12 +1257,18 @@ export async function getDynamicFeed(offset, type, fresh) {
   //   all(默认) / video(投稿) / pgc(追番) / article(专栏)
   // 客户端过滤做不到「这个分类首页一条都没有时继续往后翻」, 所以专栏/投稿走服务端 type.
   const t = type || 'all'
-  const key = 'dyn:' + t + ':' + (offset || '')
+  const key = 'dyn2:' + t + ':' + (offset || '')   // v2: 带 features 后字段结构变了, 旧缓存不复用
   if (!fresh) {
     const hit = cacheGet(key, DYN_TTL)
     if (hit) { log('动态', '命中缓存 type=' + t + ' 条数=' + ((hit.items || []).length)); return hit }
   }
-  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480&type=' + encodeURIComponent(t)
+  // features 决定服务端下发的字段结构 (浏览器抓包实证):
+  //   不带 features -> 图文动态 major.type=MAJOR_TYPE_DRAW, 图在 major.draw.items, 正文不存在 (desc=null)
+  //   带   features -> 图文动态 major.type=MAJOR_TYPE_OPUS, 正文在 major.opus.summary, 图在 major.opus.pics
+  //   专栏 type=article 同理: 旧结构走 major.article, 带上 features 后走 major.opus
+  // 这就是「动态卡片只出图不出字」的根因: 设备端一直没带 features.
+  const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480&platform=web&page=1&type=' + encodeURIComponent(t)
+    + '&features=' + DYN_FEATURES
     + (offset ? '&offset=' + encodeURIComponent(offset) : '')
   const body = await getJsonAsync(url, 15)
   if (body.code === -101) throw new Error('未登录或登录已过期')
@@ -1334,6 +1344,7 @@ function textOf(node) {
   return { segs: segs, text: t }
 }
 let dynDbg = 0
+let dynDbg2 = 0
 
 // 九宫格图: 统一输出正方形格子, 页面按 3 列切行.
 // 旧版按原图比例缩到 <=132px -> 一行 3 张只占 ~400px, 卡片右侧一大片空白
@@ -1439,6 +1450,17 @@ function mapDynamicItem(it) {
   // 正文总长 (用于「展开全文」是否出现: 一个字也显示展开文案很蠢)
   let segAll = ''
   for (let i2 = 0; i2 < segs.length; i2++) { if (segs[i2].t === 0 || segs[i2].t === 2) segAll += String(segs[i2].v || '') }
+  // 带 features 后 module_dynamic.desc 恒为 null (正文在 major.opus.summary):
+  // 旧逻辑的 txt 只认 desc.text -> 图文卡片标题退化成「4图」, 正文一个字都不显示. 用正文段兜底.
+  const bodyText = txt !== '' ? txt : segAll
+  if (dynDbg2 < 4) {
+    dynDbg2++
+    try {
+      log('动态', '正文#' + dynDbg2 + ' ' + kind + ' major=' + String(major.type || '')
+        + ' len=' + segAll.length + ' segs=' + segs.length + ' pics=' + pics.length
+        + ' desc=' + (desc.text ? 'text' : 'null'))
+    } catch (e2) {}
+  }
   const item = {
     id: String(it.id_str || ''),
     // kind 用于分类筛选; type/pic/title 保留旧字段, 首页「动态」tab 的旧渲染不用改
@@ -1467,7 +1489,8 @@ function mapDynamicItem(it) {
     // 旧字段 (首页列表沿用)
     bvid: archive ? archive.bvid : '',
     aid: archive ? archive.aid : 0,
-    title: archive ? archive.title : (txt !== '' ? stripTags(txt) : (kind === 'draw' ? (pics.length > 1 ? pics.length + '图' : '图文动态') : stripTags(txt))),
+    // 标题兜底链: 视频用标题, 图文/专栏/纯文字用正文首段 (bodyText), 都没有才退化成「N图」
+    title: archive ? archive.title : (bodyText !== '' ? stripTags(bodyText) : (kind === 'draw' ? (pics.length > 1 ? pics.length + '图' : '图文动态') : stripTags(bodyText))),
     playText: archive ? archive.playText : '',
     duration: archive ? archive.duration : (pics.length > 1 ? pics.length + '图' : ''),
     pic: archive ? archive.cover : (pics.length > 0 ? thumb(pics[0].full, 400, 400) : '')
