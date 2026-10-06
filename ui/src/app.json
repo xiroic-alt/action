@@ -25,10 +25,12 @@
     "feed": "pages/feed/feed.vue",
     "dyn": "pages/dyn/dyn.vue",
     "follow": "pages/follow/follow.vue",
-    "vprobe": "pages/vprobe/vprobe.vue"
+    "lines": "pages/lines/lines.vue",
+    "live": "pages/live/live.vue",
+    "msg": "pages/msg/msg.vue"
   },
   "options": {
-    "external": ["bilinet", "gstplayer", "brightness"],
+    "external": ["bilinet", "brightness"],
     "style": {
       "lessPaths": ["styles"]
     }

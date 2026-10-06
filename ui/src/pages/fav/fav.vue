@@ -1,11 +1,11 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''">
-    <div class="topbar">
-      <div class="back" @click="goBack">
-        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text">返回</text>
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
+    <div class="topbar" :style="T.bar">
+      <div class="back" @click="goBack" :style="T.actionR">
+        <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text" :style="T.t.body">返回</text>
       </div>
-      <text class="topbar-title">{{ mode === 'folders' ? '我的收藏' : (currentFolder.title + ' (' + currentFolder.mediaCount + ')') }}</text>
+      <text class="topbar-title" :style="T.t.title">{{ mode === 'folders' ? '我的收藏' : (currentFolder.title + ' (' + currentFolder.mediaCount + ')') }}</text>
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
@@ -22,9 +22,9 @@
         <div v-for="f in folders" :key="f.id" class="fitem" @click="openFolder(f)">
           <text class="fitem-title">{{ f.title }}</text>
           <text class="fitem-count">{{ f.mediaCount }} 个</text>
-          <image class="fitem-ic" :src="MI.chevron" :style="{ width: '20px', height: '20px' }"></image>
+          <image class="fitem-ic" :src="MIc.chevron" :style="{ width: '20px', height: '20px' }"></image>
         </div>
-        <text v-if="folders.length === 0 && !loading && status === ''" class="empty">还没有创建收藏夹</text>
+        <text v-if="folders.length === 0 && !loading && status === ''" class="empty" :style="T.t.empty">还没有创建收藏夹</text>
       </template>
       <template v-else>
         <div v-for="(item, i) in items" :key="item.bvid || ('f' + i)" class="item" @click="openVideo(item)">
@@ -49,6 +49,7 @@
 // 收藏页: 两级 (收藏夹列表 x/v3/fav/folder/created/list-all → 收藏夹内容 x/v3/fav/resource/list)
 // + 无限滑动 + 下拉刷新. mode: 'folders' | 'list'
 import { getFavFolders, getFavList , parseMessage } from '../../services/bili.js'
+import { tokens } from '../../services/theme.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 
@@ -61,11 +62,18 @@ const MI = {
   chevron: require('../../assets/mi/chevron_20_m.png'),
   play: require('../../assets/mi/play_18_w.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  chevron: require('../../assets/mi/chevron_20_dm.png'),
+  play: require('../../assets/mi/play_18_d.png')
+}
 
 export default {
   name: 'fav',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       MI: MI,
       mode: 'folders',
       folders: [],
@@ -81,6 +89,10 @@ export default {
       generation: 0,
       entering: true
     }
+  },
+  computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D }
   },
   methods: {
     startDots() {

@@ -1,5 +1,5 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
     <!-- 左栏: 封面 (不放播放器也不放播放条, 点封面进播放器页; 播放按钮在右栏详情 tab) -->
     <div class="left">
       <!-- 封面: 按原始比例等比显示, 不裁切 (盒子本身就是同比例) -->
@@ -10,7 +10,7 @@
       <text v-if="detail" class="dur">{{ detail.duration }}</text>
       <!-- 返回按钮: 左上角悬浮于封面上 (0.9.5 需求: 返回按钮放左上角) -->
       <div class="backbtn" @click="goBack">
-        <image class="backbtn-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <image class="backbtn-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="backbtn-text">返回</text>
       </div>
     </div>
@@ -27,7 +27,7 @@
         </div>
         <div class="tab-spacer"></div>
         <div class="mini-btn" @click="goHome">
-          <image class="mini-ic" :src="MI.home" :style="{ width: '30px', height: '30px' }"></image>
+          <image class="mini-ic" :src="MIc.home" :style="{ width: '30px', height: '30px' }"></image>
         </div>
       </div>
 
@@ -332,6 +332,7 @@ import {
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
@@ -353,6 +354,24 @@ const MI = {
   check: require('../../assets/mi/check_20_w.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
+}
+const MI_D = {
+  alert: require('../../assets/mi/alert_20_dm.png'),
+  star: require('../../assets/mi/star_20_dm.png'),
+  starOn: require('../../assets/mi/star_20_p.png'),
+  folder: require('../../assets/mi/folder_20_dm.png'),
+  back: require('../../assets/mi/back_26_d.png'),
+  home: require('../../assets/mi/home_30_d.png'),
+  play18: require('../../assets/mi/play_18_d.png'),
+  play28: require('../../assets/mi/play_28_d.png'),
+
+  thumbup: require('../../assets/mi/thumbup_20_dm.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  reply: require('../../assets/mi/reply_20_dm.png'),
+  img: require('../../assets/mi/image_20_dm.png'),
+  check: require('../../assets/mi/check_20_d.png'),
+  minus: require('../../assets/mi/remove_32_d.png'),
+  plus: require('../../assets/mi/add_32_d.png')
 }
 
 // 计时器: 优先用页面实例的 setTimeout (本运行时组件里不保证有全局 setTimeout)
@@ -464,6 +483,8 @@ export default {
   },
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       bvid: '',
       currentPage: 1,
       fallbackTitle: '',
@@ -509,6 +530,8 @@ export default {
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },

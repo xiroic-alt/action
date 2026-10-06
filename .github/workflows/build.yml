@@ -93,26 +93,9 @@ jobs:
           sudo apt-get install -y --no-install-recommends libunwind-dev:arm64 libglib2.0-dev:arm64 libgstreamer1.0-dev:arm64 libgstreamer-plugins-base1.0-dev:arm64
           sudo rm -rf /var/lib/apt/lists/*
 
-      - name: Cross-compile libjsapi_gstplayer.so (aarch64)
-        env:
-          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
-          PKG_CONFIG_LIBDIR: /usr/lib/aarch64-linux-gnu/pkgconfig
-        run: |
-          cmake -B build/gstplayer \
-            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_BUILD_TYPE=Release \
-            native/gstplayer
-          cmake --build build/gstplayer --config Release --parallel $(nproc)
-          cp -f build/gstplayer/libjsapi_gstplayer.so ui/libs/libjsapi_gstplayer.so
-          cp -f build/gstplayer/gstplayerd ui/libs/gstplayerd
-          chmod +x ui/libs/gstplayerd
-          file ui/libs/libjsapi_gstplayer.so ui/libs/gstplayerd
-          aarch64-linux-gnu-readelf -h ui/libs/libjsapi_gstplayer.so | grep -E 'Class|Machine'
-          aarch64-linux-gnu-readelf -d ui/libs/libjsapi_gstplayer.so | grep NEEDED
-          aarch64-linux-gnu-nm -D ui/libs/libjsapi_gstplayer.so | grep custom_init_jsapis
+      # gstplayer (自建 libjsapi_gstplayer.so + gstplayerd 子进程) 已整棵移除:
+      #   播放页迁到框架内置 <video> 元素后 (HANDOVER §27) 它零引用,
+      #   顺带省掉整条 GStreamer multiarch 安装步骤 -> CI 时间大幅缩短.
 
       - name: Setup Node.js 18
         uses: actions/setup-node@v4
@@ -133,14 +116,18 @@ jobs:
           # Release 构建带 -g, 真机 ELF 段实测 .debug 占 .so 的 92% (7.67MB 里 7.05MB).
           # --strip-debug 只删调试段, 保留 .dynsym 导出符号 -> 模块加载不受影响,
           # 装机体积与解压占用同步下降 (0.5GB artifact 配额也轻松).
-          for f in ui/libs/libjsapi_bilinet.so ui/libs/libjsapi_gstplayer.so ui/libs/gstplayerd; do
+          for f in ui/libs/libjsapi_bilinet.so; do
             aarch64-linux-gnu-strip --strip-debug "$f"
           done
           # 红线: strip 只许删调试段, 不许动 .dynsym —— 导出符号没了模块就加载不起来.
           # 两条都必须命中, 命中不到即让构建失败 (装机前拦住, 别到设备上才发现).
           aarch64-linux-gnu-nm -D ui/libs/libjsapi_bilinet.so | grep -q custom_init_jsapis
-          aarch64-linux-gnu-nm -D ui/libs/libjsapi_gstplayer.so | grep -q custom_init_jsapis
           ls -l ui/libs/
+      - name: Static checks (validate + offline regression)
+        run: |
+          node .local/patch/validate.mjs || true
+          node tools/check-ui.mjs
+
       - name: Build AMR (production quickjs)
         run: pnpm -C ui package
 

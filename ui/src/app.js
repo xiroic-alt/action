@@ -4,6 +4,10 @@
 // - 统一注册 BasePage 管理事件/timer 资源
 import { BasePage } from './base-page.js'
 
+// 构建标记: 每批改动换一次. install 不重启宿主时最容易"跑的还是旧包",
+// 有这行日志就能一眼确认当前跑的到底是哪一版 (index.vue 里也有一份, 这里进日志首行)
+const BUILD_TAG = 'P36-m3'
+
 // 注册 bilinet 原生模块 (bili.js 的 httpGet 依赖它)
 import { bilinet } from 'bilinet'
 try {
@@ -12,19 +16,12 @@ try {
   console.warn('[app] bilinet import check failed: ' + (e && e.message ? e.message : e))
 }
 
-// 预热 gstplayer 原生模块 (模块加载时执行 gst_init 插件扫描, 移出 open 首帧路径)
-import * as gstmod from 'gstplayer'
-try {
-  console.log('[app] gstplayer=' + (typeof (gstmod && gstmod.gstPlayer)))
-} catch (e) {
-  console.warn('[app] gstplayer import check failed: ' + (e && e.message ? e.message : e))
-}
-
 // 启动即载入登录态到内存 (数据库 -> KV -> memory), 各页面同步读取
 import { initAuth } from './services/auth.js'
 
 // 运行日志: 落盘到 /userdisk/xiro/bilibili.log
-import { initLog, log } from './services/log.js'
+import { initLog, log, setLogLevel } from './services/log.js'
+import { getCfg } from './services/config.js'
 
 class App extends $falcon.App {
   constructor() {
@@ -38,7 +35,10 @@ class App extends $falcon.App {
   onLaunch(options) {
     super.onLaunch(options)
     try {
-      initLog('appid=8001812345678901')
+      // 日志级别来自设置 (config.logLevel); 先 initLog 再设级别, 保证"日志不可用"这类
+      // 启动期问题无论如何都留下痕迹
+      initLog(BUILD_TAG + ' appid=8001812345678901')
+      setLogLevel(getCfg('logLevel'))
     } catch (e) {
       console.warn('[app] initLog failed: ' + e)
     }

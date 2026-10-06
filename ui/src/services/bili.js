@@ -9,7 +9,15 @@
 
 import { bilinet } from 'bilinet'
 import * as auth from './auth.js'
-import { log } from './log.js'
+import { log, logError, logDebug } from './log.js'
+import { getCfg } from './config.js'
+import { applyHost, currentHost } from './lines.js'
+
+// 网络默认超时来自设置 (设置页「请求超时」), 显式传 timeoutSec 的调用不受影响
+function defTimeout() {
+  const v = getCfg('httpTimeout')
+  return (typeof v === 'number' && v >= 5 && v <= 60) ? v : 15
+}
 
 function hasHttp() {
   return !!(bilinet && typeof bilinet.httpGet === 'function')
@@ -22,13 +30,13 @@ function getJson(url, timeoutSec) {
   const s = headers
     ? bilinet.httpGet(url, timeoutSec || 15, headers)
     : bilinet.httpGet(url, timeoutSec || 15)
-  console.log('[bili] GET ' + url.replace(/(&|\?)w_rid=[^&]+/, '').replace(/(&|\?)wts=[^&]+/, '') + ' -> ' + (s ? s.length : 0) + 'B')
-  if (!s) { console.log('[bili] GET 空响应'); throw new Error('请求失败 (空响应)') }
+  logDebug('网络', 'GET ' + url.replace(/(&|\?)w_rid=[^&]+/, '').replace(/(&|\?)wts=[^&]+/, '') + ' -> ' + (s ? s.length : 0) + 'B')
+  if (!s) { logError('网络', 'GET 空响应: ' + url); throw new Error('请求失败 (空响应)') }
   try {
     return JSON.parse(s)
   } catch (e) {
     // 非 JSON: 风控 HTML 页 / 网关错误页等, 透出真实开头便于诊断
-    console.log('[bili] 非JSON body: ' + String(s).substring(0, 300))
+    logError('网络', '非 JSON body: ' + String(s).substring(0, 300))
     if (String(s).indexOf('<!DOCTYPE') === 0 || String(s).indexOf('<html') === 0) {
       throw new Error('接口被风控拦截 (风控验证页)')
     }
@@ -41,7 +49,7 @@ function postJson(url, data, timeoutSec) {
   const headers = ['Content-Type: application/x-www-form-urlencoded']
   if (auth.hasCookie()) headers.push(auth.cookieHeader())
   const s = bilinet.httpPost(url, data, timeoutSec || 15, headers)
-  console.log('[bili] POST ' + url.substring(0, 80) + ' -> ' + (s ? s.length : 0) + 'B')
+  logDebug('网络', 'POST ' + url.substring(0, 80) + ' -> ' + (s ? s.length : 0) + 'B')
   if (!s) throw new Error('请求失败 (空响应)')
   try {
     return JSON.parse(s)
@@ -62,15 +70,16 @@ function hasHttpAsync() {
 async function getJsonAsync(url, timeoutSec) {
   if (!hasHttpAsync()) return getJson(url, timeoutSec)
   const headers = auth.hasCookie() ? [auth.cookieHeader()] : undefined
+  const to = timeoutSec || defTimeout()
   const s = headers
-    ? await bilinet.httpGetAsync(url, timeoutSec || 15, headers)
-    : await bilinet.httpGetAsync(url, timeoutSec || 15)
-  console.log('[bili] GETa ' + url.replace(/(&|\?)w_rid=[^&]+/, '').replace(/(&|\?)wts=[^&]+/, '') + ' -> ' + (s ? s.length : 0) + 'B')
-  if (!s) { console.log('[bili] GETa 空响应'); throw new Error('请求失败 (空响应)') }
+    ? await bilinet.httpGetAsync(url, to, headers)
+    : await bilinet.httpGetAsync(url, to)
+  logDebug('网络', 'GET ' + url.replace(/(&|\?)w_rid=[^&]+/, '').replace(/(&|\?)wts=[^&]+/, '') + ' -> ' + (s ? s.length : 0) + 'B')
+  if (!s) { logError('网络', '空响应: ' + url); throw new Error('请求失败 (空响应)') }
   try {
     return JSON.parse(s)
   } catch (e) {
-    console.log('[bili] 非JSON body: ' + String(s).substring(0, 300))
+    logError('网络', '非 JSON body: ' + String(s).substring(0, 300))
     if (String(s).indexOf('<!DOCTYPE') === 0 || String(s).indexOf('<html') === 0) {
       throw new Error('接口被风控拦截 (风控验证页)')
     }
@@ -82,8 +91,8 @@ async function postJsonAsync(url, data, timeoutSec) {
   if (!hasHttpAsync() || typeof bilinet.httpPostAsync !== 'function') return postJson(url, data, timeoutSec)
   const headers = ['Content-Type: application/x-www-form-urlencoded']
   if (auth.hasCookie()) headers.push(auth.cookieHeader())
-  const s = await bilinet.httpPostAsync(url, data, timeoutSec || 15, headers)
-  console.log('[bili] POSTa ' + url.substring(0, 80) + ' -> ' + (s ? s.length : 0) + 'B')
+  const s = await bilinet.httpPostAsync(url, data, timeoutSec || defTimeout(), headers)
+  logDebug('网络', 'POST ' + url.substring(0, 80) + ' -> ' + (s ? s.length : 0) + 'B')
   if (!s) throw new Error('请求失败 (空响应)')
   try {
     return JSON.parse(s)
@@ -200,7 +209,7 @@ async function getWbiKeys() {
   for (let i = 0; i < 32; i++) mixin += orig.charAt(WBI_MIXIN_TAB[i])
   wbiKeys = mixin
   wbiKeysAt = Date.now()
-  console.log('[bili] wbi key 获取成功')
+  logDebug('网络', 'wbi key 获取成功')
   return wbiKeys
 }
 
@@ -250,42 +259,262 @@ function formatDuration(sec) {
   return m + ':' + (r < 10 ? '0' : '') + r
 }
 
+// 取流口 -> playurl 的 query 参数.
+// 本机内置 <video> 只吃单一 http(s) 源的 mp4 (durl), DASH(fnval=16) 需要音视频双源, 用不了.
+const SOURCE_QUERY = {
+  // platform=html5: 官方 H5 口, 直接给 mp4 durl. 实测同一 cid 下 size 与 web 口完全一致.
+  html5: '&qn=32&fnval=0&fnver=0&fourk=0&platform=html5&high_quality=1',
+  // 网页口: 同源不同参数, 少量稿件 H5 口没有而它有
+  web: '&qn=64&fnval=0&fnver=0&fourk=0'
+}
+
+function normalizeUrl(u) {
+  let s = String(u || '')
+  if (s.indexOf('//') === 0) s = 'https:' + s
+  if (s.indexOf('http://') === 0) s = 'https://' + s.substring(7)
+  return s
+}
+
 /**
- * 获取视频播放地址 (x/player/playurl, MP4 durl 形态, 供 gstplayer 硬解播放)
+ * 取播放地址 (只做"取地址", 不套用线路设置) —— 测速页要拿原始地址自己换 host.
  * @param {string} bvid
  * @param {number} cid
- * @returns {Promise<{url:string, duration:number}>} duration 为毫秒 (timelength)
+ * @param {{source?:string, noCache?:boolean}} [opts]
+ * @returns {Promise<{url:string, duration:number, size:number, quality:number, backup:string}>}
+ *   duration 毫秒 (timelength), size 字节
  */
-export async function getPlayUrl(bvid, cid) {
+export async function getPlayUrlRaw(bvid, cid, opts) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  // 播放地址 10 分钟内有效, 同参数缓存
-  const ckey = 'playurl:' + bvid + ':' + cid
-  const cached = cacheGet(ckey, 600000)
-  if (cached) return cached
-  // platform=html5&high_quality=1: 返回 mp4 直链且 **CDN 不做 Referer 防盗链** 的取流口.
-  // 内置 <video> 元素的 souphttpsrc 无法加 Referer, 用 web 口会被 CDN 403
-  // (实测: 无 Referer 403 text/html; 加 Referer 206 video/mp4). html5 口无 Referer 直接 206,
-  // 且同一 cid 下 size 与 web 口完全一致 (67570516), 画质不降.
+  const o = opts || {}
+  const src = SOURCE_QUERY[o.source] ? o.source : 'html5'
+  const ckey = 'playurl:' + bvid + ':' + cid + ':' + src
+  if (!o.noCache) {
+    const cached = cacheGet(ckey, 600000)
+    if (cached) return cached
+  }
   const url = 'https://api.bilibili.com/x/player/playurl?bvid=' + encodeURIComponent(bvid)
-    + '&cid=' + encodeURIComponent(cid) + '&qn=32&fnval=0&fnver=0&fourk=0'
-    + '&platform=html5&high_quality=1'
-  const body = await getJsonAsync(url, 15)
+    + '&cid=' + encodeURIComponent(cid) + SOURCE_QUERY[src]
+  const body = await getJsonAsync(url, defTimeout())
   if (body.code !== 0 || !body.data) {
     if (body.code === -412) throw new Error('请求被风控拦截, 请稍后再试')
     throw new Error(body.message || ('播放地址接口错误 code=' + body.code))
   }
   const durl = body.data.durl || []
   if (durl.length === 0 || !durl[0].url) throw new Error('没有可用的 MP4 播放地址')
-  let playUrl = durl[0].url
-  if (playUrl.indexOf('//') === 0) playUrl = 'https:' + playUrl
-  // gstplayer 的 souphttpsrc 走 TLS, 尽量使用 https 直连地址
-  if (playUrl.indexOf('http://') === 0) playUrl = 'https://' + playUrl.substring(7)
-  const out = { url: playUrl, duration: Number(body.data.timelength) || 0 }
-  cacheSet(ckey, out)
+  const d0 = durl[0]
+  const out = {
+    url: normalizeUrl(d0.url),
+    backup: d0.backup_url && d0.backup_url.length ? normalizeUrl(d0.backup_url[0]) : '',
+    duration: Number(body.data.timelength) || Number(d0.length) || 0,
+    size: Number(d0.size) || 0,
+    quality: Number(body.data.quality) || 0
+  }
+  if (!o.noCache) cacheSet(ckey, out)
   return out
 }
 
+/**
+ * 取播放地址 (套用设置里的线路): 取流口 -> 备用地址 -> CDN host 替换.
+ * @returns {Promise<{url:string, duration:number, size:number, quality:number, host:string, source:string}>}
+ */
+export async function getPlayUrl(bvid, cid, opts) {
+  const o = opts || {}
+  const want = o.source || getCfg('playSource') || 'auto'
+  const host = currentHost()          // '' = 用接口返回的 host, 不替换
+  const chain = []
+  if (want === 'backup') chain.push('html5')
+  else if (want === 'auto') { chain.push('html5'); if (getCfg('autoFallback')) chain.push('web') }
+  else chain.push(want)
+
+  let lastErr = null
+  for (let i = 0; i < chain.length; i++) {
+    try {
+      const raw = await getPlayUrlRaw(bvid, cid, { source: chain[i] })
+      let url = raw.url
+      if (want === 'backup' && raw.backup) url = raw.backup
+      url = applyHost(url, host)
+      const h = url.replace(/^https?:\/\//, '').split('/')[0]
+      log('播放', '取流口=' + chain[i] + ' host=' + h + ' size=' + Math.round(raw.size / 1024) + 'KB')
+      return { url: url, duration: raw.duration, size: raw.size, quality: raw.quality, host: h, source: chain[i] }
+    } catch (e) {
+      lastErr = e
+      logError('播放', '取流口 ' + chain[i] + ' 失败: ' + (e && e.message ? e.message : e))
+    }
+  }
+  throw lastErr || new Error('没有可用的播放地址')
+}
+
+// ================= 直播 (参考 56dz/PenBili 的功能面, 接口按本机实测重选) =================
+// 实测结论 (真机 curl, 2026-10-05):
+//   - 搜索直播间: 必须走 **WBI 签名的 wbi/search/type?search_type=live**;
+//     不带签名直连 search/type 返回风控 HTML, second/getList 返回 -352.
+//   - 取流: xlive/web-room/v2/index/getRoomPlayInfo 匿名可用 (无需 Cookie),
+//     鉴权在 URL 签名 (deadline/upsig) 里. 每档给 http_stream/flv 与 http_hls/ts|fmp4.
+//   - 弹幕: 全量要 WebSocket, 本机没有 (QuickJS 无 ws, 解包还要 zlib/brotli).
+//     降级方案是 /dM/gethistory —— 只有最近 10 条, 密集房间会丢, 只能做"最新弹幕条".
+//   - 无登录态下 getRoomPlayInfo / gethistory 都能用.
+
+/**
+ * 搜索直播间 (WBI 签名)
+ * @returns {Promise<Array<{roomid:number,title:string,up:string,online:number,cover:string,area:string}>>}
+ */
+export async function searchLive(keyword, page) {
+  const qs = await wbiQuery({
+    search_type: 'live',
+    keyword: keyword,
+    order: 'totalrank',
+    page: page || 1,
+    page_size: 20
+  })
+  const body = await getJsonAsync('https://api.bilibili.com/x/web-interface/wbi/search/type?' + qs, defTimeout())
+  if (body.code !== 0 || !body.data) throw new Error(body.message || ('直播搜索失败 code=' + body.code))
+  const res = body.data.result || {}
+  // 匿名时 result 可能是对象 (带 live_room 数组) 也可能是空数组
+  const arr = (res && res.live_room) ? res.live_room : []
+  const out = []
+  for (let i = 0; i < arr.length; i++) {
+    const it = arr[i]
+    const rid = Number(it.roomid) || 0
+    if (rid <= 0) continue
+    let cover = it.cover || it.user_cover || ''
+    if (cover.indexOf('//') === 0) cover = 'https:' + cover
+    out.push({
+      roomid: rid,
+      title: stripTags(it.title || ''),
+      up: it.uname || '',
+      online: Number(it.online) || 0,
+      cover: thumb(cover, 360, 224),
+      area: it.cate_name || it.area_name || ''
+    })
+  }
+  return out
+}
+
+// 直播协议优先级: HLS(m3u8) 对"直播"最稳 (可断点重连), 其次 FLV.
+// 编码只取 avc: 本机硬解只保证 H.264, hevc 档在部分机型会静默失败.
+var LIVE_PREF = [['http_hls', 'ts', 'avc'], ['http_hls', 'fmp4', 'avc'], ['http_stream', 'flv', 'avc']]
+
+/**
+ * 取直播间播放地址
+ * @returns {Promise<{url:string, protocol:string, qn:number}>}
+ */
+export async function getLiveRoomPlayUrl(roomId) {
+  const url = 'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id='
+    + encodeURIComponent(roomId) + '&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web&ptype=8'
+  const body = await getJsonAsync(url, defTimeout())
+  if (body.code !== 0 || !body.data) throw new Error(body.message || ('直播间信息失败 code=' + body.code))
+  const d = body.data
+  if (!d.playurl_info || !d.playurl_info.playurl) {
+    throw new Error(d.live_status === 0 || d.live_status === 2 ? '主播未开播' : '没有直播流 (可能已结束)')
+  }
+  const streams = d.playurl_info.playurl.stream || []
+  function pick(pn, fn, cn) {
+    for (let i = 0; i < streams.length; i++) {
+      if (streams[i].protocol_name !== pn) continue
+      const formats = streams[i].format || []
+      for (let j = 0; j < formats.length; j++) {
+        if (formats[j].format_name !== fn) continue
+        const codecs = formats[j].codec || []
+        for (let k = 0; k < codecs.length; k++) {
+          if (codecs[k].codec_name !== cn) continue
+          const c = codecs[k]
+          const ui = c.url_info && c.url_info[0]
+          if (!ui) continue
+          return { url: ui.host + c.base_url + ui.extra, protocol: pn + '/' + fn, qn: Number(c.current_qn) || 0 }
+        }
+      }
+    }
+    return null
+  }
+  for (let i = 0; i < LIVE_PREF.length; i++) {
+    const hit = pick(LIVE_PREF[i][0], LIVE_PREF[i][1], LIVE_PREF[i][2])
+    if (hit) {
+      log('直播', 'room=' + roomId + ' 线路=' + hit.protocol + ' qn=' + hit.qn)
+      return hit
+    }
+  }
+  throw new Error('没有可播放的直播流 (本机只保证 H.264)')
+}
+
+/**
+ * 直播弹幕 (降级版: 只取最近 10 条)
+ * WebSocket 全量方案在本机不可行 (QuickJS 无 ws + zlib/brotli 解包), 见 HANDOVER.
+ */
+export async function getLiveDanmaku(roomId) {
+  const url = 'https://api.live.bilibili.com/xlive/web-room/v1/dM/gethistory?roomid=' + encodeURIComponent(roomId)
+  const body = await getJsonAsync(url, defTimeout())
+  if (body.code !== 0 || !body.data) return []
+  const room = body.data.room || []
+  const out = []
+  for (let i = 0; i < room.length; i++) {
+    const it = room[i]
+    let t = it.text || ''
+    let nick = it.nickname || (it.user && it.user.base && it.user.base.name) || ''
+    if (!t) continue
+    out.push({ id: it.id_str || (nick + '|' + t + '|' + it.timeline), nick: nick, text: t, time: it.timeline || '' })
+  }
+  return out
+}
+
+// ================= 消息中心 (需登录; 读取类不需要 csrf) =================
+// 接口面参考 56dz/PenBili 研究 + bilibili-API-collect: /x/msgfeed/unread 给未读计数,
+// /x/msgfeed/reply 给「回复我的」列表 (游标 id + reply_time).
+export async function getMsgUnread() {
+  const body = await getJsonAsync('https://api.bilibili.com/x/msgfeed/unread', defTimeout())
+  if (body.code !== 0 || !body.data) throw new Error(msgErr(body))
+  const d = body.data
+  return {
+    at: Number(d.at) || 0,
+    reply: Number(d.reply) || 0,
+    like: Number(d.like) || 0,
+    sys: Number(d.sys_msg) || 0,
+    up: Number(d.up) || 0,
+    total: (Number(d.at) || 0) + (Number(d.reply) || 0) + (Number(d.like) || 0) + (Number(d.sys_msg) || 0)
+  }
+}
+
+export async function getMsgReplies(id, time) {
+  let url = 'https://api.bilibili.com/x/msgfeed/reply?platform=web&web_location=333.40138'
+  if (id) url += '&id=' + encodeURIComponent(id) + '&reply_time=' + encodeURIComponent(time || '')
+  const body = await getJsonAsync(url, defTimeout())
+  if (body.code !== 0 || !body.data) throw new Error(msgErr(body))
+  const d = body.data
+  const items = d.items || []
+  const out = []
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i]
+    const user = it.user || {}
+    const item = it.item || {}
+    let face = user.avatar || ''
+    if (face.indexOf('//') === 0) face = 'https:' + face
+    out.push({
+      id: String(it.id || ''),
+      time: Number(it.reply_time) || 0,
+      uname: user.nickname || '',
+      face: thumb(face, 72, 72),
+      title: item.title || '',
+      // 优先显示"对方回了什么", 没有就退回原文
+      content: stripTags(item.target_reply_content || item.source_content || item.root_reply_content || ''),
+      bvid: item.subject_id ? '' : '',
+      oid: item.subject_id || 0,
+      uri: item.uri || item.native_uri || ''
+    })
+  }
+  return { items: out, cursor: d.cursor || null }
+}
+
+function msgErr(body) {
+  if (body && body.code === -101) return '未登录, 请先在「我的」里登录'
+  return (body && body.message) || ('消息接口错误 code=' + (body && body.code))
+}
+
+
 // B站图片服务按需裁切 (大幅缩短列表首次渲染的下载+解码耗时)
+// 图片质量档 (设置页「图片质量」): 请求尺寸 = 显示尺寸 x 系数.
+// 设备 image 组件按最终尺寸采样, 所以省流档直接请求更小的图 (带宽/解码一起降),
+// 高清档请求更大的图让缩放余量更足.
+const IMG_SCALE = { low: 0.72, std: 1, high: 1.6 }
+
 function thumb(url, w, h) {
   if (!url) return ''
   if (url.indexOf('//') === 0) url = 'https:' + url
@@ -294,7 +523,10 @@ function thumb(url, w, h) {
   if (url.indexOf('http://') === 0) url = 'https://' + url.substring(7)
   // 已经是缩略尺寸的不重复追加
   if (url.indexOf('@') > 0) return url
-  return url + '@' + w + 'w_' + h + 'h_1c.jpg'
+  const k = IMG_SCALE[getCfg('imgQuality')] || 1
+  const tw = Math.max(64, Math.round(Number(w) * k))
+  const th = Math.max(36, Math.round(Number(h) * k))
+  return url + '@' + tw + 'w_' + th + 'h_1c.jpg'
 }
 
 // 详情页封面: 只限宽度, 保留原始比例 (不能用 _1c 裁切版本, 否则 16:9 会被压成 16:10 裁掉两边)

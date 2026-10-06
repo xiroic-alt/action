@@ -33,7 +33,8 @@ const DRY = process.argv.indexOf('--dry') >= 0
 
 // 统一色板 (与 ui 里现有配色一致): w 白 / p B站粉 / m 次要灰 / d 深底 / g 浅灰
 // y 个人认证黄: 官方 App 的认证徽章底色 (#FFAC2C), 只有认证图标用
-const COLORS = { w: '#ffffff', p: '#fb7299', m: '#8a94a6', d: '#16181c', g: '#c8d2de', y: '#ffac2c' }
+// d = 深色主题底(近黑), dm = 浅色主题的次要灰 (m 的浅底版本, 对比度够用)
+const COLORS = { w: '#ffffff', p: '#fb7299', m: '#8a94a6', d: '#16181c', dm: '#5b6472', g: '#c8d2de', y: '#ffac2c' }
 
 // file: 产物名(ui 里 require 的名字) / icon: material-symbols 文件名 / size: 显示尺寸(px) / color: 色板键
 const ICONS = [
@@ -73,6 +74,45 @@ const ICONS = [
   { file: 'person_20_m', icon: 'person', size: 20, color: 'm' }          // 我的关注
 ]
 
+// ---- 需要成对产出 (深色底用白 / 浅色底用近黑) 的图标 ----
+// M3 主题是运行时可切换的, 但 <image> 只能吃位图 (本机 mini-glide 不解 SVG),
+// 颜色烘进 PNG 就固定了. 解法: 每颗图标出 w/d 两个色版, 页面按当前明暗选一个,
+// 于是"图标颜色"跟着主题走而不需要 8 种子 x 2 明暗 = 16 份产物.
+const PAIRS = [
+  // 导航栏 (M3 NavigationRail) — 26px
+  { name: 'nav_home', icon: 'home-fill', size: 26 },
+  { name: 'nav_hot', icon: 'whatshot-fill', size: 26 },
+  { name: 'nav_search', icon: 'search', size: 26 },
+  { name: 'nav_dyn', icon: 'dynamic_feed-fill', size: 26 },
+  { name: 'nav_mine', icon: 'person-fill', size: 26 },
+  { name: 'nav_more', icon: 'apps', size: 26 },
+  // 导航栏底部动作 / 通用动作 — 24px
+  { name: 'act_refresh', icon: 'refresh', size: 24 },
+  { name: 'act_close', icon: 'close', size: 24 },
+  { name: 'act_check', icon: 'check', size: 24 },
+  { name: 'act_play', icon: 'play_circle-fill', size: 24 },
+  // 设置分组前导图标 — 22px
+  { name: 'set_appearance', icon: 'palette', size: 22 },
+  { name: 'set_play', icon: 'play_circle-fill', size: 22 },
+  { name: 'set_line', icon: 'alt_route', size: 22 },
+  { name: 'set_net', icon: 'network_check', size: 22 },
+  { name: 'set_content', icon: 'tune', size: 22 },
+  { name: 'set_data', icon: 'database', size: 22 },
+  { name: 'set_account', icon: 'account_circle', size: 22 },
+  { name: 'set_about', icon: 'info', size: 22 },
+  { name: 'set_live', icon: 'live_tv', size: 22 },
+  { name: 'set_msg', icon: 'notifications-fill', size: 22 },
+  { name: 'set_speed', icon: 'speed', size: 22 },
+  // 单选项 (设置页的 radio 语义)
+  { name: 'opt_on', icon: 'radio_button_checked', size: 20 },
+  { name: 'opt_off', icon: 'radio_button_unchecked', size: 20 },
+  // 「我的」页入口
+  { name: 'my_history', icon: 'history', size: 22 },
+  { name: 'my_fav', icon: 'bookmark-fill', size: 22 },
+  { name: 'my_toview', icon: 'schedule', size: 22 },
+  { name: 'my_follow', icon: 'person-fill', size: 22 }
+]
+
 const require_ = createRequire(import.meta.url)
 let sharp
 try {
@@ -85,8 +125,25 @@ try {
 
 if (!DRY && !fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true })
 
+// 展开成对的图标 (w=白 给深色主题, d=近黑 给浅色主题)
+const EXPANDED = ICONS.slice()
+for (const p of PAIRS) {
+  EXPANDED.push({ file: p.name + '_w', icon: p.icon, size: p.size, color: 'w' })
+  EXPANDED.push({ file: p.name + '_d', icon: p.icon, size: p.size, color: 'd' })
+}
+
+// 浅色主题自动派生: 把每颗 _w / _m 图标再出一份浅底可读的版本.
+// 页面侧约定: MI 用 _w/_m (深色主题), MI_D 是同一套键换成 _d/_dm (浅色主题),
+// 模板只引用 MIc.xxx 由 computed 按当前明暗二选一 —— 这样"图标颜色"也跟着主题走,
+// 而 <image> 只能吃位图、颜色烘死在 PNG 里, 只能靠"两版产物 + 运行时选一版".
+for (const it of EXPANDED.slice()) {
+  const m = /^(.*)_(w|m)$/.exec(it.file)
+  if (!m) continue
+  EXPANDED.push({ file: m[1] + (m[2] === 'w' ? '_d' : '_dm'), icon: it.icon, size: it.size, color: (m[2] === 'w' ? 'd' : 'dm') })
+}
+
 let ok = 0, bad = []
-for (const it of ICONS) {
+for (const it of EXPANDED) {
   const src = path.join(SRC, it.icon + '.svg')
   if (!fs.existsSync(src)) { bad.push(it.icon); continue }
   const out = path.join(OUT, it.file + '.png')

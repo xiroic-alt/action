@@ -1,14 +1,14 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
     <!-- 左区: 顶栏 + 模式切换 + 状态.
          电脑同步模式下左区扩展到全宽 960px (该模式无二维码, 不留空白) -->
     <div :class="['left', mode === 'pc' ? 'left-full' : '']">
       <div :class="['topbar', mode === 'pc' ? 'topbar-full' : '']">
-        <div class="back" @click="goBack">
-          <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-          <text class="back-text">返回</text>
+        <div class="back" @click="goBack" :style="T.actionR">
+          <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
+          <text class="back-text" :style="T.t.body">返回</text>
         </div>
-        <text class="title">登录哔哩哔哩</text>
+        <text class="title" :style="T.t.title">登录哔哩哔哩</text>
       </div>
       <div class="modes">
         <div :class="['mode-tab', mode === 'qr' ? 'mode-active' : '']" @click="switchMode('qr')">
@@ -22,7 +22,7 @@
       <!-- 扫码状态 -->
       <div v-if="mode === 'qr'" class="qr-status">
         <div v-if="pollState === 'ok'" class="strow">
-          <image class="st-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
+          <image class="st-ic" :src="MIc.check" :style="{ width: '20px', height: '20px' }"></image>
           <text class="st st-ok">登录成功</text>
         </div>
         <text v-else-if="pollState === 'scanned'" class="st st-ok">已扫描, 请在手机上确认</text>
@@ -32,10 +32,10 @@
         <text class="st2">App → 扫一扫 → 确认登录 · 码 3 分钟内有效</text>
         <text v-if="pollState === 'waiting'" class="st2">等待扫描中…</text>
         <div v-if="pollState === 'expired' || pollState === 'error'" class="btn" @click="startQr">
-          <text class="btn-text">刷新二维码</text>
+          <text class="btn-text" :style="T.t.labelOn">刷新二维码</text>
         </div>
         <div v-if="pollState === 'ok'" class="btn" @click="goBack">
-          <text class="btn-text">完成, 返回</text>
+          <text class="btn-text" :style="T.t.labelOn">完成, 返回</text>
         </div>
       </div>
 
@@ -54,7 +54,7 @@
           </div>
           <div class="btn-row">
             <div class="btn" @click="fetchFromPc">
-              <text class="btn-text">{{ fetching ? '获取中…' : '获取并登录' }}</text>
+              <text class="btn-text" :style="T.t.labelOn">{{ fetching ? '获取中…' : '获取并登录' }}</text>
             </div>
           </div>
           <text v-if="pcStatus !== ''" :class="['pc-status', pcOk ? 'st-ok' : 'st-err']">{{ pcStatus }}</text>
@@ -83,7 +83,7 @@
         </div>
         <div v-else-if="pollState === 'ok'" class="qr-mask"
              :style="{ width: (qr.size * MOD + QPAD * 2) + 'px', height: (qr.size * MOD + QPAD * 2) + 'px' }">
-          <image :src="MI.checkBig" :style="{ width: '56px', height: '56px' }"></image>
+          <image :src="MIc.checkBig" :style="{ width: '56px', height: '56px' }"></image>
         </div>
       </div>
       <text v-else class="qr-ph">{{ qrError !== '' ? '生成失败' : '生成中…' }}</text>
@@ -100,6 +100,7 @@ import { qrcodeGenerate, qrcodePoll, getMyInfo, fetchPcCookie } from '../../serv
 import { saveLogin } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 import { makeQR } from '../../services/qrcode.js'
 
 const MOD = 5          // 二维码模块边长 px (本地编码渲染)
@@ -113,11 +114,18 @@ const MI = {
   check: require('../../assets/mi/check_20_w.png'),
   checkBig: require('../../assets/mi/check_56_w.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  check: require('../../assets/mi/check_20_d.png'),
+  checkBig: require('../../assets/mi/check_56_d.png')
+}
 
 export default {
   name: 'login',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       MI: MI,
       MOD: MOD,
       QPAD: QPAD,
@@ -138,6 +146,10 @@ export default {
       fetching: false,
       ime: null
     }
+  },
+  computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D }
   },
   methods: {
     onShow() {

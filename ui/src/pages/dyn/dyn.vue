@@ -2,7 +2,7 @@
   <div class="dpage">
     <div class="dtop">
       <div class="dback" @click="back">
-        <image class="dback-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <image class="dback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="dback-t">返回</text>
       </div>
       <text class="dtitle">{{ headTitle }}</text>
@@ -30,7 +30,7 @@
       </div>
 
       <div class="dstatus" v-if="status !== ''" @click="retry">
-        <image class="dstatus-ic" :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
+        <image class="dstatus-ic" :src="MIc.refresh" :style="{ width: '24px', height: '24px' }"></image>
         <text class="dstatus-t">{{ status }}</text>
       </div>
 
@@ -50,7 +50,7 @@
               <!-- 认证标识 (图2 的样式) -->
               <div v-if="verifyText !== ''" class="averify">
                 <div :class="['averify-badge', badgeCls()]">
-                  <image class="averify-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+                  <image class="averify-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
                 </div>
                 <text class="averify-t">{{ verifyText }}</text>
               </div>
@@ -247,6 +247,7 @@ import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, ad
 import { hasCookie } from '../../services/auth.js'
 import { createIME } from '../../services/ime.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 import { afterPaint } from '../../base-page.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
@@ -261,6 +262,17 @@ const MI = {
   reply: require('../../assets/mi/reply_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
+}
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  refresh: require('../../assets/mi/refresh_30_d.png'),
+  play: require('../../assets/mi/play_18_d.png'),
+  thumbup: require('../../assets/mi/thumbup_20_dm.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  bolt: require('../../assets/mi/bolt_16_d.png'),
+  reply: require('../../assets/mi/reply_20_dm.png'),
+  minus: require('../../assets/mi/remove_32_d.png'),
+  plus: require('../../assets/mi/add_32_d.png')
 }
 
 // 计时器: 组件里没有全局 setTimeout (与 feed.vue / player.vue 同款)
@@ -368,6 +380,8 @@ export default {
   name: 'dyn',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       id: '',
       kind: '',
       status: '加载中…',
@@ -402,6 +416,8 @@ export default {
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
     headTitle() { return (this.art && this.art.title !== '') ? '专栏' : '动态' },

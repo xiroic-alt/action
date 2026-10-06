@@ -1,11 +1,11 @@
 <template>
-  <div class="page">
-    <div class="topbar">
-      <div class="back" @click="goBack">
-        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text">返回</text>
+  <div class="page" :style="T.page">
+    <div class="topbar" :style="T.bar">
+      <div class="back" @click="goBack" :style="T.actionR">
+        <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text" :style="T.t.body">返回</text>
       </div>
-      <text class="title">全部回复 {{ total > 0 ? total : '' }}</text>
+      <text class="title" :style="T.t.title">全部回复 {{ total > 0 ? total : '' }}</text>
     </div>
 
     <!-- 原始评论折叠成一行引用: 完整内容按需求隐藏, 但保留「在回复谁」的上下文,
@@ -20,7 +20,7 @@
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <text v-if="status !== ''" class="status">{{ status }}</text>
+      <text v-if="status !== ''" class="status" :style="T.t.titleVar">{{ status }}</text>
       <div v-for="r in replies" :key="r.rpid" class="reply">
         <image class="face" :src="r.face" resize="cover" @click="openUser(r)"></image>
         <div class="reply-main">
@@ -113,6 +113,7 @@ import { getSubReplies, addReply, parseMessage, likeReply } from '../../services
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
 // 计时器: 优先用页面实例的 setTimeout
@@ -217,11 +218,20 @@ const MI = {
   reply: require('../../assets/mi/reply_20_m.png'),
   img: require('../../assets/mi/image_20_m.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  thumbup: require('../../assets/mi/thumbup_20_dm.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  reply: require('../../assets/mi/reply_20_dm.png'),
+  img: require('../../assets/mi/image_20_dm.png')
+}
 
 export default {
   name: 'subreply',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       aid: 0,
       ctype: 1,     // 评论区类型: 1=视频 / 11=动态 / 12=专栏 (由来源页透传)
       // 图片查看器 (transform 版): 楼中楼里的图原来点不开 —— 模板引用了 ivOpen, 但整页没有实现
@@ -246,6 +256,8 @@ export default {
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
     inputHint() {

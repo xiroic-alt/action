@@ -1,9 +1,9 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
     <div class="header">
-      <div class="back" @click="goBack">
-        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text">返回</text>
+      <div class="back" @click="goBack" :style="T.actionR">
+        <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text" :style="T.t.body">返回</text>
       </div>
       <text class="header-title">UP主主页</text>
     </div>
@@ -25,7 +25,7 @@
           <!-- 认证标识: 「bilibili个人认证：xxx」(图2 的样式) -->
           <div v-if="info.officialDesc" class="verify">
             <div :class="['verify-badge', badgeCls()]">
-              <image class="verify-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+              <image class="verify-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
             <text class="verify-t">{{ verifyText }}</text>
           </div>
@@ -38,10 +38,10 @@
         </div>
       </div>
 
-      <div v-for="item in videos" :key="item.bvid" class="item" @click="openVideo(item)">
+      <div v-for="item in videos" :key="item.bvid" class="item" @click="openVideo(item)" :style="T.cardR">
         <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
         <div class="meta2">
-          <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+          <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
           <div class="statrow">
             <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
             <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
@@ -58,6 +58,7 @@
 import { getUpInfo, getUpFans, getUpVideos , parseMessage, badgeKind, badgeLabel } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 
 // 进入动画 340ms 画完再发首条请求 (同步 http 阻塞 JS 会卡进入动画)
 var LOAD_DELAY_MS = 340
@@ -69,11 +70,18 @@ const MI = {
   play: require('../../assets/mi/play_18_w.png'),
   bolt: require('../../assets/mi/bolt_16_w.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  play: require('../../assets/mi/play_18_d.png'),
+  bolt: require('../../assets/mi/bolt_16_d.png')
+}
 
 export default {
   name: 'up',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       MI: MI,
       mid: 0,
       name: '',
@@ -90,6 +98,8 @@ export default {
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     // 「bilibili个人认证：xxx」/ 机构认证同理 (official.type: 0 个人 1 机构)
     // 认证文案: 接口 desc 优先, 没有就用官方表的详细类型 (acc/info 的 official.role 就是表里的 ID)
     verifyText() {

@@ -2,7 +2,7 @@
   <div class="fpage">
     <div class="ftop">
       <div class="fback" @click="back">
-        <image class="fback-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
+        <image class="fback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="fback-t">返回</text>
       </div>
       <text class="ftitle">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
@@ -18,7 +18,7 @@
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
     <div class="fstatus" v-if="status !== ''" @click="retry">
-      <image class="fstatus-ic" :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
+      <image class="fstatus-ic" :src="MIc.refresh" :style="{ width: '24px', height: '24px' }"></image>
       <text class="fstatus-t">{{ status }}</text>
     </div>
 
@@ -42,7 +42,7 @@
             <text class="dauthor">{{ d.author }}</text>
             <!-- 认证徽章: 黄标=个人认证 / 蓝标=机构认证 (官方样式是彩色圆底 + 白闪电) -->
             <div v-if="d.officialType >= 0" :class="['dvbadge', badgeCls(d)]">
-              <image class="dvbadge-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+              <image class="dvbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
             <text class="dtime">{{ d.pubText }}</text>
             <text class="dbadge">{{ kindName(d.kind) }}</text>
@@ -184,6 +184,7 @@
 import { getDynamicFeed, getDynamicSpace, likeDynamic, GRID_COLS, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
@@ -200,6 +201,19 @@ const MI = {
   share: require('../../assets/mi/share_20_m.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
+}
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  refresh: require('../../assets/mi/refresh_30_d.png'),
+  play: require('../../assets/mi/play_18_d.png'),
+  expand: require('../../assets/mi/expand_20_dm.png'),
+  thumbup: require('../../assets/mi/thumbup_20_dm.png'),
+  thumbupOn: require('../../assets/mi/thumbup_20_p.png'),
+  bolt: require('../../assets/mi/bolt_16_d.png'),
+  comment: require('../../assets/mi/comment_20_dm.png'),
+  share: require('../../assets/mi/share_20_dm.png'),
+  minus: require('../../assets/mi/remove_32_d.png'),
+  plus: require('../../assets/mi/add_32_d.png')
 }
 
 // 计时器: 优先用页面实例的 setTimeout (本运行时组件里不保证有全局 setTimeout) —— 与 player.vue 同款
@@ -241,8 +255,11 @@ function bumpCount(text, add) {
 }
 
 export default {
+  name: 'feed',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       cats: CATS,
       cat: 'all',
       items: [],
@@ -263,6 +280,8 @@ export default {
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },

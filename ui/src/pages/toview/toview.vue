@@ -1,11 +1,11 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''">
-    <div class="topbar">
-      <div class="back" @click="goBack">
-        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text">返回</text>
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
+    <div class="topbar" :style="T.bar">
+      <div class="back" @click="goBack" :style="T.actionR">
+        <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text" :style="T.t.body">返回</text>
       </div>
-      <text class="topbar-title">稍后再看{{ count > 0 ? ' (' + count + ')' : '' }}</text>
+      <text class="topbar-title" :style="T.t.title">稍后再看{{ count > 0 ? ' (' + count + ')' : '' }}</text>
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
@@ -19,10 +19,10 @@
         </div>
       </div>
       <template v-else>
-        <div v-for="(item, i) in items" :key="item.bvid || ('v' + i)" class="item" @click="openVideo(item)">
+        <div v-for="(item, i) in items" :key="item.bvid || ('v' + i)" class="item" @click="openVideo(item)" :style="T.cardR">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
-            <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up">{{ item.author }}</text>
             <text class="stat">{{ item.duration }}  {{ item.pubText }}</text>
           </div>
@@ -37,6 +37,7 @@
 <script>
 // 稍后再看页: x/v2/history/toview/web + 无限滑动 + 下拉刷新
 import { getToViewList , parseMessage } from '../../services/bili.js'
+import { tokens } from '../../services/theme.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 
@@ -47,11 +48,16 @@ var PULL_DY = 55
 const MI = {
   back: require('../../assets/mi/back_26_w.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png')
+}
 
 export default {
   name: 'toview',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       MI: MI,
       items: [],
       count: 0,
@@ -65,6 +71,10 @@ export default {
       generation: 0,
       entering: true
     }
+  },
+  computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D }
   },
   methods: {
     startDots() {

@@ -1,11 +1,11 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''">
-    <div class="topbar">
-      <div class="back" @click="goBack">
-        <image class="back-ic" :src="MI.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text">返回</text>
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
+    <div class="topbar" :style="T.bar">
+      <div class="back" @click="goBack" :style="T.actionR">
+        <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
+        <text class="back-text" :style="T.t.body">返回</text>
       </div>
-      <text class="topbar-title">我的关注{{ total > 0 ? ' (' + total + ')' : '' }}</text>
+      <text class="topbar-title" :style="T.t.title">我的关注{{ total > 0 ? ' (' + total + ')' : '' }}</text>
       <text class="topbar-sub">{{ logged ? ('共 ' + items.length + ' 个已加载') : '' }}</text>
     </div>
 
@@ -35,7 +35,7 @@
         </div>
       </div>
       <template v-else>
-        <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)">
+        <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)" :style="T.cardR">
           <div class="face-wrap">
             <image class="face" :src="u.face" resize="cover" :lazy-load="true"></image>
           </div>
@@ -43,7 +43,7 @@
             <div class="namerow">
               <text class="name">{{ u.name }}</text>
               <div v-if="u.officialType >= 0" :class="['vbadge', badgeCls(u)]">
-                <image class="vbadge-ic" :src="MI.bolt" :style="{ width: '11px', height: '11px' }"></image>
+                <image class="vbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
               </div>
               <text v-if="u.special" class="sptag">特别关注</text>
             </div>
@@ -54,7 +54,7 @@
           </div>
         </div>
         <text v-if="hasMore && items.length > 0" class="more" @click="loadMore">上滑加载更多…</text>
-        <text v-if="shown.length === 0 && !loading && status === ''" class="empty">这个分组里还没有人</text>
+        <text v-if="shown.length === 0 && !loading && status === ''" class="empty" :style="T.t.empty">这个分组里还没有人</text>
       </template>
     </scroller>
 
@@ -96,6 +96,7 @@ import { getMyInfo, getTagFollowings, getRelationTags, setUserTags, modifyRelati
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
 const MI = {
@@ -103,11 +104,18 @@ const MI = {
   bolt: require('../../assets/mi/bolt_16_w.png'),
   folder: require('../../assets/mi/folder_20_m.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  bolt: require('../../assets/mi/bolt_16_d.png'),
+  folder: require('../../assets/mi/folder_20_dm.png')
+}
 
 export default {
   name: 'follow',
   data() {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       MI: MI,
       entering: true,      // 起始态在屏幕右侧外 (见 .page-enter), 挂载后 60ms 置 false 滑入
       logged: false,
@@ -128,6 +136,8 @@ export default {
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     // 分组筛选改成**服务端筛**: 切分组时重新请求 x/relation/tag?tagid=<分组>,
     // 列表本身就是该分组的人, 不需要再在本地过滤.
     // (旧实现是本地过滤已加载的 20 条 —— 所以「美食 7」点进去只有 2 个人: 服务端的 7 是全量,

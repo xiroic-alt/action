@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page" :style="T.page">
     <!-- 视频面: 框架内置 <video> (VideoElmApi) 把 waylandsink 做成宿主主 surface 的
          subsurface, 并 place_below(wl_surface 主面) —— 视频恒在 UI 之下, 层级不需要
          再靠创建顺序或窗口属性去抢. 协议级实证见 HANDOVER §27. -->
@@ -15,12 +15,12 @@
 
     <div class="stage" @click="toggleBar" @touchstart="markUserTouch">
       <!-- 顶部悬浮栏 -->
-      <div v-if="barVisible" class="topbar">
-        <div class="nav-back" @click="goBack">
-          <image class="nav-ic" :src="MI.back"></image>
-          <text class="nav-t">返回</text>
+      <div v-if="barVisible" class="topbar" :style="T.bar">
+        <div class="nav-back" @click="goBack" :style="T.actionR">
+          <image class="nav-ic" :src="MIc.back"></image>
+          <text class="nav-t" :style="T.t.body">返回</text>
         </div>
-        <richtext class="nav-title"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+        <richtext class="nav-title" :style="T.t.title"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
         <text v-if="rateText !== ''" class="nav-tag">{{ rateText }}</text>
       </div>
 
@@ -77,8 +77,11 @@
 //           setAudioDeviceType setVideoSurface
 import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js'
+import { getCfg } from '../../services/config.js'
+import { getProgress, setProgress, clearProgress, flushProgress } from '../../services/progress.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import { tokens } from '../../services/theme.js'
 
 var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中间用本地时钟插值)
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
@@ -124,6 +127,13 @@ const MI = {
   back10: require('../../assets/mi/replay10_28_w.png'),
   fwd10: require('../../assets/mi/forward10_28_w.png')
 }
+const MI_D = {
+  back: require('../../assets/mi/back_26_d.png'),
+  play: require('../../assets/mi/play_28_d.png'),
+  pause: require('../../assets/mi/pause_28_d.png'),
+  back10: require('../../assets/mi/replay10_28_d.png'),
+  fwd10: require('../../assets/mi/forward10_28_d.png')
+}
 
 // UI 带几何 (logical 显示坐标)
 var BAND_W = 960
@@ -147,6 +157,8 @@ export default {
   name: 'player',
   data: function () {
     return {
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
       bvid: '',
       pageNo: 1,
       directUrl: '',       // 调试直链, 由 options.url 传入
@@ -177,12 +189,22 @@ export default {
       wantPlay: false,       // 「有意播」意图: 非用户操作导致的 PAUSED 要自愈回 PLAYING
       lastResumeAt: 0,       // 自愈 resume 的节流时间戳
       generation: 0,         // 异步世代: 换源/离开后过期回调不写界面
+      // 设置项落到播放行为 (设置页 -> 这里的四个)
+      startRate: 1,          // defaultRate: 起播倍速
+      skipIntro: 0,          // skipIntroSec: 起播跳过片头秒数
+      resumeOn: true,        // resumePlay: 断点续播
+      wantResumeSec: 0,      // 本次要续播到的秒数 (来自 progress.json)
+      appliedOnce: false,    // 倍速/跳片头只在本次起播后应用一次
+      fallbackTried: false,  // autoFallback: 只在首个错误时换一次线
+      srcIndex: 0,           // 当前是第几个候选源 (取流口链)
       pollTimer: null,
       hideTimer: null,
       keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
   },
   computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
     vrectStyle() {
       var r = this.vrect
@@ -214,6 +236,10 @@ export default {
   methods: {
     // ---------------- 生命周期 ----------------
     onShow: function () {
+      // 设置页可能改过倍速/续播: 每次回到播放页重读一次 (很便宜)
+      this.startRate = Number(getCfg('defaultRate')) || 1
+      this.skipIntro = Number(getCfg('skipIntroSec')) || 0
+      this.resumeOn = getCfg('resumePlay') !== false
       if (!this.inited) {
         // 同页 navTo 的 onNewOptions 只发到 Page 实例, 需显式挂钩到组件
         if (this.$page && !this._newOptionsBound) {
@@ -258,6 +284,7 @@ export default {
 
     onUnload: function () {
       this.generation++
+      try { flushProgress() } catch (e) {}
       this.stopPolling()
       this.stopKeepAwake()
       screenon.screenOnStop()
@@ -332,6 +359,11 @@ export default {
       }).then(function (play) {
         if (gen !== self.generation || !play) return
         if (play.duration > 0) self.durMs = play.duration
+        // 断点续播: 只在本次进页取一次 (重试/换线不该把进度重置)
+        if (self.resumeOn && !self._resumeRead) {
+          self._resumeRead = true
+          self.wantResumeSec = getProgress(self.bvid)
+        }
         self.playStream(play.url, gen)
       }).catch(function (err) {
         if (gen !== self.generation) return
@@ -345,6 +377,7 @@ export default {
       if (gen !== this.generation) return
       var self = this
       this.started = false
+      this.appliedOnce = false
       this.autoStarted = false
       this.wantPlay = true
       this.posMs = 0
@@ -377,6 +410,7 @@ export default {
       if (s === 4) {
         this.playing = true
         this.started = true
+        this.applyOnce()
         if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
         this.posAt = Date.now()
         this.startPolling()
@@ -441,6 +475,28 @@ export default {
         }
       }
       this.curMs = ms
+      if (this.resumeOn && this.bvid && this.started) {
+        setProgress(this.bvid, Math.round(ms / 1000), Math.round(this.durMs / 1000))
+      }
+    },
+
+    // 首次进入 PLAYING 时把设置里的播放行为落到元素上 (只做一次)
+    applyOnce: function () {
+      if (this.appliedOnce || this.directUrl !== '') { this.appliedOnce = true; return }
+      this.appliedOnce = true
+      var rate = Number(this.startRate) || 1
+      if (rate !== 1) {
+        var r = this.elem('setRate', rate)
+        try { log('播放器', '倍速 ' + rate + 'x -> ' + r) } catch (e) {}
+      }
+      var target = this.wantResumeSec > 0 ? this.wantResumeSec : this.skipIntro
+      if (target > 0 && this.started) {
+        this.elem('seekto', target)
+        this.curMs = target * 1000
+        this.posMs = target * 1000
+        this.posAt = Date.now()
+        try { log('播放器', (this.wantResumeSec > 0 ? '续播到 ' : '跳过片头 -> ') + target + 's') } catch (e) {}
+      }
     },
 
     onEvtComplete: function () {
@@ -460,6 +516,31 @@ export default {
       this.stopPolling()
       this.stopKeepAwake()
       this.showBar()
+      // 失败自动换线: 只换一次, 换成网页口 (与自动档链上的第二个口一致).
+      // 不换 host —— 那会连签名一起动, 反而更容易 403.
+      if (getCfg('autoFallback') && !this.fbTried && this.bvid && this.directUrl === '') {
+        this.fbTried = true
+        this.retryOtherSource()
+      }
+    },
+
+    retryOtherSource: function () {
+      var self = this
+      var gen = this.generation
+      try { log('播放器', '起播失败, 换网页口重试') } catch (e) {}
+      getVideoDetail(this.bvid).then(function (d) {
+        var page = d.pages && d.pages.length > 0 ? d.pages[Math.min(self.pageNo, d.pages.length) - 1] : null
+        var cid = page ? page.cid : 0
+        if (!cid) throw new Error('未找到视频 cid')
+        return getPlayUrl(self.bvid, cid, { source: 'web' })
+      }).then(function (p) {
+        if (gen !== self.generation || !p) return
+        self.appliedOnce = false
+        self.playStream(p.url, gen)
+      }).catch(function (e) {
+        if (gen !== self.generation) return
+        self.statusText = '换线仍失败: ' + (e && e.message ? e.message : e)
+      })
     },
 
     onEvtBuffer: function (e) {

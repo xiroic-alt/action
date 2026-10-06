@@ -1,154 +1,167 @@
 <template>
-  <div class="page">
-    <div class="tabs">
-      <div v-for="t in tabs" :key="t.key"
-           :class="['tab', activeTab === t.key ? 'tab-active' : '']"
+  <div class="page" :class="'nav-' + T.navPos" :style="T.page">
+    <!-- 导航: 逻辑窗口 960x266 是「宽而矮」形态. M3 自适应里, 紧凑窗口用
+         NavigationBar(底部条), 中等以上宽窗口用 NavigationRail(左侧竖排).
+         竖排还实打实省下 44px 纵向空间: 内容区 222px -> 266px (+20%).
+         navPos=top 保留旧的顶部横排, 既是设置选项, 也是导轨出问题时的退路. -->
+    <div class="nav" :class="'nav-' + T.navPos" :style="T.bar">
+      <div v-for="t in navItems" :key="t.key"
+           :class="['nitem', 'nitem-' + T.navPos, activeTab === t.key ? 'nitem-on' : '']"
            @click="switchTab(t.key)">
-        <text :class="['tab-text', activeTab === t.key ? 'tab-text-active' : '']">{{ t.label }}</text>
+        <div class="nind" :style="activeTab === t.key ? { backgroundColor: T.c.primaryContainer } : {}">
+          <image class="nic" :src="t.icon" :style="{ width: '26px', height: '26px' }"></image>
+        </div>
+        <text class="nlabel" :style="activeTab === t.key ? T.t.onAccentC : T.t.label">{{ t.label }}</text>
       </div>
-      <!-- 刷新按钮: 下拉手势在真机上偶发被框架吞掉, 这里给一个必定可用的入口 -->
-      <div class="tab-refresh" @click="refreshTab">
-        <image :src="MI.refresh" :style="{ width: '24px', height: '24px' }"></image>
+      <!-- 刷新: 下拉手势在真机上偶发被框架吞掉, 这里给一个必定可用的入口.
+           M3 的 rail 允许底部承载动作 (顶部 FAB / 底部菜单), 这个位置是合规的. -->
+      <div class="nspacer"></div>
+      <div class="nitem nitem-act" :class="'nitem-' + T.navPos" @click="refreshTab">
+        <div class="nind">
+          <image class="nic" :src="refreshIcon" :style="{ width: '24px', height: '24px' }"></image>
+        </div>
+        <text class="nlabel" :style="T.t.label">刷新</text>
       </div>
     </div>
 
-
+    <!-- 内容窗格: 左侧导轨时为 872x266 (吃满高度), 顶部横排时为 960x222 -->
+    <div class="main">
     <!-- 推荐 (真·主页推荐流 rcmd, 无限滑动) -->
     <div v-if="activeTab === 'recommend'" class="tabbody">
-      <text v-if="pullHint !== ''" class="status status-pull status-center">{{ pullHint }}</text>
+      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
 
-      <text v-else-if="recLoading" class="status status-center">{{ '加载中' + dots }}</text>
-      <text v-else-if="recStatus !== ''" class="status status-center">{{ recStatus }}</text>
+      <text v-else-if="recLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
+      <text v-else-if="recStatus !== ''" class="status status-center" :style="T.t.titleVar">{{ recStatus }}</text>
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreRecommend"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
-        <div v-for="item in recResults" :key="item.bvid" class="item" @click="openVideo(item)">
-          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
+        <div v-for="item in recResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
+          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
-            <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-            <text class="up">{{ item.author }}</text>
-            <div class="statrow">
-              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
-              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <text class="up" :style="T.t.accentSub">{{ item.author }}</text>
+            <div v-if="showStat" class="statrow">
+              <image class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat" :style="T.t.subtitleVar">{{ item.playText }}  {{ item.duration }}</text>
             </div>
           </div>
         </div>
-        <text v-if="recLoaded && recResults.length === 0 && !recLoading" class="empty">暂无推荐内容</text>
-        <text v-if="recHasMore" class="loadmore" @click="loadMoreRecommend">上滑加载更多…</text>
+        <text v-if="recLoaded && recResults.length === 0 && !recLoading" class="empty" :style="T.t.empty">暂无推荐内容</text>
+        <text v-if="recHasMore" class="loadmore" :style="T.t.accentSub" @click="loadMoreRecommend">上滑加载更多…</text>
       </scroller>
     </div>
 
     <!-- 热门 (x/web-interface/popular, 无限滑动) -->
     <div v-else-if="activeTab === 'hot'" class="tabbody">
-      <text v-if="pullHint !== ''" class="status status-pull status-center">{{ pullHint }}</text>
+      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
 
-      <text v-else-if="hotLoading" class="status status-center">{{ '加载中' + dots }}</text>
-      <text v-else-if="hotStatus !== ''" class="status status-center">{{ hotStatus }}</text>
+      <text v-else-if="hotLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
+      <text v-else-if="hotStatus !== ''" class="status status-center" :style="T.t.titleVar">{{ hotStatus }}</text>
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreHot"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
-        <div v-for="item in hotResults" :key="item.bvid" class="item" @click="openVideo(item)">
-          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
+        <div v-for="item in hotResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
+          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
-            <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-            <text class="up">{{ item.author }}</text>
-            <div class="statrow">
-              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
-              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <text class="up" :style="T.t.accentSub">{{ item.author }}</text>
+            <div v-if="showStat" class="statrow">
+              <image class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat" :style="T.t.subtitleVar">{{ item.playText }}  {{ item.duration }}</text>
             </div>
           </div>
         </div>
-        <text v-if="hotLoaded && hotResults.length === 0 && !hotLoading" class="empty">暂无热门内容</text>
-        <text v-if="hotHasMore" class="loadmore" @click="loadMoreHot">上滑加载更多…</text>
+        <text v-if="hotLoaded && hotResults.length === 0 && !hotLoading" class="empty" :style="T.t.empty">暂无热门内容</text>
+        <text v-if="hotHasMore" class="loadmore" :style="T.t.accentSub" @click="loadMoreHot">上滑加载更多…</text>
       </scroller>
     </div>
 
     <!-- 搜索 -->
     <div v-else-if="activeTab === 'search'" class="tabbody">
       <div class="search-bar">
-        <div class="search-input" :style="{ width: (keyword !== '' ? 700 : 760) + 'px' }" @click="openKeyboard">
-          <text class="search-text">{{ keyword ? keyword : placeholder }}</text>
+        <div class="search-input" :style="T.insetR" @click="openKeyboard">
+          <text class="search-text" :style="T.t.body">{{ keyword ? keyword : placeholder }}</text>
         </div>
         <!-- 清空: 系统输入法经常拿不到「删空后返回空串」的时机, 必须给显式出口,
              否则搜过一次就再也回不到历史记录态 (只能重进应用) -->
         <div v-if="keyword !== ''" class="search-clear" @click="clearKeyword">
-          <text class="search-clear-t">清空</text>
+          <text class="search-clear-t" :style="T.t.label">清空</text>
         </div>
-        <div class="search-btn" @click="openKeyboard">
-          <text class="search-btn-text">搜索</text>
+        <div class="search-btn" :style="T.accentPill" @click="openKeyboard">
+          <text class="search-btn-text" :style="T.t.onAccent">搜索</text>
         </div>
       </div>
-      <text v-if="pullHint !== ''" class="status status-pull status-center">{{ pullHint }}</text>
+      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
 
-      <text v-else-if="loading" class="status status-center">{{ '加载中' + dots }}</text>
-      <text v-else-if="status !== ''" class="status status-center">{{ status }}</text>
+      <text v-else-if="loading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
+      <text v-else-if="status !== ''" class="status status-center" :style="T.t.titleVar">{{ status }}</text>
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreSearch"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
         <!-- 搜索历史: 未出结果时显示, 点词直接搜 -->
         <div v-if="!searched" class="his-wrap">
           <div class="his-head">
-            <text class="his-title">搜索历史</text>
-            <text v-if="history.length > 0" class="his-clear" @click="clearHistory">清空</text>
+            <text class="his-title" :style="T.t.title">搜索历史</text>
+            <text v-if="history.length > 0" class="his-clear" :style="T.t.accentSub" @click="clearHistory">清空</text>
           </div>
           <div class="his-chips">
-            <div v-for="(kw, i) in history" :key="i" class="his-chip" @click="searchFromHistory(kw)">
-              <text class="his-chip-text">{{ kw }}</text>
+            <div v-for="(kw, i) in history" :key="i" class="his-chip" :style="T.insetR" @click="searchFromHistory(kw)">
+              <text class="his-chip-text" :style="T.t.subtitle">{{ kw }}</text>
             </div>
           </div>
-          <text v-if="history.length === 0" class="his-empty">还没有搜索记录</text>
+          <text v-if="history.length === 0" class="his-empty" :style="T.t.empty">还没有搜索记录</text>
         </div>
         <template v-else>
-          <div v-for="item in results" :key="item.bvid" class="item" @click="openVideo(item)">
-            <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
+          <div v-for="item in results" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
+            <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
             <div class="meta">
-              <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-              <text class="up">{{ item.author }}</text>
-              <div class="statrow">
-              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
-              <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
+              <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+              <text class="up" :style="T.t.accentSub">{{ item.author }}</text>
+              <div v-if="showStat" class="statrow">
+              <image class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text class="stat" :style="T.t.subtitleVar">{{ item.playText }}  {{ item.duration }}</text>
             </div>
             </div>
           </div>
-          <text v-if="searched && results.length === 0 && !loading" class="empty">没有找到相关视频</text>
-          <text v-if="searchHasMore && results.length > 0" class="loadmore" @click="loadMoreSearch">上滑加载更多…</text>
+          <text v-if="searched && results.length === 0 && !loading" class="empty" :style="T.t.empty">没有找到相关视频</text>
+          <text v-if="searchHasMore && results.length > 0" class="loadmore" :style="T.t.accentSub" @click="loadMoreSearch">上滑加载更多…</text>
         </template>
       </scroller>
     </div>
 
     <!-- 动态 (视频 + 图文) -->
     <div v-else-if="activeTab === 'dynamic'" class="tabbody">
-      <text v-if="pullHint !== ''" class="status status-pull status-center">{{ pullHint }}</text>
+      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
 
-      <text v-else-if="dynLoading" class="status status-center">{{ '加载中' + dots }}</text>
-      <text v-else-if="dynStatus !== ''" class="status status-center">{{ dynStatus }}</text>
-      <div v-if="dynStatus !== '' && dynStatus.indexOf('未登录') >= 0" class="login-cta" @click="openLogin">
-        <text class="login-cta-text">去登录</text>
+      <text v-else-if="dynLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
+      <text v-else-if="dynStatus !== ''" class="status status-center" :style="T.t.titleVar">{{ dynStatus }}</text>
+      <div v-if="dynStatus !== '' && dynStatus.indexOf('未登录') >= 0" class="login-cta" :style="T.accentR" @click="openLogin">
+        <text class="login-cta-text" :style="T.t.onAccentTitle">去登录</text>
       </div>
-      <div class="dynbar" @click="openFeed">
-        <text class="dynbar-t">分类浏览全类型动态（投稿 / 图文 / 文字 / 转发 / 专栏）</text>
-        <image class="dynbar-ic" :src="MI.chevron" :style="{ width: '20px', height: '20px' }"></image>
+      <div class="dynbar" :style="T.bar" @click="openFeed">
+        <text class="dynbar-t" :style="T.t.accentSm">分类浏览全类型动态（投稿 / 图文 / 文字 / 转发 / 专栏）</text>
+        <image class="dynbar-ic" :src="MIc.chevron" :style="{ width: '20px', height: '20px' }"></image>
       </div>
       <scroller v-if="dynStatus === '' || dynItems.length > 0" class="list"
                 scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreDynamic"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
-        <div v-for="(item, i) in dynItems" :key="item.bvid || ('draw' + i)" class="item"
+        <div v-for="(item, i) in dynItems" :key="item.bvid || ('draw' + i)" class="item" :style="T.cardR"
              @click="openDynItem(item)">
-          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
+          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
-            <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <div class="uphit" @click="openUpItem(item)">
-              <text class="up">{{ item.author }} · {{ item.pubText }}</text>
+              <text class="up" :style="T.t.accentSub">{{ item.author }} · {{ item.pubText }}</text>
             </div>
             <div class="statrow">
-              <image v-if="item.type !== 'draw'" class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
-              <text class="stat">{{ item.type === 'draw' ? ('图文 · ' + item.duration) : (item.playText + '  ' + item.duration) }}</text>
+              <image v-if="item.type !== 'draw'" class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
+              <text v-if="showStat || item.type === 'draw'" class="stat" :style="T.t.subtitleVar">{{ item.type === 'draw' ? ('图文 · ' + item.duration) : (item.playText + '  ' + item.duration) }}</text>
             </div>
           </div>
         </div>
-        <text v-if="dynHasMore" class="loadmore" @click="loadMoreDynamic">上滑加载更多…</text>
-        <text v-if="dynLoaded && dynItems.length === 0" class="empty">关注的 UP 主暂无动态</text>
+        <text v-if="dynHasMore" class="loadmore" :style="T.t.accentSub" @click="loadMoreDynamic">上滑加载更多…</text>
+        <text v-if="dynLoaded && dynItems.length === 0" class="empty" :style="T.t.empty">关注的 UP 主暂无动态</text>
       </scroller>
     </div>
 
@@ -158,57 +171,58 @@
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
         <div class="mine-inner">
           <image v-if="myInfo.isLogin && myInfo.face" class="myface" :src="myInfo.face" resize="cover"></image>
-          <div v-else-if="myInfo.isLogin" class="myface-ph">
-            <text class="myface-txt">{{ myInfo.uname ? myInfo.uname.charAt(0) : '?' }}</text>
+          <div v-else-if="myInfo.isLogin" class="myface-ph" :style="T.accentBg">
+            <text class="myface-txt" :style="{ color: T.c.onPrimary }">{{ myInfo.uname ? myInfo.uname.charAt(0) : '?' }}</text>
           </div>
-          <text v-if="myInfo.isLogin" class="ph-title">{{ myInfo.uname }}</text>
-          <text v-if="myInfo.isLogin" class="ph-desc">UID {{ myInfo.mid }}</text>
+          <text v-if="myInfo.isLogin" class="ph-title" :style="T.t.title">{{ myInfo.uname }}</text>
+          <text v-if="myInfo.isLogin" class="ph-desc" :style="T.t.titleVar">UID {{ myInfo.mid }}</text>
           <!-- 等级 / 硬币 / B币: 三列统计, 数值在上标签在下 -->
           <div v-if="myInfo.isLogin" class="stat-row">
             <div class="stat-cell">
-              <text class="stat-num">Lv{{ myInfo.level }}</text>
-              <text class="stat-lab">等级</text>
+              <text class="stat-num" :style="T.t.title">Lv{{ myInfo.level }}</text>
+              <text class="stat-lab" :style="T.t.subtitleVar">等级</text>
             </div>
             <div class="stat-cell">
-              <text class="stat-num">{{ myInfo.coin }}</text>
-              <text class="stat-lab">硬币</text>
+              <text class="stat-num" :style="T.t.title">{{ myInfo.coin }}</text>
+              <text class="stat-lab" :style="T.t.subtitleVar">硬币</text>
             </div>
             <div class="stat-cell">
-              <text class="stat-num">{{ myInfo.money }}</text>
-              <text class="stat-lab">B币</text>
+              <text class="stat-num" :style="T.t.title">{{ myInfo.money }}</text>
+              <text class="stat-lab" :style="T.t.subtitleVar">B币</text>
             </div>
           </div>
           <!-- 历史记录 / 收藏 / 稍后再看 入口 -->
           <div v-if="myInfo.isLogin" class="entry-row">
-            <div class="entry-btn" @click="openListPage('history')">
-              <text class="entry-text">历史记录</text>
+            <div class="entry-btn" :style="T.actionR" @click="openListPage('history')">
+              <text class="entry-text" :style="T.t.title">历史记录</text>
             </div>
-            <div class="entry-btn" @click="openListPage('fav')">
-              <text class="entry-text">收藏</text>
+            <div class="entry-btn" :style="T.actionR" @click="openListPage('fav')">
+              <text class="entry-text" :style="T.t.title">收藏</text>
             </div>
-            <div class="entry-btn" @click="openListPage('toview')">
-              <text class="entry-text">稍后再看</text>
+            <div class="entry-btn" :style="T.actionR" @click="openListPage('toview')">
+              <text class="entry-text" :style="T.t.title">稍后再看</text>
             </div>
-            <div class="entry-btn" @click="openFollow">
-              <text class="entry-text">我的关注</text>
+            <div class="entry-btn" :style="T.actionR" @click="openFollow">
+              <text class="entry-text" :style="T.t.title">我的关注</text>
             </div>
           </div>
-          <text v-if="myInfo.isLogin && myInfo.vip" class="ph-desc2">{{ myInfo.vip }}</text>
-          <div v-if="!myInfo.isLogin && myLoaded" class="login-cta" @click="openLogin">
-            <text class="login-cta-text">扫码登录 / Cookie 导入</text>
+          <text v-if="myInfo.isLogin && myInfo.vip" class="ph-desc2" :style="T.t.empty">{{ myInfo.vip }}</text>
+          <div v-if="!myInfo.isLogin && myLoaded" class="login-cta" :style="T.accentR" @click="openLogin">
+            <text class="login-cta-text" :style="T.t.onAccentTitle">扫码登录 / Cookie 导入</text>
           </div>
           <!-- 设置入口 -->
-          <div class="login-cta" @click="openSettings">
-            <text class="login-cta-text">设置 (蓝牙补偿 · 防息屏 · 清缓存)</text>
+          <div class="login-cta" :style="T.accentR" @click="openSettings">
+            <text class="login-cta-text" :style="T.t.onAccentTitle">设置</text>
           </div>
           <!-- 「动态」入口已移除 (用户要求): 全类型动态统一在底部「动态」tab 里看,
                这里再放一个入口既重复又占位置. openFeed() 保留给动态 tab 内的分类条用. -->
 
-          <text v-if="pullHint !== ''" class="status status-pull status-center">{{ pullHint }}</text>
-          <text v-else-if="myLoading" class="status status-center">{{ '加载中' + dots }}</text>
-          <text v-else-if="myStatus !== ''" class="status status-center">{{ myStatus }}</text>
+          <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
+          <text v-else-if="myLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
+          <text v-else-if="myStatus !== ''" class="status status-center" :style="T.t.titleVar">{{ myStatus }}</text>
         </div>
       </scroller>
+    </div>
     </div>
   </div>
 </template>
@@ -220,31 +234,55 @@ import { afterPaint } from '../../base-page.js'
 import { hasCookie, saveProfile } from '../../services/auth.js'
 import { log, logStatus } from '../../services/log.js'
 import { storeStatus, addSearchHistory, getSearchHistory, clearSearchHistory } from '../../services/store.js'
+import { tokens, themeRev } from '../../services/theme.js'
+import { getCfg } from '../../services/config.js'
 import pm from 'pm'
 
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
+// 每颗都有 _w (深色主题底) / _d (浅色主题底) 两版: 本机 <image> 只吃位图,
+// 颜色烘死在 PNG 里, 所以"图标跟随主题"只能靠两版产物 + 运行时选一版.
+// 模板统一写 MIc.xxx (computed 按当前明暗二选一), 不直接引用 MI.
 const MI = {
-  refresh: require('../../assets/mi/refresh_30_w.png'),
+  refresh: require('../../assets/mi/act_refresh_w.png'),
   play: require('../../assets/mi/play_18_w.png'),
-  chevron: require('../../assets/mi/chevron_20_m.png')
+  chevron: require('../../assets/mi/chevron_20_m.png'),
+  navHome: require('../../assets/mi/nav_home_w.png'),
+  navHot: require('../../assets/mi/nav_hot_w.png'),
+  navSearch: require('../../assets/mi/nav_search_w.png'),
+  navDyn: require('../../assets/mi/nav_dyn_w.png'),
+  navMine: require('../../assets/mi/nav_mine_w.png')
+}
+const MI_D = {
+  refresh: require('../../assets/mi/act_refresh_d.png'),
+  play: require('../../assets/mi/play_18_d.png'),
+  chevron: require('../../assets/mi/chevron_20_dm.png'),
+  navHome: require('../../assets/mi/nav_home_d.png'),
+  navHot: require('../../assets/mi/nav_hot_d.png'),
+  navSearch: require('../../assets/mi/nav_search_d.png'),
+  navDyn: require('../../assets/mi/nav_dyn_d.png'),
+  navMine: require('../../assets/mi/nav_mine_d.png')
 }
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P19ui'
+const BUILD_TAG = 'P36-m3'
 export default {
   name: 'index',
   data() {
     return {
-      MI: MI,
+      // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
+      T: tokens(),
+      // 列表卡片是否显示播放量 (设置页「显示播放量」), 由「布局密度」也很想控制, 但那是尺寸
+      showStat: getCfg('showStat') !== false,
+      // 导航项: icon 是图标表的键, 实际位图由 MIc 按当前明暗解析
       tabs: [
-        { key: 'recommend', label: '推荐' },
-        { key: 'hot', label: '热门' },
-        { key: 'search', label: '搜索' },
-        { key: 'dynamic', label: '动态' },
-        { key: 'mine', label: '我的' }
+        { key: 'recommend', label: '推荐', icon: 'navHome' },
+        { key: 'hot', label: '热门', icon: 'navHot' },
+        { key: 'search', label: '搜索', icon: 'navSearch' },
+        { key: 'dynamic', label: '动态', icon: 'navDyn' },
+        { key: 'mine', label: '我的', icon: 'navMine' }
       ],
-      activeTab: 'recommend',
+      activeTab: getCfg('defaultTab') || 'recommend',
       pullHint: '',
       dots: '',             // 加载动画点 (JS 驱动: 词典笔不支持 CSS 动画)
       PULL_TRIGGER: 20,      // 下拉多少像素算触发刷新          // 下拉刷新提示 (下拉刷新… / 松手刷新 / 刷新中… / 已刷新)
@@ -295,6 +333,20 @@ export default {
       storeHint: ''
     }
   },
+  computed: {
+    // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
+    MIc() { return this.T.dark ? MI : MI_D },
+    // 导航项 = tabs + 已解析的位图 (模板里不直接碰 MI)
+    navItems() {
+      const m = this.MIc
+      const out = []
+      for (let i = 0; i < this.tabs.length; i++) {
+        out.push({ key: this.tabs[i].key, label: this.tabs[i].label, icon: m[this.tabs[i].icon] })
+      }
+      return out
+    },
+    refreshIcon() { return this.MIc.refresh }
+  },
   mounted() {
     this.ime = createIME()
     // 版本号: 从包管理器读当前安装包信息 (haasui-docs jsapi/system/falcon/pm)
@@ -311,7 +363,8 @@ export default {
       this.storeHint = ''
     }
     log('页面', '首页挂载 ' + this.storeHint + ' · build=' + BUILD_TAG)
-    this.loadRecommend()
+    // 首页默认落在设置里指定的分区 (defaultTab), 由 switchTab 负责首次加载
+    this.switchTab(this.activeTab)
   },
   methods: {
     // 标题分段: emoji 转 CDN 图片 (设备字体没有 emoji 字形, 直接 text 渲染会整片空白).
@@ -756,6 +809,10 @@ export default {
 
     // 页面生命周期 (由 base-page.js 代理调用)
     onShow() {
+      // 主题相关设置可能在设置页被改过: 比对版本号, 变了才重算 (tokens() 只是查表)
+      const rev = themeRev()
+      if (this._themeRev !== rev) { this._themeRev = rev; this.T = tokens() }
+      this.showStat = getCfg('showStat') !== false
       // 从登录页返回: 登录态可能已变化 (有 Cookie 但界面未登录 -> 刷新)
       try {
         if (hasCookie() && !this.myInfo.isLogin) {
@@ -784,64 +841,62 @@ export default {
 </script>
 
 <style scoped>
+/* 外壳: 左侧导轨 (M3 NavigationRail) 或顶部横排. 颜色全部走 :style 的语义 token,
+   这里只留几何 (尺寸/方向), 换主题不需要改这类文件. */
 .page {
   width: 960px;
   height: 266px;
-  background-color: #000000;
   display: flex;
-  flex-direction: column;
 }
-.tabs {
+.nav-left { flex-direction: row; }
+.nav-top { flex-direction: column; }
+
+.nav { display: flex; }
+.nav-left {
+  width: 88px;
+  height: 266px;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+.nav-top {
   width: 960px;
   height: 44px;
-  display: flex;
   flex-direction: row;
-  background-color: #0b0b0d;
+  align-items: center;
 }
+/* M3 NavigationRail 项: 选中态是一枚 primaryContainer 药丸 + onPrimaryContainer 文字 */
+.nitem { flex-direction: row; align-items: center; justify-content: flex-start; }
+.nitem-left { width: 88px; height: 42px; padding-left: 4px; }
+.nitem-top { width: 176px; height: 44px; justify-content: center; }
+.nitem-act.nitem-left { height: 36px; }
+.nitem-act.nitem-top { width: 80px; }
+.nind { justify-content: center; align-items: center; border-radius: 16px; }
+.nitem-left .nind { width: 40px; height: 30px; }
+.nitem-top .nind { width: 34px; height: 30px; }
+.nlabel { margin-left: 4px; }
+.nspacer { flex: 1; }
 
-.tab-refresh {
-  width: 58px;
-  height: 34px;
-  justify-content: center;
-  align-items: center;
-}
-.tab-refresh-text {
-  font-size: 22px;
-  color: #fb7299;
-}
-.tab {
-  width: 192px;
-  height: 44px;
-  justify-content: center;
-  align-items: center;
-}
-.tab-active {
-  background-color: #141416;
-  border-bottom-width: 3px;
-  border-bottom-color: #fb7299;
-}
-.tab-text {
-  font-size: 24px;
-  color: #a8a8b0;
-}
-.tab-text-active {
-  color: #ffffff;
+.main {
+  flex: 1;
+  flex-direction: column;
 }
 .tabbody {
-  width: 960px;
-  height: 222px;
+  width: 100%;
+  flex: 1;
   display: flex;
   flex-direction: column;
 }
-.dynbar { width: 960px; height: 34px; flex-direction: row; align-items: center; padding-left: 20px; }
+.dynbar { width: 100%; height: 34px; flex-direction: row; align-items: center; padding-left: 20px; }
 .dynbar-t { font-size: 17px; color: #3ca5ec; }
 /* 列表区吃满剩余高度 (搜索页有结果时下方不再留空白) */
 .list {
-  width: 960px;
+  width: 100%;
   flex: 1;
 }
 .search-bar {
-  width: 960px;
+  width: 100%;
   height: 56px;
   display: flex;
   flex-direction: row;
@@ -849,7 +904,7 @@ export default {
   background-color: #0b0b0d;
 }
 .search-input {
-  width: 760px;
+  flex: 1;
   height: 46px;
   margin-left: 20px;
   background-color: #141416;
@@ -907,8 +962,8 @@ export default {
 }
 /* 搜索历史 */
 .his-wrap {
-  width: 920px;
   margin-left: 20px;
+  margin-right: 20px;
   margin-top: 10px;
   flex-direction: column;
 }
@@ -955,8 +1010,8 @@ export default {
   margin-top: 12px;
 }
 .item {
-  width: 920px;
   margin-left: 20px;
+  margin-right: 20px;
   margin-top: 10px;
   display: flex;
   flex-direction: row;
@@ -970,7 +1025,7 @@ export default {
   border-bottom-left-radius: 12px;
 }
 .meta {
-  width: 720px;
+  flex: 1;
   height: 112px;
   display: flex;
   flex-direction: column;
@@ -1073,12 +1128,12 @@ export default {
 }
 /* 我的: 内容比可视区高, 需要整块可滚动 */
 .mine-scroll {
-  width: 960px;
+  width: 100%;
   flex: 1;
   flex-direction: column;
 }
 .mine-inner {
-  width: 960px;
+  width: 100%;
   flex-direction: column;
   align-items: center;
   padding-top: 4px;

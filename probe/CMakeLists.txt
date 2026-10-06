@@ -20,7 +20,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -include pthread.h")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -include pthread.h")
 
 # falcon sdk 头文件 (复用 gstplayer 的 iot-miniapp-sdk sdk 树)
-set(IOT_UI_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../native/gstplayer/third_party/iot-miniapp-sdk")
+set(IOT_UI_SDK_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../native/bilinet/third_party/iot-miniapp-sdk")
 include_directories("${IOT_UI_SDK_PATH}/include")
 
 # gstreamer 头文件 (Ubuntu jammy aarch64 开发包; 运行时链接设备 /usr/lib 同名 soname)
