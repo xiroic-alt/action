@@ -286,11 +286,15 @@ export default {
 .sinput { flex: 1; height: 38px; margin-left: 16px; justify-content: center; }
 .stext { margin-left: 16px; }
 .sbtn { width: 96px; height: 38px; margin-left: 10px; margin-right: 16px; justify-content: center; align-items: center; }
+.pbt { }
 .st2 { width: 100%; text-align: center; margin-top: 20px; }
 .list { width: 100%; flex: 1; }
 .sec { margin-left: 20px; margin-top: 8px; margin-bottom: 4px; }
 .chips { flex-direction: row; margin-left: 20px; flex-wrap: wrap; }
-.chip { padding-left: 12px; padding-right: 12px; padding-top: 5px; padding-bottom: 5px; margin-right: 8px; margin-bottom: 6px; }
+/* ★ 可点元素必须有显式尺寸: 本机只挂 padding 的 div 命中区是 0 (HANDOVER §14.3 /
+   记忆条目「点击只能挂有尺寸的 div」) —— 真机实测热门分区点不动就是这个原因. */
+.chip { height: 32px; padding-left: 12px; padding-right: 12px; margin-right: 8px; margin-bottom: 6px;
+        flex-direction: row; align-items: center; }
 .row { width: 100%; flex-direction: row; margin-left: 20px; margin-right: 20px; margin-top: 8px; padding-left: 8px; padding-top: 8px; padding-bottom: 8px; }
 .rcov { border-radius: 8px; margin-right: 12px; }
 .rmain { flex: 1; flex-direction: column; }

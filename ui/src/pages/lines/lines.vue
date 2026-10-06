@@ -226,13 +226,15 @@ export default {
 .back { flex-direction: row; align-items: center; height: 40px; width: 132px; margin-left: 12px; justify-content: center; }
 .bac { margin-right: 4px; }
 .ttl { margin-left: 12px; flex: 1; }
-.act { flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; margin-right: 16px; }
+.act { flex-direction: row; align-items: center; justify-content: center; height: 34px; min-width: 84px; padding-left: 12px; padding-right: 14px; margin-right: 16px; }
 .actic { margin-right: 4px; }
 .hint { margin-right: 12px; }
 .list { width: 100%; flex: 1; flex-direction: column; }
 .sec { margin-left: 20px; margin-top: 10px; margin-bottom: 6px; }
 .chips { flex-direction: row; margin-left: 20px; }
-.chip { padding-left: 14px; padding-right: 14px; padding-top: 5px; padding-bottom: 5px; margin-right: 8px; }
+/* ★ 同 live.vue: 只挂 padding 的 div 在本机命中区为 0, 必须给显式高度 */
+.chip { height: 32px; padding-left: 14px; padding-right: 14px; margin-right: 8px;
+        flex-direction: row; align-items: center; }
 .chipt { }
 .note { margin-left: 20px; margin-top: 6px; margin-right: 20px; }
 .row { width: 100%; flex-direction: row; align-items: center; margin-bottom: 6px;
@@ -241,7 +243,8 @@ export default {
 .rmain { flex: 1; flex-direction: column; }
 .rhost { margin-top: 2px; }
 .rres { min-width: 150px; text-align: right; }
-.cbtn { padding-left: 12px; padding-right: 12px; padding-top: 5px; padding-bottom: 5px; margin-left: 8px; }
+.cbtn { height: 30px; padding-left: 12px; padding-right: 12px; margin-left: 8px;
+         flex-direction: row; align-items: center; }
 .cbt { }
 .foot { width: 100%; text-align: center; margin-top: 10px; margin-bottom: 20px; }
 </style>

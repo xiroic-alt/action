@@ -365,7 +365,9 @@ export default {
 .knob-on { margin-left: 27px; }
 .knob-off { margin-left: 4px; }
 .seg { flex-direction: row; align-items: center; }
-.segi { padding-left: 12px; padding-right: 12px; padding-top: 5px; padding-bottom: 5px; margin-left: 6px; justify-content: center; }
+/* ★ 可点元素必须有显式尺寸 (本机只挂 padding 的 div 命中区为 0) */
+.segi { height: 30px; padding-left: 12px; padding-right: 12px; margin-left: 6px;
+        flex-direction: row; align-items: center; justify-content: center; }
 .segt { }
 .num { flex-direction: row; align-items: center; }
 .nbtn { width: 36px; height: 32px; justify-content: center; align-items: center; }
@@ -374,7 +376,8 @@ export default {
 .swatches { flex-direction: row; align-items: center; }
 .swatch { width: 34px; height: 34px; margin-left: 8px; justify-content: center; align-items: center; }
 .swic { }
-.go { flex-direction: row; align-items: center; padding-left: 12px; padding-right: 10px; padding-top: 6px; padding-bottom: 6px; }
+.go { height: 32px; flex-direction: row; align-items: center; justify-content: center;
+       padding-left: 12px; padding-right: 10px; min-width: 72px; }
 .got { margin-right: 2px; }
 .goic { }
 .foot { width: 100%; text-align: center; margin-top: 8px; margin-bottom: 20px; }
