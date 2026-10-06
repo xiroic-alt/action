@@ -1,5 +1,5 @@
 <template>
-  <div class="page" :class="'nav-' + T.navPos" :style="T.page">
+  <div class="page" :class="'pg-' + T.navPos" :style="T.page">
     <!-- 导航: 逻辑窗口 960x266 是「宽而矮」形态. M3 自适应里, 紧凑窗口用
          NavigationBar(底部条), 中等以上宽窗口用 NavigationRail(左侧竖排).
          竖排还实打实省下 44px 纵向空间: 内容区 222px -> 266px (+20%).
@@ -842,14 +842,16 @@ export default {
 
 <style scoped>
 /* 外壳: 左侧导轨 (M3 NavigationRail) 或顶部横排. 颜色全部走 :style 的语义 token,
-   这里只留几何 (尺寸/方向), 换主题不需要改这类文件. */
+   这里只留几何 (尺寸/方向), 换主题不需要改这类文件.
+   ★ 根容器与导航栏的类名必须分开 (pg-* / nav-*): 同名的话后一条规则会同时命中两个元素,
+     实测会把页面本身压成 88px 宽. */
 .page {
   width: 960px;
   height: 266px;
   display: flex;
 }
-.nav-left { flex-direction: row; }
-.nav-top { flex-direction: column; }
+.pg-left { flex-direction: row; }
+.pg-top { flex-direction: column; }
 
 .nav { display: flex; }
 .nav-left {
