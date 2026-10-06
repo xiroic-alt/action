@@ -729,27 +729,25 @@ export default {
       $falcon.navTo(this.nextPage || 'page2', { bvid: item.bvid, title: item.title })
     },
 
-    // 进播放页: 直接把取流地址带过去.
-    // 旧实现要在 navTo 之前 fork gstplayerd 抢创建顺序 (兄弟 xdg_toplevel 谁后建谁在上),
-    // 现在播放页用框架内置 <video>: waylandsink 会把自己做成宿主主 surface 的 subsurface
+    // 进播放页: 立即 navTo, 不做任何前置异步.
+    // 旧实现要在 navTo 前 fork gstplayerd 抢 Weston 创建顺序 (兄弟 xdg_toplevel 谁后建谁在上);
+    // 现在播放页用框架内置 <video>: waylandsink 把自己做成宿主主 surface 的 subsurface
     // 并 place_below 主面, 视频恒在 UI 之下 —— 创建顺序不再影响层级 (HANDOVER §27).
+    // 取流地址由播放页自己取 (它本来就有这条路径), 少一次网络往返, navTo 也不再被
+    // getPlayUrl 的成败/耗时绑架.
     openPlayer() {
-      if (!this.detail) return
-      const self = this
-      const opts = { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title }
-      const go = function (url) {
-        if (url) opts.url = url
-        try { $falcon.navTo('player', opts) } catch (e) {}
+      if (!this.detail) {
+        try { log('播放器', 'openPlayer: detail 为空, 不跳转') } catch (e) {}
+        return
       }
-      if (this._warmUrl) { go(this._warmUrl); return }
-      // 现场取地址 (getJsonAsync 是异步的, 不卡页面); 取不到就交给播放页按老路自己取
-      getVideoDetail(this.bvid).then(function (d) {
-        const p = (d && d.pages && d.pages.length) ? d.pages[Math.min(self.currentPage, d.pages.length) - 1] : null
-        if (!p || !p.cid) { go(''); return }
-        return getPlayUrl(self.bvid, p.cid)
-      }).then(function (play) {
-        go(play && play.url ? play.url : '')
-      }).catch(function () { go('') })
+      const opts = { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title }
+      if (this._warmUrl) opts.url = this._warmUrl
+      try {
+        $falcon.navTo('player', opts)
+        try { log('播放器', 'navTo player bvid=' + this.bvid + ' url=' + (opts.url ? 'warm' : '无')) } catch (e) {}
+      } catch (e) {
+        try { log('播放器', 'navTo 失败: ' + (e && e.message ? e.message : e)) } catch (e2) {}
+      }
     },
 
 

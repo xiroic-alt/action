@@ -299,6 +299,7 @@ export default {
     loadAndPlay: function () {
       var gen = ++this.generation
       this.inited = true
+      try { log('播放器', '进入播放页 bvid=' + this.bvid + ' direct=' + (this.directUrl ? '有' : '无') + ' gen=' + gen) } catch (e) {}
       // 先让首帧画出「加载中…」再取流地址: bilinet.httpGet 同步阻塞 JS 线程,
       // 不延迟的话网络差时加载态画不出来, 表现为上一页面冻结 (卡死)
       var self = this
