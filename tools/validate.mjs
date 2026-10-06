@@ -4,6 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
+import os from 'node:os'
 
 // 路径自相对: 本地 (.local/patch 副本) 与 CI (tools/ 副本) 都能跑同一个文件
 const HERE = path.dirname(fileURLToPath(import.meta.url))
@@ -19,7 +20,9 @@ for (const d of fs.readdirSync(PAGES)) {
 let bad = 0
 const fail = (m) => { console.log('BAD  ' + m); bad++ }
 const GLYPH = /[‹›▶⟳✓«»❚▾⌂]/
-const tmp = path.join(HERE, '..', '..', '.local', 'patch', '_check.mjs')
+// 语法检查的临时文件必须写到系统临时目录: CI 上没有 .local/ (它被 gitignore),
+// 写到仓库里会 ENOENT 直接让构建失败.
+const tmp = path.join(os.tmpdir(), 'bilibilipan-validate-check.mjs')
 for (const p of files) {
   const rel = path.basename(p)
   const src = fs.readFileSync(p, 'utf8')
