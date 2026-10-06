@@ -44,6 +44,25 @@ for (const p of files) {
     const re2 = new RegExp('(^|[\\s,{])' + fn + '\\s*:', 'm')
     if (!re1.test(src) && !re2.test(src)) fail(rel + ' 事件处理函数未定义: ' + fn)
   }
+  // 模板里裸调"import 进来的函数"会在渲染期炸整页 (0.9.62 settings 页 Elm=0 的真因):
+  // Vue 模板只能访问**实例上的**属性 —— 方法/计算属性/data. 这里把每个模板调用名
+  // 拿出来, 如果它在 import 列表里出现, 就判失败.
+  const imported = new Set()
+  const reImp = /import\s+(?:\*\s+as\s+([\w$]+)|\{([^}]*)\}|([\w$]+))\s+from/g
+  let im
+  while ((im = reImp.exec(src)) !== null) {
+    if (im[1]) imported.add(im[1])
+    if (im[2]) im[2].split(',').forEach((x) => { const n = x.split(' as ').pop().trim(); if (n) imported.add(n) })
+    if (im[3]) imported.add(im[3])
+  }
+  const called = new Set()
+  const reCall = /[:@][\w:.-]+="\s*([A-Za-z_$][\w$]*)\s*\(/g
+  let cm
+  while ((cm = reCall.exec(tpl)) !== null) called.add(cm[1])
+  for (const fn of called) {
+    if (imported.has(fn)) fail(rel + ' 模板里裸调 import 进来的 ' + fn + '() —— 必须包成 methods 里的方法')
+  }
+
   const sm = src.match(/<script>([\s\S]*?)<\/script>/)
   if (!sm) { fail(rel + ' 缺少 script 块'); continue }
   fs.writeFileSync(tmp, sm[1], 'utf8')

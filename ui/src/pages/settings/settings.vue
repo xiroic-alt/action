@@ -51,7 +51,7 @@
             <div v-for="s in seeds" :key="s[0]" class="swatch"
                  :style="swatchStyle(s[1])" @click="pick('themeSeed', s[0])">
               <image v-if="cfg.themeSeed === s[0]" class="swic"
-                     :src="readableOn(s[1]) === '#ffffff' ? MIc.check : MIc.checkDark"
+                     :src="checkIcon(s[1])"
                      :style="{ width: '20px', height: '20px' }"></image>
             </div>
           </div>
@@ -192,7 +192,7 @@ const SCHEMA = [
       { k: 'u', t: 'text', textKey: 'login' },
       { k: 'l', t: 'text', textKey: 'log' },
       { k: 'c', t: 'text', textKey: 'cfg' },
-      { k: 'lg', t: 'choice', label: '日志级别', desc: 'off 完全不落盘, debug 最啰嗦', opts: [['off', '关'], ['error', '错误'], ['info', '常规'], ['debug', '调试']] }
+      { k: 'logLevel', t: 'choice', label: '日志级别', desc: 'off 完全不落盘, debug 最啰嗦', opts: [['off', '关'], ['error', '错误'], ['info', '常规'], ['debug', '调试']] }
     ]
   }
 ]
@@ -252,6 +252,13 @@ export default {
     },
 
     ic(key) { return this.MIc[key] || this.MIc.set_about },
+    // 色板上的对勾: 深底配白勾、浅底配黑勾.
+    // ⚠ 必须包成 method: Vue 模板里只能访问**实例上的**属性, 直接用 import 进来的
+    // readableOn() 会以 "TypeError: not a function" 在渲染期炸掉整页 (0.9.62 踩过,
+    // 现象是 miniapp_cli memoryApp 里 Page(settings) Elm=0, 只有框架日志有栈).
+    checkIcon(hex) {
+      return readableOn(hex) === '#ffffff' ? this.MIc.check : this.MIc.checkDark
+    },
     isOn(k, v) { return String(this.cfg[k]) === String(v) },
     swatchStyle(hex) {
       return { backgroundColor: hex, borderRadius: this.T.rad.chip }
