@@ -201,10 +201,8 @@
           <div class="login-cta" @click="openSettings">
             <text class="login-cta-text">设置 (蓝牙补偿 · 防息屏 · 清缓存)</text>
           </div>
-          <!-- 动态入口 (全类型 + 分类) -->
-          <div class="login-cta" @click="openFeed">
-            <text class="login-cta-text">动态 (投稿 · 图文 · 文字 · 转发 · 专栏)</text>
-          </div>
+          <!-- 「动态」入口已移除 (用户要求): 全类型动态统一在底部「动态」tab 里看,
+               这里再放一个入口既重复又占位置. openFeed() 保留给动态 tab 内的分类条用. -->
 
           <text v-if="pullHint !== ''" class="status status-pull status-center">{{ pullHint }}</text>
           <text v-else-if="myLoading" class="status status-center">{{ '加载中' + dots }}</text>
@@ -980,7 +978,11 @@ export default {
 .title {
   font-size: 22px;
   color: #ffffff;
-  margin-left: 16px;
+  /* richtext 有约 28px 的内置左缩进 (文档写 padding-left 默认 0, 真机像素实测:
+     同一卡片里 .title(richtext) 文字起点 x=233, .uphit(普通 div, 同样 margin-left:16)
+     文字起点 x=205 —— 差 28px). 用户反馈「UP 的名字与其他字不在同一列」就是这个.
+     补偿回去: 16 - 28 = -12, 标题与作者行/播放量行回到同一列. */
+  margin-left: -12px;
   margin-top: 8px;
   margin-right: 16px;
   /* 单行 + 省略号: 原来 lines:2 时 .meta 固定 112px 装不下, 播放量会被挤出卡片 */

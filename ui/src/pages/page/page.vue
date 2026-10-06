@@ -324,11 +324,12 @@
 // nextPage: 相关推荐点击后的跳转目标页副本名 (page->page2->...->page12->page 轮换栈)。
 import { createIME } from '../../services/ime.js'
 import {
-  getVideoDetail, getRelatedVideos, getReplies, addReply,
+  getVideoDetail, getPlayUrl, getRelatedVideos, getReplies, addReply,
   likeVideo, addCoin, dealFav, addToViewLater, delToViewLater, isInToView, getFavFolders,
   getInteractState, isFavoured, cancelFav, parseMessage, likeReply,
   getRelation, modifyRelation, getRelationTags, setUserTags, addUserTag, TAG_SPECIAL
 } from '../../services/bili.js'
+import * as playerSvc from '../../services/player.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -729,9 +730,35 @@ export default {
       $falcon.navTo(this.nextPage || 'page2', { bvid: item.bvid, title: item.title })
     },
 
+    // 进播放页: **先把视频面的流开起来, 再 navTo** —— 顺序决定层级.
+    // 原理: Weston 的 weston_view_create 把新 view 插到链表末尾 = 最后绘制 = 最上层,
+    // 所以「谁后创建谁在上面」. 播放页窗口是 navTo 时新建的, 若等它建完再 open 流,
+    // 视频面(waylandsink)就在它之后创建 -> 视频永远压在 UI 上, 只能靠真实触摸抬升.
+    // 反过来先 open: 视频面先建, 播放页窗口后建 -> UI 天然盖在视频之上, 第一帧就对.
+    // waylandsink 的 layer 属性在本固件 toplevel 窗口上会 SIGSEGV, PLACE_ABOVE 又无效, 这条路是正解.
     openPlayer() {
       if (!this.detail) return
-      $falcon.navTo('player', { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title })
+      const self = this
+      const opts = { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title }
+      const go = function (url) {
+        if (url) {
+          try {
+            playerSvc.open(url)   // 先建视频面 (native 侧 fork gstplayerd)
+            opts.url = url
+            opts.warmed = '1'     // 告诉播放页: 流已经开了, 别再 open 一次 (再开=重建=层级又反过来)
+          } catch (e) {}
+        }
+        try { $falcon.navTo('player', opts) } catch (e) {}
+      }
+      if (this._warmUrl) { go(this._warmUrl); return }
+      // 现场取地址 (getJsonAsync 是异步的, 不卡页面); 取不到就交给播放页按老路自己取
+      getVideoDetail(this.bvid).then(function (d) {
+        const p = (d && d.pages && d.pages.length) ? d.pages[Math.min(self.currentPage, d.pages.length) - 1] : null
+        if (!p || !p.cid) { go(''); return }
+        return getPlayUrl(self.bvid, p.cid)
+      }).then(function (play) {
+        go(play && play.url ? play.url : '')
+      }).catch(function () { go('') })
     },
 
 

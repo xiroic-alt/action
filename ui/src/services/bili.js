@@ -1602,6 +1602,49 @@ export async function getFollowings(vmid, pn, ps) {
   return { list: list, total: Number(d.total) || 0 }
 }
 
+/**
+ * 按分组取关注列表 (x/relation/tag) —— 服务端筛选.
+ * 为什么必须用这个接口: x/relation/followings **不吃 tagid 参数**, 真机 A/B 实测
+ * 21 个分组逐个请求, 返回全是同一份 total=417 / 本页 20 条, 与不带 tagid 完全一样.
+ * 结果就是页面上「美食 7」点进去只有 2 个人 —— 因为客户端只能在**已加载的 20 条**里筛.
+ * tagid 约定: -20 所有 / -10 特别关注 / 0 默认分组 / 正整数 自定义分组.
+ * 注意: 这个接口的 data **直接是数组** (不是 {list,total}), 也没有 total 字段.
+ */
+export async function getTagFollowings(vmid, tagid, pn, ps) {
+  if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
+  const t = Number(tagid)
+  const url = 'https://api.bilibili.com/x/relation/tag?tagid=' + (isFinite(t) ? t : -20)
+    + '&pn=' + (Number(pn) || 1) + '&ps=' + (Number(ps) || 20)
+    + '&mid=' + encodeURIComponent(vmid)
+  const body = await getJsonAsync(url, 15)
+  if (body.code !== 0) {
+    if (body.code === -101) throw new Error('登录已过期, 请重新登录')
+    if (body.code === -352) throw new Error('接口风控, 稍后再试')
+    throw new Error(body.message || ('分组关注接口错误 code=' + body.code))
+  }
+  const arr = Array.isArray(body.data) ? body.data : ((body.data && body.data.list) || [])
+  const list = []
+  for (let i = 0; i < arr.length; i++) {
+    const u = arr[i] || {}
+    const face = dynHttps(u.face || '')
+    const tags = []
+    const ta = u.tag || []      // 该接口里 tag 常为 null
+    for (let j = 0; j < ta.length; j++) tags.push(Number(ta[j]) || 0)
+    const b = badgeOf({ official_verify: u.official_verify })
+    list.push({
+      mid: Number(u.mid) || 0,
+      name: String(u.uname || ''),
+      sign: String(u.sign || ''),
+      face: face ? thumb(face, 80, 80) : '',
+      officialType: b.officialType,
+      officialDesc: b.officialDesc,
+      special: Number(u.special || 0) === 1 || tags.indexOf(TAG_SPECIAL) >= 0,
+      tags: tags
+    })
+  }
+  return list
+}
+
 /** UP 空间动态 (x/polymer/web-dynamic/v1/feed/space; item 结构与动态流同构) */
 export async function getDynamicSpace(mid, offset, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')

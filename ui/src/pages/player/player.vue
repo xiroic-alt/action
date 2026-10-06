@@ -128,6 +128,7 @@ export default {
       started: false,      // 是否出过画面: 区分「未开播」与「暂停后重发 ready/buffering」
       titleText: '',
       rateText: '',        // 右上角画质/分辨率标签 (V 行分辨率)
+      warmed: false,       // 详情页已提前 open 过流 (视频面早于本页窗口创建 = 层级正确)
       statusText: '加载中…',
       barVisible: true,
       lastUserTouchAt: 0,  // 最近一次用户真实触摸 (保活注入避让用)
@@ -241,6 +242,7 @@ export default {
       this.pageNo = parseInt(options.page || '1', 10) || 1
       this.titleText = options.title || ''
       this.directUrl = options.url || ''
+      this.warmed = options.warmed === '1'
     },
 
     loadAndPlay: function () {
@@ -295,6 +297,29 @@ export default {
 
     openStream: function (url, gen) {
       if (gen !== this.generation) return
+      // 详情页已经 open 过 (warmed): 视频面比本页窗口更早创建, 层级天然正确.
+      // 这里若再 open 一次会重建 waylandsink surface, 窗口就反过来压在视频下面了.
+      if (this.warmed) {
+        this.started = false
+        this.statusText = ''
+        try { player.start() } catch (e) {}
+        this.opened = true
+        this.startPolling()
+        // 订阅是进页才挂的, opening/ready/play 那几个事件已经错过 -> 用时长/位置兜底判定
+        var self2 = this
+        setTimer(this, 700, function () {
+          if (!self2.opened) return
+          if (player.getDuration() > 0 || player.getPosition() > 0) {
+            self2.playing = true
+            self2.started = true
+            self2.statusText = ''
+            self2.showBar()
+            self2.startKeepAwake()
+            self2.scheduleHideBar()
+          }
+        })
+        return
+      }
       this.started = false   // 换源/重开: 过渡态重新允许显示「加载中」
       try {
         this.statusText = '缓冲中…'

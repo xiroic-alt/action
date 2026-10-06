@@ -92,7 +92,7 @@
 </template>
 
 <script>
-import { getMyInfo, getFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL, TAG_ALL, inTagGroup, badgeKind } from '../../services/bili.js'
+import { getMyInfo, getTagFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL, TAG_ALL, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -128,15 +128,12 @@ export default {
     }
   },
   computed: {
-    // 分组筛选走客户端过滤: 关注列表每一项都带 tags[] 与 special (接口实测字段),
-    // 所以「全部」以外不需要再发一次请求 —— 代价是每页 20 条, 翻页前只筛已加载部分.
-    // 判定口径统一在 bili.js 的 inTagGroup (全部=-999 / 特别关注=-10 / 默认分组=0 / 自定义=正整数)
+    // 分组筛选改成**服务端筛**: 切分组时重新请求 x/relation/tag?tagid=<分组>,
+    // 列表本身就是该分组的人, 不需要再在本地过滤.
+    // (旧实现是本地过滤已加载的 20 条 —— 所以「美食 7」点进去只有 2 个人: 服务端的 7 是全量,
+    //  而已加载的 20 条里恰好只有 2 个属于美食. 判定口径见 bili.js 的 getTagFollowings)
     shown() {
-      const out = []
-      for (let i = 0; i < this.items.length; i++) {
-        if (inTagGroup(this.items[i], this.tagFilter)) out.push(this.items[i])
-      }
-      return out
+      return this.items
     }
   },
   methods: {
@@ -170,8 +167,13 @@ export default {
     setFilter(id) {
       if (this.tagFilter === id) return
       this.tagFilter = id
-      const n = this.shown.length
-      try { log('关注页', '筛选分组 ' + id + ' -> ' + n + ' 人') } catch (e) {}
+      // 清空后按该分组重新拉: 服务端筛选, 第一页就是该分组的人
+      this.items = []
+      this.pn = 0
+      this.hasMore = true
+      this.loaded = false
+      try { log('关注页', '切分组 ' + id + ' (服务端筛选)') } catch (e) {}
+      this.load(true)
     },
     async load(reset) {
       if (this.loading) return
@@ -201,14 +203,18 @@ export default {
               }
             }
           }
-          const r = await getFollowings(self.me, pn, 20)
+          // 按当前分组向服务端要数据 (tagid=-20 = 所有), 见 getTagFollowings 注释
+          const tagParam = (self.tagFilter === TAG_ALL) ? -20 : self.tagFilter
+          const list = await getTagFollowings(self.me, tagParam, pn, 20)
           if (gen !== self.generation) return
           if (reset) self.items = []
-          for (let i = 0; i < r.list.length; i++) self.items.push(r.list[i])
-          self.total = r.total || 0
+          for (let i = 0; i < list.length; i++) self.items.push(list[i])
+          self.total = self.items.length
           self.pn = pn
-          self.hasMore = r.list.length >= 20
-          self.status = self.items.length === 0 ? '还没有关注任何人' : ''
+          self.hasMore = list.length >= 20
+          self.status = self.items.length === 0
+            ? (self.tagFilter === TAG_ALL ? '还没有关注任何人' : '这个分组里还没有人')
+            : ''
           self.loaded = true
           try { log('关注页', '加载 ' + self.items.length + ' 条 (total=' + self.total + ' pn=' + pn + ')') } catch (e4) {}
         } catch (err) {
