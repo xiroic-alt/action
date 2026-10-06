@@ -1,7 +1,4 @@
 <template>
-  <!-- vprobe: decide whether the Falcon built-in video element is usable.
-       Renders <video> (framework VideoElmApi) plus <hole>, then self-reports on screen
-       so a single screenshot answers every open question. -->
   <div class="page">
     <video ref="vv" class="vsurf" :src="src"
            @state="onState" @info="onInfo" @position="onPosition"
@@ -12,95 +9,94 @@
     <hole class="hole"></hole>
 
     <div class="hud">
-      <text class="l0">{{ head }}</text>
-      <text class="l1">{{ refLine }}</text>
-      <text class="l2">{{ apiLine }}</text>
-      <text class="l3">{{ callLine }}</text>
-      <text class="l4">{{ evtLine }}</text>
+      <text class="l0">{{ l0 }}</text>
+      <text class="l1">{{ l1 }}</text>
+      <text class="l2">{{ l2 }}</text>
+      <text class="l3">{{ l3 }}</text>
+      <text class="l4">{{ l4 }}</text>
+      <text class="l5">{{ l5 }}</text>
     </div>
   </div>
 </template>
 
 <script>
-// Probe goals, in order:
-//   Q1 does the tag survive the build (unknown tags may be dropped)?
-//   Q2 is the element ref bound at runtime, i.e. VideoElmApi instantiated?
-//   Q3 which proto methods actually exist on the instance?
-//   Q4 does play(ms) start the sink, and which events fire?
-const METHODS = ['play', 'pause', 'resume', 'stop', 'seekto', 'setSrc', 'setRate',
-                 'getRate', 'setAudioDeviceType', 'setVideoSurface']
-
+// vprobe v2: play() returned undefined and fired nothing, so drive the element
+// through a small matrix and report which call actually starts the sink.
+// Logging uses console.warn because only that level reaches the device log.
 export default {
   data () {
     return {
       src: '/userdata/test.mp4',
-      head: 'vprobe boot',
-      refLine: 'ref: -',
-      apiLine: 'api: -',
-      callLine: 'call: -',
-      evtLine: 'evt: -',
-      evt: []
+      l0: 'vprobe2 boot',
+      l1: 'ref: -',
+      l2: 'matrix: -',
+      l3: 'events: -',
+      l4: 'rate: -',
+      l5: 'state: -',
+      evt: [],
+      results: []
     }
   },
   methods: {
-    log (s) {
-      console.log('[vprobe] ' + s)
+    w (s) { console.warn('[vprobe2] ' + s) },
+    note (k, v) {
+      this.results.push(k + '=' + v)
+      this.l2 = 'matrix: ' + this.results.join(' ')
+      this.w(k + '=' + v)
     },
-    mark (s) {
-      if (this.evt.length < 4 && this.evt.indexOf(s) < 0) this.evt.push(s)
-      this.evtLine = 'evt: ' + (this.evt.length ? this.evt.join(',') : '-')
+    mark (name, e) {
+      if (this.evt.length < 6) this.evt.push(name)
+      this.l3 = 'events: ' + this.evt.join(',')
+      let raw = ''
+      try { raw = JSON.stringify(e) } catch (err) { raw = 'unserializable' }
+      this.w('EVT ' + name + ' ' + raw)
     },
-    onState (e) { this.log('state ' + JSON.stringify(e)); this.mark('state') },
-    onInfo (e) { this.log('info ' + JSON.stringify(e)); this.mark('info') },
-    onPosition (e) { this.log('position ' + JSON.stringify(e)); this.mark('position') },
-    onComplete (e) { this.log('complete ' + JSON.stringify(e)); this.mark('complete') },
-    onError (e) { this.log('error ' + JSON.stringify(e)); this.mark('error') },
-    onBuffer (e) { this.log('buffer ' + JSON.stringify(e)); this.mark('buffer') },
-    onRateFailed (e) { this.log('rateFailed ' + JSON.stringify(e)); this.mark('rateFailed') },
-    onResumed (e) { this.log('resumed ' + JSON.stringify(e)); this.mark('resumed') },
-    onAudioType (e) { this.log('audioType ' + JSON.stringify(e)); this.mark('audioType') },
+    onState (e) { this.mark('state', e) },
+    onInfo (e) { this.mark('info', e) },
+    onPosition (e) { this.mark('position', e) },
+    onComplete (e) { this.mark('complete', e) },
+    onError (e) { this.mark('error', e) },
+    onBuffer (e) { this.mark('buffer', e) },
+    onRateFailed (e) { this.mark('rateFailed', e) },
+    onResumed (e) { this.mark('resumed', e) },
+    onAudioType (e) { this.mark('audioType', e) },
+
+    safe (label, fn) {
+      try { return String(fn()) } catch (e) { return 'THREW:' + (e && e.message ? e.message : e) }
+    },
 
     probe () {
-      const args = this.$page && this.$page.loadOptions ? this.$page.loadOptions : {}
-      if (args && args.src) this.src = args.src
-      this.head = 'vprobe ' + this.src
-
-      // Q2: is the element ref bound? Undefined => tag was dropped or never instantiated.
       const v = this.$refs.vv
-      const kind = typeof v
-      this.refLine = 'ref: ' + (v ? 'OK(' + kind + ')' : 'MISSING')
-      this.log('ref=' + (v ? 'ok' : 'missing'))
+      this.l1 = 'ref: ' + (v ? 'OK' : 'MISSING')
+      this.w('ref=' + (v ? 'ok' : 'missing'))
       if (!v) return
 
-      // Q3: which proto methods exist.
-      const have = []
-      for (let i = 0; i < METHODS.length; i++) {
-        let t = 'x'
-        try { t = typeof v[METHODS[i]] } catch (e) { t = 'throw' }
-        if (t === 'function') have.push(METHODS[i])
-      }
-      this.apiLine = 'api: ' + (have.length ? have.join(',') : 'NONE')
-      this.log('api=' + have.join('|'))
+      this.l4 = 'rate: ' + this.safe('getRate', function () { return v.getRate() })
+      this.l5 = 'state: ' + this.safe('state', function () { return typeof v.state === 'undefined' ? 'undef' : v.state })
 
-      // Q4: drive it and see what comes back plus which events fire.
-      let r = null
-      try {
-        r = v.play(0)
-        this.callLine = 'play(0): ' + JSON.stringify(r)
-      } catch (e) {
-        this.callLine = 'play(0) THREW: ' + (e && e.message ? e.message : e)
-      }
-      this.log('play=' + this.callLine)
+      // Order matters: play() with no argument first, because play(0) may be
+      // rejected as a falsy position while a bare play() falls through.
+      this.note('noArg', this.safe('play()', function () { return v.play() }))
+      this.note('ms0', this.safe('play(0)', function () { return v.play(0) }))
+      this.note('ms1', this.safe('play(1)', function () { return v.play(1) }))
+    },
 
-      // Report the surface/binding helpers separately, they carry the layout meaning.
-      let sv = 'n/a'
-      try { sv = typeof v.setVideoSurface } catch (e) { sv = 'throw' }
-      this.log('setVideoSurface=' + sv)
+    lateRound () {
+      const v = this.$refs.vv
+      if (!v) return
+      // If the first round produced no event at all, retry after layout settles
+      // and force the source through the explicit setter instead of the attr.
+      if (this.evt.length === 0) {
+        this.note('setSrc', this.safe('setSrc', function () { return v.setSrc(this.src) }.bind(this)))
+        this.note('afterSrc', this.safe('play(1)', function () { return v.play(1) }))
+      }
+      this.l5 = 'state: ' + this.safe('state', function () { return typeof v.state === 'undefined' ? 'undef' : v.state })
     }
   },
   mounted () {
     const self = this
-    setTimeout(function () { self.probe() }, 300)
+    setTimeout(function () { self.probe() }, 600)
+    setTimeout(function () { self.lateRound() }, 2500)
   }
 }
 </script>
@@ -136,7 +132,8 @@ export default {
 }
 .l0 { font-size: 12px; color: #ffcc00; }
 .l1 { font-size: 12px; color: #66ff99; }
-.l2 { font-size: 11px; color: #99ccff; }
-.l3 { font-size: 11px; color: #ff9999; }
-.l4 { font-size: 11px; color: #ffffff; }
+.l2 { font-size: 11px; color: #ffcc66; }
+.l3 { font-size: 11px; color: #99ccff; }
+.l4 { font-size: 11px; color: #ff9999; }
+.l5 { font-size: 11px; color: #ffffff; }
 </style>
