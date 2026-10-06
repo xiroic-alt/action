@@ -40,20 +40,20 @@
         <div class="cbtn cbtn-mini cbtn-mini-last" @click="seekForward">
           <image class="cbtn-ic" :src="MI.fwd10"></image>
         </div>
-        <!-- 进度条: 自绘 + 拖动状态机 (对齐原厂 ProgressBar.vue: touchstart/move/end +
-             draging/isSeeking/dstPosition + 松手才 seek). 拖动期间进度条与时间跟手,
-             且不被 position 事件读数覆盖 —— 进度条回闪的根治做法. -->
-        <div class="seek" @touchstart="seekStart" @touchmove="seekMove" @touchend="seekEnd">
-          <div class="track">
-            <div class="fill" :style="fillStyle"></div>
-            <div class="thumb" :style="thumbStyle"></div>
-          </div>
-          <!-- 点击兜底: 本机合成触摸 (adb send_event) 只产生 click、不产生 touch 事件序列,
-               所以纯 touch 的进度条在自动化里点不动。叠一层透明分段, 每段一个 @click,
-               真实手指走上面的 touch 拖动, 两种输入都能用. -->
-          <div class="segs">
-            <div v-for="seg in segList" :key="seg" class="seg" @click="seekBySeg(seg)"></div>
-          </div>
+        <!-- 进度条: 原生 <seekbar> (JQuick::WXExternalSlider, 与 hole / video 同批注册的框架组件).
+             拖动、坐标->数值、手柄全部在原生 widget 里做, 我们只接两个事件:
+               changing  拖动过程中 (受 changingInterval 节流)
+               change    松手确认
+             负载形态 (libfalcon 反汇编实证):
+               fireEvent("change", { change: { lvalue:int, value:int, detail:{lvalue,value} } })
+             值域取 min=0 / max=时长(秒) / step=1, 于是 detail.value 直接就是秒.
+             手柄位置由 :value 绑定驱动: 平时跟播放位置, 拖动期间跟拖动目标 (不被 position 抢). -->
+        <div class="seek">
+          <seekbar class="sbar"
+                   min="0" :max="seekMax" step="1" :value="seekBarValue"
+                   backgroundColor="rgba(255,255,255,0.18)" activeColor="#fb7299"
+                   handleColor="#ffffff" trackSize="6" handleSize="14" borderRadius="3"
+                   @changing="onSeekChanging" @change="onSeekChange"></seekbar>
         </div>
         <text class="time">{{ curText }} / {{ durText }}</text>
       </div>
@@ -79,7 +79,6 @@ import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
 
-var SEG_COUNT = 24       // 进度条点击分段数
 var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中间用本地时钟插值)
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
 var SEEK_STEP_SEC = 10   // 快退/快进步长 (秒)
@@ -170,15 +169,9 @@ export default {
       seekHoldMs: null,
       seekHoldUntil: 0,
       // 进度条拖动 (对齐原厂 ProgressBar.vue 的 draging / isSeeking / dstPosition)
-      segList: (function () {
-        var a = []
-        for (var i = 0; i < SEG_COUNT; i++) a.push(i)
-        return a
-      })(),
       seekDragging: false,
       seekDstPct: -1,        // 拖动中的目标比例 0..1 (-1 = 未拖动)
       seekDstMs: 0,          // 拖动中的目标毫秒 (松手才 seek)
-      seekMoved: false,      // 本次触摸是否位移过 (决定算不算「点击」)
       autoStarted: false,    // 首播时补过一次 resume() (PAUSED 预滚 -> PLAYING)
       wantPlay: false,       // 「有意播」意图: 非用户操作导致的 PAUSED 要自愈回 PLAYING
       lastResumeAt: 0,       // 自愈 resume 的节流时间戳
@@ -199,16 +192,18 @@ export default {
       const t = String(this.titleText || '')
       try { return parseMessage(t, null, null) } catch (e) { return [{ t: 0, v: t }] }
     },
-    fillPct: function () {
-      if (this.seekDragging && this.seekDstPct >= 0) return this.seekDstPct * 100
-      if (!this.durMs) return 0
-      var pct = (this.curMs / this.durMs) * 100
-      if (pct < 0) return 0
-      if (pct > 100) return 100
-      return pct
+    // 原生 seekbar 的值域 = 秒 (min=0 / max=时长 / step=1)
+    seekMax: function () {
+      var s = Math.round(this.durMs / 1000)
+      return s > 0 ? s : 1
     },
-    fillStyle: function () { return { width: this.fillPct + '%' } },
-    thumbStyle: function () { return { left: this.fillPct + '%' } },
+    seekBarValue: function () {
+      var sec
+      if (this.seekDragging && this.seekDstMs > 0) sec = Math.round(this.seekDstMs / 1000)
+      else sec = Math.round(this.curMs / 1000)
+      if (!(sec >= 0)) sec = 0
+      return sec > this.seekMax ? this.seekMax : sec
+    },
     curText: function () {
       if (this.seekDragging && this.seekDstMs > 0) return fmtMs(this.seekDstMs)
       return fmtMs(this.curMs)
@@ -614,64 +609,56 @@ export default {
       this.applySeek((cur + deltaSec) * 1000)
     },
 
-    // ---------------- 进度条拖动 (学原厂 ProgressBar.vue) ----------------
-    // 触摸坐标即逻辑显示坐标 (0..960 / 0..266), 与 page.vue 的 txy 同一约定.
-    // .seek 用固定 left(256)/width(520) 绝对定位, 所以比例能直接算.
-    seekPt: function (e) {
-      try {
-        var t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0]) || e
-        if (t && typeof t.pageX === 'number') return { x: t.pageX, ok: true }
-      } catch (err) {}
-      return { x: 0, ok: false }
-    },
-    seekStart: function (e) {
-      if (!this.opened) return
-      var p = this.seekPt(e)
-      if (!p.ok) return
-      this.seekMoved = false
-      this._seekX0 = p.x
-      this.showBar()
-      this.seekToX(p.x)
-    },
-    seekMove: function (e) {
-      if (!this.opened) return
-      var p = this.seekPt(e)
-      if (!p.ok) return
-      if (!this.seekMoved && Math.abs(p.x - this._seekX0) > 6) this.seekMoved = true
-      if (!this.seekMoved) return
-      this.seekToX(p.x)
-    },
-    seekEnd: function (e) {
-      if (!this.opened) return
-      var p = this.seekPt(e)
-      if (p.ok) this.seekToX(p.x)
-      var dst = this.seekDstMs
-      this.seekDragging = false
-      this.seekDstPct = -1
-      this.seekMoved = false
-      if (dst > 0) this.applySeek(dst)
-      // 松手后短暂忽略 stage 的点击 (见 toggleBar)
-      this._suppressTapUntil = Date.now() + 300
-    },
-    // 分段点击 (兜底通道): segIndex 0..N-1 -> 跳到 (i+0.5)/SEG_COUNT 处
-    seekBySeg: function (segIndex) {
-      if (!this.opened) return
-      this.showBar()
-      var dur = this.durMs
-      if (dur <= 0) return
-      this.applySeek(Math.round(((segIndex + 0.5) / SEG_COUNT) * dur))
+    // ---------------- 进度条拖动 (原生 <seekbar>) ----------------
+    // 滑动量的解释权在原生 widget: 它把触摸位置按 min/max/step 换算成整数再抛给我们.
+    // 负载取值做防御式兼容 (固件版本可能只给 value, 也可能给 detail 子对象或裸数字).
+    evNum: function (e) {
+      if (typeof e === 'number') return e
+      if (!e || typeof e !== 'object') return NaN
+      var nested = []
+      var flat = []
+      for (var k in e) {
+        var v = e[k]
+        if (v && typeof v === 'object') {
+          if (typeof v.value === 'number') nested.push(v.value)
+          if (typeof v.lvalue === 'number') nested.push(v.lvalue)
+          if (v.detail) {
+            if (typeof v.detail.value === 'number') nested.push(v.detail.value)
+            if (typeof v.detail.lvalue === 'number') nested.push(v.detail.lvalue)
+          }
+        } else if (typeof v === 'number') {
+          flat.push(v)
+        }
+      }
+      var all = nested.concat(flat)
+      for (var i = 0; i < all.length; i++) if (isFinite(all[i]) && all[i] >= 0) return all[i]
+      return NaN
     },
 
-    // x -> 目标位置; min/max 夹在轨道内
-    seekToX: function (x) {
-      var dur = this.durMs
-      if (dur <= 0) return
-      var pct = (x - 256) / 520
-      if (pct < 0) pct = 0
-      if (pct > 1) pct = 1
-      this.seekDstPct = pct
-      this.seekDstMs = Math.round(pct * dur)
+    // 拖动中: 手柄跟手 + 时间预览; 不下发 seek, 也不回写位置
+    onSeekChanging: function (e) {
+      if (!this.opened) return
+      var sec = this.evNum(e)
+      if (!(sec >= 0)) return
       this.seekDragging = true
+      this.seekDstMs = sec * 1000
+      this.showBar()
+      try { console.warn('[player] seek changing sec=' + sec) } catch (er) {}
+    },
+
+    // 松手: 一次性下发 seekto (元素收秒)
+    onSeekChange: function (e) {
+      if (!this.opened) return
+      var sec = this.evNum(e)
+      this.seekDragging = false
+      this.seekDstPct = -1
+      this.showBar()
+      if (!(sec >= 0)) return
+      this.seekDstMs = sec * 1000
+      try { console.warn('[player] seek change sec=' + sec) } catch (er) {}
+      this.applySeek(sec * 1000)
+      // 松手后短暂忽略 stage 的点击 (见 toggleBar)
+      this._suppressTapUntil = Date.now() + 300
     },
 
     // 元素 seekto() 收秒 (官方播放器实证: seekto(this.position + 40))
@@ -835,7 +822,7 @@ export default {
   width: 26px;
   height: 26px;
 }
-/* 进度条绝对定位(左 256 / 宽 520): 拖动时坐标可直接算比例, 见 seekToX */
+/* 进度条: 绝对定位(左 256 / 宽 520), 原生 <seekbar> 铺满它 */
 .seek {
   position: absolute;
   left: 256px;
@@ -843,42 +830,11 @@ export default {
   width: 520px;
   height: 44px;
 }
-.track {
-  position: absolute;
-  left: 0px;
-  top: 19px;
-  width: 520px;
-  height: 6px;
-  border-radius: 3px;
-  background-color: rgba(255, 255, 255, 0.18);
-}
-.fill {
-  position: absolute;
-  left: 0px;
-  top: 0px;
-  height: 6px;
-  border-radius: 3px;
-  background-color: #fb7299;
-}
-.thumb {
-  position: absolute;
-  top: -4px;
-  width: 14px;
-  height: 14px;
-  margin-left: -7px;
-  border-radius: 7px;
-  background-color: #ffffff;
-}
-.segs {
+.sbar {
   position: absolute;
   left: 0px;
   top: 0px;
   width: 520px;
-  height: 44px;
-  flex-direction: row;
-}
-.seg {
-  width: 21.66px;
   height: 44px;
 }
 .time {
