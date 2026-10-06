@@ -67,6 +67,8 @@ import * as player from '../../services/player.js'
 import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
+import { getCfg } from '../../services/config.js'
+import { systemInfo } from 'systemInfo'
 import { log } from '../../services/log.js'
 
 var SEG_COUNT = 24       // 进度条点击分段数
@@ -382,6 +384,17 @@ export default {
       if (s.indexOf('play') >= 0) {
         this.playing = true
         this.started = true  // 已出过画面: 之后不再显示「加载中」过渡态
+        // 原厂的显示开关 (默认关, 见 config.js freezeScreenEnabled 注释):
+        // 起播后调一次 systemInfo.freezeScreen() —— 对应 WESTON_FREEZE_DISPLAY=/tmp/.weston_freeze
+        if (!this._froze && getCfg('freezeScreen') === true) {
+          this._froze = true
+          try {
+            systemInfo.freezeScreen()
+            log('播放器', '已调用 systemInfo.freezeScreen()')
+          } catch (e) {
+            try { log('播放器', 'freezeScreen 调用失败: ' + (e && e.message ? e.message : e)) } catch (e2) {}
+          }
+        }
         if (this.statusText !== '') this.statusText = ''
         this.startPolling()
         this.startKeepAwake()

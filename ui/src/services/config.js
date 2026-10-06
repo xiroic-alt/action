@@ -12,7 +12,7 @@ const BT_PATH = '/userdisk/xiro/btaudio_ms'
 
 // btaudioMs: 蓝牙音画延迟补偿 (毫秒). 画面超前 -> 加大; 声音超前 -> 减小/0
 // keepAwake: 播放期间是否每 6s 调 hal-screen on 防息屏
-const DEFAULTS = { btaudioMs: 200, keepAwake: true }
+const DEFAULTS = { btaudioMs: 200, keepAwake: true, freezeScreen: false }
 
 let cache = null
 
@@ -28,7 +28,7 @@ function clampMs(n) {
 
 export function loadConfig() {
   if (cache) return cache
-  cache = { btaudioMs: DEFAULTS.btaudioMs, keepAwake: DEFAULTS.keepAwake }
+  cache = { btaudioMs: DEFAULTS.btaudioMs, keepAwake: DEFAULTS.keepAwake, freezeScreen: DEFAULTS.freezeScreen }
   try {
     if (hasFs()) {
       const s = bilinet.readFile(CFG_PATH)
@@ -37,6 +37,7 @@ export function loadConfig() {
         if (o && typeof o === 'object') {
           if (o.btaudioMs !== undefined) cache.btaudioMs = clampMs(o.btaudioMs)
           if (typeof o.keepAwake === 'boolean') cache.keepAwake = o.keepAwake
+          if (typeof o.freezeScreen === 'boolean') cache.freezeScreen = o.freezeScreen
         }
       }
     }
@@ -66,6 +67,7 @@ export function setCfg(key, value) {
   const c = loadConfig()
   if (key === 'btaudioMs') c.btaudioMs = clampMs(value)
   else if (key === 'keepAwake') c.keepAwake = !!value
+  else if (key === 'freezeScreen') c.freezeScreen = !!value
   else c[key] = value
   saveConfig()
   log('设置', key + ' = ' + c[key])
@@ -73,7 +75,7 @@ export function setCfg(key, value) {
 }
 
 export function resetConfig() {
-  cache = { btaudioMs: DEFAULTS.btaudioMs, keepAwake: DEFAULTS.keepAwake }
+  cache = { btaudioMs: DEFAULTS.btaudioMs, keepAwake: DEFAULTS.keepAwake, freezeScreen: DEFAULTS.freezeScreen }
   saveConfig()
   return cache
 }
