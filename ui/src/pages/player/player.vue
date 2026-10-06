@@ -180,6 +180,8 @@ export default {
       seekDstMs: 0,          // 拖动中的目标毫秒 (松手才 seek)
       seekMoved: false,      // 本次触摸是否位移过 (决定算不算「点击」)
       autoStarted: false,    // 首播时补过一次 resume() (PAUSED 预滚 -> PLAYING)
+      wantPlay: false,       // 「有意播」意图: 非用户操作导致的 PAUSED 要自愈回 PLAYING
+      lastResumeAt: 0,       // 自愈 resume 的节流时间戳
       generation: 0,         // 异步世代: 换源/离开后过期回调不写界面
       pollTimer: null,
       hideTimer: null,
@@ -250,6 +252,7 @@ export default {
       this.stopKeepAwake()
       screenon.screenOnStop()
       this.cancelHideBar()
+      this.wantPlay = false
       if (this.opened && this.playing) {
         this.elem('pause')
         this.playing = false
@@ -282,6 +285,7 @@ export default {
     },
 
     stopStream: function () {
+      this.wantPlay = false
       if (this.opened) {
         this.elem('stop')
         this.opened = false
@@ -346,6 +350,7 @@ export default {
       var self = this
       this.started = false
       this.autoStarted = false
+      this.wantPlay = true
       this.posMs = 0
       this.posAt = Date.now()
       this.curMs = 0
@@ -371,7 +376,8 @@ export default {
     onEvtState: function (e) {
       if (!this.$page) return
       var s = e && typeof e.state !== 'undefined' ? e.state : -1
-      console.log('[player] state=' + s)
+      // console.warn: 本机只有这一级进设备日志 (projects 约定)
+      console.warn('[player] state=' + s + ' wantPlay=' + this.wantPlay)
       if (s === 4) {
         this.playing = true
         this.started = true
@@ -386,6 +392,14 @@ export default {
         // 首播时管线只预滚到 PAUSED, 补一次 resume 进 PLAYING (真机实证)
         if (!this.started && !this.autoStarted) {
           this.autoStarted = true
+          this.elem('resume')
+          return
+        }
+        // 起播后被按回 PAUSED (真机实测: 播放中会莫名回落到 PAUSED 并停住).
+        // 只要「有意播」就自愈, 1.5s 节流防风暴; 用户手动暂停时 wantPlay=false 不抢。
+        if (this.wantPlay && Date.now() - this.lastResumeAt > 1500) {
+          this.lastResumeAt = Date.now()
+          console.warn('[player] PAUSED while wanting play -> resume()')
           this.elem('resume')
         }
         return
@@ -572,10 +586,13 @@ export default {
       this.showBar()
       try {
         if (this.playing) {
+          this.wantPlay = false       // 用户主动暂停: 自愈逻辑不抢
           this.elem('pause')
           this.playing = false
           this.stopPolling()   // 立即停刷新, 保住当前进度
         } else {
+          this.wantPlay = true
+          this.lastResumeAt = Date.now()
           this.elem('resume')
           this.playing = true
           this.posAt = Date.now()
