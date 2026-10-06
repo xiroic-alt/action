@@ -980,9 +980,11 @@ export default {
   color: #ffffff;
   /* richtext 有约 28px 的内置左缩进 (文档写 padding-left 默认 0, 真机像素实测:
      同一卡片里 .title(richtext) 文字起点 x=233, .uphit(普通 div, 同样 margin-left:16)
-     文字起点 x=205 —— 差 28px). 用户反馈「UP 的名字与其他字不在同一列」就是这个.
-     补偿回去: 16 - 28 = -12, 标题与作者行/播放量行回到同一列. */
-  margin-left: -12px;
+     文字起点 x=205 —— 差 28px).
+     对齐方向: **标题保持原位不动** (它是卡片主文字), 把作者行/播放量行右移到标题的
+     文字起点 (16+28=44). 早先反过来把标题左移 28px 做补偿 -> 标题压到封面上,
+     用户反馈「推荐页和热门页标题/UP 名位置错乱」, 已回退. */
+  margin-left: 16px;
   margin-top: 8px;
   margin-right: 16px;
   /* 单行 + 省略号: 原来 lines:2 时 .meta 固定 112px 装不下, 播放量会被挤出卡片 */
@@ -995,7 +997,8 @@ export default {
 .uphit {
   height: 30px;
   justify-content: center;
-  margin-left: 16px;
+  /* 44 = 16 + 28: 对齐到 richtext 标题的真实文字起点 (见 .title 注释) */
+  margin-left: 44px;
   margin-top: 4px;
 }
 .up {
@@ -1124,7 +1127,7 @@ export default {
   margin-bottom: 12px;
 }
 /* ---------- 图标 (material, 见 tools/make-icons.mjs) ---------- */
-.statrow { flex-direction: row; align-items: center; margin-left: 16px; margin-top: 4px; margin-bottom: 8px; }
+.statrow { flex-direction: row; align-items: center; margin-left: 44px; margin-top: 4px; margin-bottom: 8px; }
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; margin-bottom: 0px; }
 .dynbar-ic { margin-left: 6px; }

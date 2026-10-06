@@ -413,8 +413,8 @@ export default {
 .title {
   font-size: 20px;
   color: #ffffff;
-  /* 同 index.vue: richtext 有约 28px 内置左缩进, 补偿后与 .statrow(普通 div) 同列 */
-  margin-left: -12px;
+  /* richtext 有约 28px 内置左缩进 (同 index.vue): 标题保持原位, 由 .statrow 右移到 44 对齐 */
+  margin-left: 16px;
   margin-top: 8px;
   margin-right: 12px;
   lines: 1; height: 32px;   /* 单行: 原 lines:2 配固定 112px 的 .meta, 播放量会被挤出卡片 */
@@ -436,7 +436,7 @@ export default {
 /* ---------- 图标 (material) ---------- */
 .back { flex-direction: row; }
 .back-ic { margin-right: 4px; }
-.statrow { flex-direction: row; align-items: center; margin-left: 16px; margin-top: 8px; }
+.statrow { flex-direction: row; align-items: center; margin-left: 44px; margin-top: 8px; }
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; }
 </style>
