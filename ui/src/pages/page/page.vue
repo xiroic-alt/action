@@ -329,7 +329,6 @@ import {
   getInteractState, isFavoured, cancelFav, parseMessage, likeReply,
   getRelation, modifyRelation, getRelationTags, setUserTags, addUserTag, TAG_SPECIAL
 } from '../../services/bili.js'
-import * as playerSvc from '../../services/player.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -730,24 +729,16 @@ export default {
       $falcon.navTo(this.nextPage || 'page2', { bvid: item.bvid, title: item.title })
     },
 
-    // 进播放页: **先把视频面的流开起来, 再 navTo** —— 顺序决定层级.
-    // 原理: Weston 的 weston_view_create 把新 view 插到链表末尾 = 最后绘制 = 最上层,
-    // 所以「谁后创建谁在上面」. 播放页窗口是 navTo 时新建的, 若等它建完再 open 流,
-    // 视频面(waylandsink)就在它之后创建 -> 视频永远压在 UI 上, 只能靠真实触摸抬升.
-    // 反过来先 open: 视频面先建, 播放页窗口后建 -> UI 天然盖在视频之上, 第一帧就对.
-    // waylandsink 的 layer 属性在本固件 toplevel 窗口上会 SIGSEGV, PLACE_ABOVE 又无效, 这条路是正解.
+    // 进播放页: 直接把取流地址带过去.
+    // 旧实现要在 navTo 之前 fork gstplayerd 抢创建顺序 (兄弟 xdg_toplevel 谁后建谁在上),
+    // 现在播放页用框架内置 <video>: waylandsink 会把自己做成宿主主 surface 的 subsurface
+    // 并 place_below 主面, 视频恒在 UI 之下 —— 创建顺序不再影响层级 (HANDOVER §27).
     openPlayer() {
       if (!this.detail) return
       const self = this
       const opts = { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title }
       const go = function (url) {
-        if (url) {
-          try {
-            playerSvc.open(url)   // 先建视频面 (native 侧 fork gstplayerd)
-            opts.url = url
-            opts.warmed = '1'     // 告诉播放页: 流已经开了, 别再 open 一次 (再开=重建=层级又反过来)
-          } catch (e) {}
-        }
+        if (url) opts.url = url
         try { $falcon.navTo('player', opts) } catch (e) {}
       }
       if (this._warmUrl) { go(this._warmUrl); return }

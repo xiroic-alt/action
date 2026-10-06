@@ -1,7 +1,17 @@
 <template>
-  <!-- Falcon UI and the external video surface are composed by Weston. -->
   <div class="page">
-    <hole class="hole"></hole>
+    <!-- 视频面: 框架内置 <video> (VideoElmApi) 把 waylandsink 做成宿主主 surface 的
+         subsurface, 并 place_below(wl_surface 主面) —— 视频恒在 UI 之下, 层级不需要
+         再靠创建顺序或窗口属性去抢. 协议级实证见 HANDOVER §27. -->
+    <video ref="vv" class="vsurf" :style="vrectStyle" :src="src"
+           @state="onEvtState" @info="onEvtInfo" @position="onEvtPosition"
+           @complete="onEvtComplete" @error="onEvtError"
+           @bufferPercent="onEvtBuffer" @setRateFailed="onEvtRateFailed"
+           @resumed="onEvtResumed" @audioDeviceTypeChanged="onEvtAudioType"></video>
+
+    <!-- 挖洞: greenui HoleView 用 CLEAR 混合模式把这块矩形清成透明
+         (libfalcon.so: JQuick::HoleView::draw 反汇编实证), UI 之下透出视频 -->
+    <hole class="hole" :style="vrectStyle"></hole>
 
     <div class="stage" @click="toggleBar" @touchstart="markUserTouch">
       <!-- 顶部悬浮栏 -->
@@ -32,7 +42,7 @@
         </div>
         <!-- 进度条: 自绘 + 拖动状态机 (对齐原厂 ProgressBar.vue: touchstart/move/end +
              draging/isSeeking/dstPosition + 松手才 seek). 拖动期间进度条与时间跟手,
-             且不被轮询读数覆盖 —— 进度条回闪的根治做法. -->
+             且不被 position 事件读数覆盖 —— 进度条回闪的根治做法. -->
         <div class="seek" @touchstart="seekStart" @touchmove="seekMove" @touchend="seekEnd">
           <div class="track">
             <div class="fill" :style="fillStyle"></div>
@@ -52,22 +62,27 @@
 </template>
 
 <script>
-// 播放页 v3
-// Video is composed by Weston; layer ordering requires compositor evidence.
-// - 视频几何: 设备侧按分辨率等比拟合屏幕 UI 带 (信箱式), 页面零几何.
-// - 生命周期: 首次 onShow 读 options -> 取流地址 -> open/start, 订阅原生状态
-//             onNewOptions 同页重开 -> 换源重播
-//             onHide 暂停 + 停轮询 / onUnload 单一 stop 路径
-import * as player from '../../services/player.js'
+// 播放页 v4 —— 迁到框架内置 <video> 元素 (VideoElmApi)
+//
+// 为什么换: 旧实现走自建 gstplayerd 进程 + 自建顶层窗口, 那是 miniapp 窗口的
+// 兄弟 xdg_toplevel, 层级只能靠 Weston 创建顺序抢, 所以"播放器压住 UI".
+// 框架内置元素走 gst_video_overlay_set_window_handle(jquick_get_wayland_main_surface()),
+// gst_wl 会建宿主主 surface 的 subsurface 并 place_below —— 视频天然在 UI 之下。
+//
+// 单位契约 (反编译官方播放器 index.js.bin 实证):
+//   position 事件 / info.duration  -> 秒
+//   play(sec) / seekto(sec)        -> 秒
+// 元素方法: play pause resume stop seekto setSrc setRate getRate
+//           setAudioDeviceType setVideoSurface
 import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
 
 var SEG_COUNT = 24       // 进度条点击分段数
-var POLL_MS = 500        // 进度轮询周期
+var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中间用本地时钟插值)
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
-var SEEK_STEP_MS = 10000 // 快退/快进步长
+var SEEK_STEP_SEC = 10   // 快退/快进步长 (秒)
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n }
 
@@ -110,6 +125,24 @@ const MI = {
   fwd10: require('../../assets/mi/forward10_28_w.png')
 }
 
+// UI 带几何 (logical 显示坐标)
+var BAND_W = 960
+var BAND_H = 266
+
+// 设备侧行为: 把视频按分辨率等比拟合进元素矩形, 居中 (信箱式, 不裁切)。
+// 已实证: 元素 960x222 + 854x480 源 -> subsurface 落在 (283,107) 394x222。
+// 这里反着算: 先按源宽高比算出一个贴合矩形, 让元素矩形 = 画面矩形,
+// 于是 <hole> 与画面严丝合缝, 不会露出洞外的空档。
+function fitRect(vw, vh) {
+  var w = Number(vw) || 0
+  var h = Number(vh) || 0
+  if (!(w > 0) || !(h > 0)) return { x: 243, y: 0, w: 474, h: BAND_H }  // 缺省 16:9
+  var s = Math.min(BAND_W / w, BAND_H / h)
+  var dw = Math.round(w * s)
+  var dh = Math.round(h * s)
+  return { x: Math.round((BAND_W - dw) / 2), y: Math.round((BAND_H - dh) / 2), w: dw, h: dh }
+}
+
 export default {
   name: 'player',
   data: function () {
@@ -117,19 +150,23 @@ export default {
       bvid: '',
       pageNo: 1,
       directUrl: '',       // 调试直链, 由 options.url 传入
+      src: '',
       inited: false,
       opened: false,
       playing: false,
-      started: false,      // 是否出过画面: 区分「未开播」与「暂停后重发 ready/buffering」
+      started: false,      // 是否出过画面: 区分「未开播」与「暂停后重发 READY/PAUSED」
       titleText: '',
-      rateText: '',        // 右上角画质/分辨率标签 (V 行分辨率)
-      warmed: false,       // Reuse the stream opened by the detail page.
+      rateText: '',        // 右上角画质标签 (V 行分辨率)
+      vrect: { x: 243, y: 0, w: 474, h: BAND_H },
       statusText: '加载中…',
       barVisible: true,
       lastUserTouchAt: 0,  // 最近一次用户真实触摸 (保活注入避让用)
       curMs: 0,
       durMs: 0,
-      // seek 锁定窗: 期间丢弃「旧位置」的轮询读数, 进度条不再闪回去
+      // 本地时钟插值: position 事件 ~1s 一次, 中间用 elapsed 补齐, 进度条才不跳
+      posMs: 0,
+      posAt: 0,
+      // seek 锁定窗: 期间丢弃「旧位置」的事件读数, 进度条不再闪回去
       seekHoldMs: null,
       seekHoldUntil: 0,
       // 进度条拖动 (对齐原厂 ProgressBar.vue 的 draging / isSeeking / dstPosition)
@@ -142,14 +179,19 @@ export default {
       seekDstPct: -1,        // 拖动中的目标比例 0..1 (-1 = 未拖动)
       seekDstMs: 0,          // 拖动中的目标毫秒 (松手才 seek)
       seekMoved: false,      // 本次触摸是否位移过 (决定算不算「点击」)
-      generation: 0,       // 异步世代: 换源/离开后过期回调不写界面
+      autoStarted: false,    // 首播时补过一次 resume() (PAUSED 预滚 -> PLAYING)
+      generation: 0,         // 异步世代: 换源/离开后过期回调不写界面
       pollTimer: null,
       hideTimer: null,
-      keepTimer: null      // 防息屏注入定时器 (播放中每 6s 一次)
+      keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
   },
   computed: {
     MI() { return MI },
+    vrectStyle() {
+      var r = this.vrect
+      return { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' }
+    },
     // 标题分段: emoji -> 图片 (设备字体没有 emoji 字形, 直接 text 会整片空白)
     titleSegs() {
       const t = String(this.titleText || '')
@@ -194,13 +236,11 @@ export default {
       this.generation++
       this.stopPolling()
       this.cancelHideBar()
-      if (this.opened) {
-        try { player.close() } catch (e) {}
-        this.opened = false
-      }
+      this.stopStream()
       this.playing = false
       this.curMs = 0
       this.durMs = 0
+      this.posMs = 0
       this.applyOptions(options || {})
       this.loadAndPlay()
     },
@@ -211,7 +251,7 @@ export default {
       screenon.screenOnStop()
       this.cancelHideBar()
       if (this.opened && this.playing) {
-        try { player.pause() } catch (e) {}
+        this.elem('pause')
         this.playing = false
       }
       this.showBar()
@@ -223,12 +263,29 @@ export default {
       this.stopKeepAwake()
       screenon.screenOnStop()
       this.cancelHideBar()
-      try { player.offState(this.onNativeState) } catch (e) {}
+      this.stopStream()
+      this.playing = false
+    },
+
+    // 元素方法安全调用: 元素没挂上/固件不支持时静默降级
+    elem: function (name) {
+      var v = this.$refs.vv
+      if (!v) return undefined
+      var fn = v[name]
+      if (typeof fn !== 'function') return undefined
+      try {
+        return fn.apply(v, Array.prototype.slice.call(arguments, 1))
+      } catch (e) {
+        console.log('[player] elem ' + name + ' error: ' + (e && e.message ? e.message : e))
+        return undefined
+      }
+    },
+
+    stopStream: function () {
       if (this.opened) {
-        try { player.close() } catch (e) {}
+        this.elem('stop')
         this.opened = false
       }
-      this.playing = false
     },
 
     // ---------------- 打开与换源 ----------------
@@ -237,31 +294,24 @@ export default {
       this.pageNo = parseInt(options.page || '1', 10) || 1
       this.titleText = options.title || ''
       this.directUrl = options.url || ''
-      this.warmed = options.warmed === '1'
     },
 
     loadAndPlay: function () {
       var gen = ++this.generation
-      if (!player.isSupported()) {
-        this.statusText = '当前固件不支持视频播放 (缺少 gstplayer 模块)'
-        return
-      }
-      player.onState(this.onNativeState)
       this.inited = true
-
       // 先让首帧画出「加载中…」再取流地址: bilinet.httpGet 同步阻塞 JS 线程,
       // 不延迟的话网络差时加载态画不出来, 表现为上一页面冻结 (卡死)
       var self = this
       afterPaint(function () { self.fetchAndOpen(gen) })
     },
 
-    // 网络取流 (首帧绘制后执行): 取详情/播放地址 -> 打开流
+    // 网络取流 (首帧绘制后执行): 取详情/播放地址 -> 起播
     fetchAndOpen: function (gen) {
       if (gen !== this.generation || !this.$page) return
       var self = this
       if (this.directUrl !== '') {
         this.statusText = '缓冲中…'
-        this.openStream(this.directUrl, gen)
+        this.playStream(this.directUrl, gen)
         return
       }
       if (!this.bvid) {
@@ -281,7 +331,7 @@ export default {
       }).then(function (play) {
         if (gen !== self.generation || !play) return
         if (play.duration > 0) self.durMs = play.duration
-        self.openStream(play.url, gen)
+        self.playStream(play.url, gen)
       }).catch(function (err) {
         if (gen !== self.generation) return
         self.statusText = err && err.message ? err.message : String(err)
@@ -290,104 +340,125 @@ export default {
       })
     },
 
-    openStream: function (url, gen) {
+    playStream: function (url, gen) {
       if (gen !== this.generation) return
-      // Reuse the existing stream without recreating the native process.
-      if (this.warmed) {
-        this.started = false
-        this.statusText = ''
-        try { player.start() } catch (e) {}
-        this.opened = true
-        this.startPolling()
-        // 订阅是进页才挂的, opening/ready/play 那几个事件已经错过 -> 用时长/位置兜底判定
-        var self2 = this
-        setTimer(this, 700, function () {
-          if (!self2.opened) return
-          if (player.getDuration() > 0 || player.getPosition() > 0) {
-            self2.playing = true
-            self2.started = true
-            self2.statusText = ''
-            self2.showBar()
-            self2.startKeepAwake()
-            self2.scheduleHideBar()
-          }
-        })
-        return
-      }
-      this.started = false   // 换源/重开: 过渡态重新允许显示「加载中」
-      try {
-        this.statusText = '缓冲中…'
-        player.open(url)
-      } catch (e) {
-        this.statusText = '打开失败: ' + (e && e.message ? e.message : String(e))
-        this.showBar()
-        return
-      }
-      // open 可能同步派发错误状态 (此时 onNativeState 已置错误提示);
-      // playing/控制条自动隐藏一律由原生 play 状态驱动, 不在此乐观置位.
-      if (this.statusText.indexOf('播放错误') === 0) return
-      this.opened = true
-      player.start()
-      this.startPolling()
+      var self = this
+      this.started = false
+      this.autoStarted = false
+      this.posMs = 0
+      this.posAt = Date.now()
+      this.curMs = 0
+      this.statusText = '缓冲中…'
+      this.src = url
+      // src 绑定到元素属性后, 元素要等下一次属性 diff 才建管线; 稍后再 play(0) 起播
+      setTimer(this, 300, function () {
+        if (gen !== self.generation || !self.$page) return
+        var r = self.elem('play', 0)
+        if (r === undefined && !self.$refs.vv) {
+          self.statusText = '当前固件不支持内置 video 元素'
+          self.showBar()
+          return
+        }
+        console.log('[player] play(0) -> ' + r)
+        self.opened = true
+        self.startPolling()
+      })
     },
 
-    // ---------------- 原生状态回调 ----------------
-    onNativeState: function (state) {
+    // ---------------- 元素事件 ----------------
+    // GstState: 1 NULL / 2 READY / 3 PAUSED / 4 PLAYING
+    onEvtState: function (e) {
       if (!this.$page) return
-      var s = String(state || '').toLowerCase()
-      console.log('[player] stateChanged: ' + s)
-      if (s.indexOf('error') === 0) {
-        this.statusText = '播放错误: ' + state
-        this.playing = false
-        this.stopPolling()
-        this.stopKeepAwake()
-        this.showBar()
-        return
-      }
-      if (s.indexOf('eos') >= 0 || s.indexOf('ended') >= 0) {
-        this.statusText = '播放结束'
-        this.playing = false
-        this.stopPolling()
-        this.stopKeepAwake()
-        this.showBar()
-        return
-      }
-      // V <w> <h>: 分辨率行 (右上角标签)
-      if (s.charAt(0) === 'v' && s.indexOf('video') !== 0) {
-        var parts = String(state).split(' ')
-        if (parts.length >= 3) {
-          var h = parseInt(parts[2], 10)
-          if (h >= 1440) this.rateText = '4K'
-          else if (h >= 1000) this.rateText = '1080P'
-          else if (h >= 700) this.rateText = '720P'
-          else if (h >= 400) this.rateText = '480P'
-          else if (h > 0) this.rateText = '360P'
-        }
-        return
-      }
-      // 注意: 'pause' 包含子串 'play', 必须先判 pause 再判 play
-      if (s.indexOf('pause') >= 0) {
-        this.playing = false
-        this.stopPolling()   // 暂停后 getPosition 可能返回 0, 轮询会把进度打回 0:00
-        this.stopKeepAwake() // 暂停时不注入输入事件, 不干扰用户点按
-        this.showBar()
-        return
-      }
-      if (s.indexOf('play') >= 0) {
+      var s = e && typeof e.state !== 'undefined' ? e.state : -1
+      console.log('[player] state=' + s)
+      if (s === 4) {
         this.playing = true
-        this.started = true  // 已出过画面: 之后不再显示「加载中」过渡态
-        if (this.statusText !== '') this.statusText = ''
+        this.started = true
+        if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
+        this.posAt = Date.now()
         this.startPolling()
         this.startKeepAwake()
         this.scheduleHideBar()
         return
       }
-      // ready/buffering 过渡态只在「从未播过」时显示;
-      // 暂停后 native 常重发 ready/buffering, 用 started 区分.
-      if (s === 'ready' || s === 'buffering' || s === 'loading') {
-        if (!this.started) this.statusText = '加载中…'
+      if (s === 3) {
+        // 首播时管线只预滚到 PAUSED, 补一次 resume 进 PLAYING (真机实证)
+        if (!this.started && !this.autoStarted) {
+          this.autoStarted = true
+          this.elem('resume')
+        }
+        return
+      }
+      if (s <= 1) {
+        this.playing = false
+        this.stopPolling()
+        this.showBar()
       }
     },
+
+    onEvtInfo: function (e) {
+      if (!e) return
+      var d = Number(e.duration)
+      if (d > 0) this.durMs = d * 1000
+      var h = Number(e.video_height)
+      if (h >= 1440) this.rateText = '4K'
+      else if (h >= 1000) this.rateText = '1080P'
+      else if (h >= 700) this.rateText = '720P'
+      else if (h >= 400) this.rateText = '480P'
+      else if (h > 0) this.rateText = '360P'
+      var r = fitRect(e.video_width, e.video_height)
+      if (r.w !== this.vrect.w || r.h !== this.vrect.h) {
+        this.vrect = r
+        console.log('[player] vrect ' + r.x + ',' + r.y + ' ' + r.w + 'x' + r.h)
+      }
+    },
+
+    onEvtPosition: function (e) {
+      if (!e) return
+      var sec = Number(e.position)
+      if (!(sec >= 0)) return
+      var ms = Math.round(sec * 1000)
+      this.posMs = ms
+      this.posAt = Date.now()
+      // seek 后元素还会吐 1~2 次旧位置, 直接采用会让进度条闪回去再闪过来
+      if (this.seekHoldMs !== null && this.seekHoldMs !== undefined) {
+        if (Date.now() > this.seekHoldUntil || Math.abs(ms - this.seekHoldMs) <= 1500) {
+          this.seekHoldMs = null
+        } else {
+          this.seekDropN = (this.seekDropN || 0) + 1
+          return
+        }
+      }
+      this.curMs = ms
+    },
+
+    onEvtComplete: function () {
+      this.statusText = '播放结束'
+      this.playing = false
+      this.stopPolling()
+      this.stopKeepAwake()
+      this.showBar()
+    },
+
+    onEvtError: function (e) {
+      var t = ''
+      try { t = JSON.stringify(e) } catch (err) { t = String(e) }
+      console.log('[player] error ' + t)
+      this.statusText = '播放错误: ' + t
+      this.playing = false
+      this.stopPolling()
+      this.stopKeepAwake()
+      this.showBar()
+    },
+
+    onEvtBuffer: function (e) {
+      var p = e && typeof e.bufferPercent !== 'undefined' ? e.bufferPercent : -1
+      if (p >= 0 && p < 100 && !this.started) this.statusText = '缓冲中 ' + p + '%'
+    },
+
+    onEvtRateFailed: function (e) { console.log('[player] setRateFailed ' + JSON.stringify(e || {})) },
+    onEvtResumed: function () {},
+    onEvtAudioType: function () {},
 
     // ---------------- 防息屏 ----------------
     // 用户真实触摸 (拖进度条/点按钮) —— 保活注入要避让, 别打断操作
@@ -403,11 +474,11 @@ export default {
       if (this._keepBusy) return
       this._keepBusy = true
       var wasVisible = this.barVisible
-      var p = player.screenOnAsync()
+      var p = screenon.screenOnAsync()
       if (p && typeof p.then === 'function') {
         p.then(function () { self._keepBusy = false }, function () { self._keepBusy = false })
       } else {
-        player.screenOn()          // 旧 .so: 退回同步 (有风险但至少能用)
+        screenon.screenOnSync()    // 旧 .so: 退回同步 (有风险但至少能用)
         this._keepBusy = false
       }
       // 兜底解锁: 8s 内没回调也要放行, 否则以后再也不保活
@@ -420,7 +491,7 @@ export default {
     startKeepAwake: function () {
       if (this.keepTimer != null) return
       // 设置页可关闭防息屏 (services/config.js)
-      if (typeof player.keepAwakeEnabled === 'function' && !player.keepAwakeEnabled()) {
+      if (!screenon.keepAwakeEnabled()) {
         try { log('播放器', '防息屏: 设置里已关闭, 跳过保活') } catch (e) {}
         return
       }
@@ -444,27 +515,19 @@ export default {
       this.keepTimer = null
     },
 
-    // ---------------- 进度轮询 ----------------
+    // ---------------- 进度刷新 ----------------
+    // position 事件 ~1s 一次; 中间用本地时钟插值, 进度条/时间才连续
     startPolling: function () {
       if (this.pollTimer != null || !this.opened) return
       var self = this
-      this.pollTimer = setTicker(this, POLL_MS, function () {
+      this.pollTimer = setTicker(this, TICK_MS, function () {
         if (!self.opened) return
-        var dur = player.getDuration()
-        if (dur > 0) self.durMs = dur
-        var pos = player.getPosition()
-        // seek 后 native 还会吐 1~2 次旧位置, 直接采用会让进度条闪回去再闪过来
-        if (self.seekHoldMs !== null && self.seekHoldMs !== undefined) {
-          if (Date.now() > self.seekHoldUntil || Math.abs(pos - self.seekHoldMs) <= 800) {
-            self.seekHoldMs = null          // 已追上目标(或锁定窗超时) -> 交回轮询
-            try { log('播放器', 'seek 锁定解除, 丢弃 ' + (self.seekDropN || 0) + ' 次旧位置读数') } catch (e1) {}
-            self.seekDropN = 0
-          } else {
-            self.seekDropN = (self.seekDropN || 0) + 1
-            return                          // 锁定窗内: 丢弃旧读数, 保持显示的目标位置
-          }
-        }
-        self.curMs = pos
+        if (self.seekDragging) return
+        if (self.seekHoldMs !== null && self.seekHoldMs !== undefined) return
+        if (!self.playing) return
+        var ms = self.posMs + (Date.now() - self.posAt)
+        if (self.durMs > 0 && ms > self.durMs) ms = self.durMs
+        self.curMs = ms
       })
     },
     stopPolling: function () {
@@ -508,12 +571,13 @@ export default {
       this.showBar()
       try {
         if (this.playing) {
-          player.pause()
+          this.elem('pause')
           this.playing = false
-          this.stopPolling()   // 立即停轮询, 保住当前进度
+          this.stopPolling()   // 立即停刷新, 保住当前进度
         } else {
-          player.resume()
+          this.elem('resume')
           this.playing = true
+          this.posAt = Date.now()
           if (this.statusText === '播放结束') this.statusText = ''
           this.startPolling()
           this.scheduleHideBar()
@@ -523,12 +587,13 @@ export default {
       }
     },
 
-    seekBack: function () { this.seekBy(-SEEK_STEP_MS) },
-    seekForward: function () { this.seekBy(SEEK_STEP_MS) },
-    seekBy: function (deltaMs) {
+    seekBack: function () { this.seekBy(-SEEK_STEP_SEC) },
+    seekForward: function () { this.seekBy(SEEK_STEP_SEC) },
+    seekBy: function (deltaSec) {
       if (!this.opened) return
       this.showBar()
-      this.applySeek(player.getPosition() + deltaMs)
+      var cur = Math.round((this.posMs + (this.playing ? Date.now() - this.posAt : 0)) / 1000)
+      this.applySeek((cur + deltaSec) * 1000)
     },
 
     // ---------------- 进度条拖动 (学原厂 ProgressBar.vue) ----------------
@@ -574,14 +639,14 @@ export default {
     seekBySeg: function (segIndex) {
       if (!this.opened) return
       this.showBar()
-      var dur = this.durMs || player.getDuration()
+      var dur = this.durMs
       if (dur <= 0) return
       this.applySeek(Math.round(((segIndex + 0.5) / SEG_COUNT) * dur))
     },
 
     // x -> 目标位置; min/max 夹在轨道内
     seekToX: function (x) {
-      var dur = this.durMs || player.getDuration()
+      var dur = this.durMs
       if (dur <= 0) return
       var pct = (x - 256) / 520
       if (pct < 0) pct = 0
@@ -591,15 +656,18 @@ export default {
       this.seekDragging = true
     },
 
+    // 元素 seekto() 收秒 (官方播放器实证: seekto(this.position + 40))
     applySeek: function (targetMs) {
-      var dur = this.durMs || player.getDuration()
+      var dur = this.durMs
       var t = targetMs
       if (dur > 0 && t > dur - 500) t = dur - 500
       if (t < 0) t = 0
       try {
-        player.seek(t)
+        this.elem('seekto', Math.round(t / 1000))
         this.curMs = t
-        // 锁定窗 1.6s: 期间只认「已追上目标(±800ms)」的读数 (进度条回闪修复)
+        this.posMs = t
+        this.posAt = Date.now()
+        // 锁定窗 1.6s: 期间只认「已追上目标(±1.5s)」的读数 (进度条回闪修复)
         this.seekHoldMs = t
         this.seekHoldUntil = Date.now() + 1600
         this.seekDropN = 0
@@ -627,12 +695,21 @@ export default {
   height: 266px;
   background-color: #000000;
 }
-/* 全带挖透: 视频由 native 等比拟合 UI 带 (信箱居中, 不裁切), UI 之下透出 */
+/* 视频面: 元素矩形 = 画面矩形 (vrect 由 info 事件的宽高比算出),
+   设备侧把 waylandsink 的 subsurface 落在这个矩形上, 并 place_below 主 surface */
+.vsurf {
+  position: absolute;
+  left: 243px;
+  top: 0px;
+  width: 474px;
+  height: 266px;
+}
+/* 挖洞: 与画面矩形严丝合缝, 该区域在 UI 面被清成透明, 视频从下面透出 */
 .hole {
   position: absolute;
-  left: 0px;
+  left: 243px;
   top: 0px;
-  width: 960px;
+  width: 474px;
   height: 266px;
 }
 .stage {

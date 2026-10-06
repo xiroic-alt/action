@@ -12,7 +12,9 @@
 // 导入: 命名空间导入 (不会因导出名不符而链接失败); ES 模块未注册时整个模块图
 // 失败, 故本文件只被 player.vue 引用 (失败只影响播放页, 不影响首页其它页面).
 import * as brightnessMod from 'brightness'
+import { bilinet } from 'bilinet'
 import { log as appLog } from './log.js'
+import { getCfg } from './config.js'
 
 function diag(msg) { try { appLog('screenon', msg) } catch (e) {} }
 
@@ -102,4 +104,38 @@ export function screenOnStop() {
 /** 是否具备 JSAPI 防息屏能力 */
 export function screenOnAvailable() {
   return !!probe()
+}
+
+// ---------------- hal-screen 兜底 (从 services/player.js 收编) ----------------
+// JSAPI 三件套不可用时, 用系统 hal-screen on 点亮/保活。它内部会注入一次触摸
+// 激活面板, 所以调用方要还原控制条显隐状态。
+// 异步版: hal-screen on 偶发长时间不返回, 同步 exec 会把 QuickJS 主线程冻死
+// (真机实测: 画面停帧 + 全部点击失效). 优先走 execAsync (原生工作线程执行),
+// 旧 .so 没有该方法时返回 null 由调用方退化。
+
+/** 是否启用播放防息屏 (设置页可关) */
+export function keepAwakeEnabled() {
+  try { return getCfg('keepAwake') !== false } catch (e) { return true }
+}
+
+/** 异步点亮: 成功返回 Promise, 不可用返回 null */
+export function screenOnAsync() {
+  try {
+    if (bilinet && typeof bilinet.execAsync === 'function') return bilinet.execAsync('hal-screen on')
+  } catch (e) {
+    return null
+  }
+  return null
+}
+
+/** 同步点亮 (兜底路径) */
+export function screenOnSync() {
+  if (!bilinet || typeof bilinet.exec !== 'function') return false
+  try {
+    bilinet.exec('hal-screen on')
+    return true
+  } catch (e) {
+    console.log('[screenon] hal-screen on failed: ' + (e && e.message ? e.message : e))
+    return false
+  }
 }
