@@ -997,13 +997,17 @@ export default {
 .uphit {
   height: 30px;
   justify-content: center;
-  /* 44 = 16 + 28: 对齐到 richtext 标题的真实文字起点 (见 .title 注释) */
-  margin-left: 44px;
+  /* 同 .up: 28px 对齐到 richtext 标题的文字起点 (动态 tab 的卡片用这个包裹层) */
+  margin-left: 28px;
   margin-top: 4px;
 }
 .up {
   font-size: 20px;
   color: #fb7299;
+  /* 与标题同列: .meta 起点 x=205 是作者行的天然位置, 而 richtext 标题的文字起点
+     实测在 x=233 (16px margin + richtext 约 12px 内置内缩), 所以作者行右移 28px.
+     (推荐/热门 tab 的作者名是裸 <text class="up">, 不经过 .uphit —— 早先改错类了.) */
+  margin-left: 28px;
 }
 .stat {
   font-size: 20px;
@@ -1127,7 +1131,7 @@ export default {
   margin-bottom: 12px;
 }
 /* ---------- 图标 (material, 见 tools/make-icons.mjs) ---------- */
-.statrow { flex-direction: row; align-items: center; margin-left: 44px; margin-top: 4px; margin-bottom: 8px; }
+.statrow { flex-direction: row; align-items: center; margin-left: 28px; margin-top: 4px; margin-bottom: 8px; }
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; margin-bottom: 0px; }
 .dynbar-ic { margin-left: 6px; }

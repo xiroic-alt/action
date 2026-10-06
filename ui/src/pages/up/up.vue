@@ -436,7 +436,7 @@ export default {
 /* ---------- 图标 (material) ---------- */
 .back { flex-direction: row; }
 .back-ic { margin-right: 4px; }
-.statrow { flex-direction: row; align-items: center; margin-left: 44px; margin-top: 8px; }
+.statrow { flex-direction: row; align-items: center; margin-left: 28px; margin-top: 8px; }
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; }
 </style>
