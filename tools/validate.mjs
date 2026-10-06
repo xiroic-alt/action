@@ -44,6 +44,20 @@ for (const p of files) {
     const re2 = new RegExp('(^|[\\s,{])' + fn + '\\s*:', 'm')
     if (!re1.test(src) && !re2.test(src)) fail(rel + ' 事件处理函数未定义: ' + fn)
   }
+  // <text> 里嵌 <span>/<image> 等子元素: 本机只有 <richtext> 支持内联子节点.
+  // 写错的后果不是"样式不对", 而是**整个应用进程被干掉** (0.9.62 lines 页实测:
+  // miniapp_cli start 后 start failed, App 从 memoryApp 里消失).
+  {
+    const reText = /<text\b[^>]*>([\s\S]*?)<\/text>/g
+    let tm
+    while ((tm = reText.exec(tpl)) !== null) {
+      if (/<(span|image|richtext)\b/.test(tm[1])) {
+        fail(rel + ' <text> 里嵌了内联子元素 (只有 <richtext> 支持): ' + tm[1].slice(0, 40))
+        break
+      }
+    }
+  }
+
   // 模板里裸调"import 进来的函数"会在渲染期炸整页 (0.9.62 settings 页 Elm=0 的真因):
   // Vue 模板只能访问**实例上的**属性 —— 方法/计算属性/data. 这里把每个模板调用名
   // 拿出来, 如果它在 import 列表里出现, 就判失败.

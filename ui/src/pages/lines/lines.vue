@@ -23,7 +23,7 @@
       </div>
       <text class="note" :style="T.t.weak">{{ sourceDesc }}</text>
 
-      <text class="sec" :style="T.t.label">CDN 节点<span :style="T.t.weak" class="secsub"> (换 host 不换签名; 测速拉 512KB 实测)</span></text>
+      <text class="sec" :style="T.t.label">CDN 节点 · 换 host 不换签名, 测速实拉 512KB</text>
       <div v-for="n in nodes" :key="n[0]" class="row" :style="isCur(n) ? T.accentChip : T.cardR" @click="pickNode(n)">
         <image class="ric" :src="isCur(n) ? MIc.optOn : MIc.optOff" :style="{ width: '20px', height: '20px' }"></image>
         <div class="rmain">
@@ -231,7 +231,6 @@ export default {
 .hint { margin-right: 12px; }
 .list { width: 100%; flex: 1; flex-direction: column; }
 .sec { margin-left: 20px; margin-top: 10px; margin-bottom: 6px; }
-.secsub { }
 .chips { flex-direction: row; margin-left: 20px; }
 .chip { padding-left: 14px; padding-right: 14px; padding-top: 5px; padding-bottom: 5px; margin-right: 8px; }
 .chipt { }
