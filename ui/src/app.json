@@ -27,7 +27,7 @@
     "follow": "pages/follow/follow.vue"
   },
   "options": {
-    "external": ["bilinet", "gstplayer", "brightness", "systemInfo"],
+    "external": ["bilinet", "gstplayer", "brightness"],
     "style": {
       "lessPaths": ["styles"]
     }

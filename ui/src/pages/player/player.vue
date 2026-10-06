@@ -1,8 +1,5 @@
 <template>
-  <!-- 播放页 v3：UI 从第一帧就叠在播放器合成画面之上。
-       层级由 native 侧保证 —— gstplayerd 在 window 建好后把 waylandsink 的
-       layer 设为 bottom(2)，视频面钉在 Weston 层序最底，<hole> 挖洞透出画面。
-       页面侧不再有任何「踢一脚」逻辑（合成输入不进 Weston，那条路已实测无解）。 -->
+  <!-- Falcon UI and the external video surface are composed by Weston. -->
   <div class="page">
     <hole class="hole"></hole>
 
@@ -56,9 +53,7 @@
 
 <script>
 // 播放页 v3
-// - 视频由 gstplayerd 原生进程播放 (waylandsink 进 Weston 合成);
-//   native 侧在 window 建好后把 layer 设为 bottom, 视频面恒在 UI 之下,
-//   本页全屏 <hole> 透出视频, 控制条悬浮在视频之上 —— 第一帧即正确.
+// Video is composed by Weston; layer ordering requires compositor evidence.
 // - 视频几何: 设备侧按分辨率等比拟合屏幕 UI 带 (信箱式), 页面零几何.
 // - 生命周期: 首次 onShow 读 options -> 取流地址 -> open/start, 订阅原生状态
 //             onNewOptions 同页重开 -> 换源重播
@@ -67,8 +62,6 @@ import * as player from '../../services/player.js'
 import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
-import { getCfg } from '../../services/config.js'
-import { systemInfo } from 'systemInfo'
 import { log } from '../../services/log.js'
 
 var SEG_COUNT = 24       // 进度条点击分段数
@@ -130,7 +123,7 @@ export default {
       started: false,      // 是否出过画面: 区分「未开播」与「暂停后重发 ready/buffering」
       titleText: '',
       rateText: '',        // 右上角画质/分辨率标签 (V 行分辨率)
-      warmed: false,       // 详情页已提前 open 过流 (视频面早于本页窗口创建 = 层级正确)
+      warmed: false,       // Reuse the stream opened by the detail page.
       statusText: '加载中…',
       barVisible: true,
       lastUserTouchAt: 0,  // 最近一次用户真实触摸 (保活注入避让用)
@@ -299,8 +292,7 @@ export default {
 
     openStream: function (url, gen) {
       if (gen !== this.generation) return
-      // 详情页已经 open 过 (warmed): 视频面比本页窗口更早创建, 层级天然正确.
-      // 这里若再 open 一次会重建 waylandsink surface, 窗口就反过来压在视频下面了.
+      // Reuse the existing stream without recreating the native process.
       if (this.warmed) {
         this.started = false
         this.statusText = ''
@@ -384,17 +376,6 @@ export default {
       if (s.indexOf('play') >= 0) {
         this.playing = true
         this.started = true  // 已出过画面: 之后不再显示「加载中」过渡态
-        // 原厂的显示开关 (默认关, 见 config.js freezeScreenEnabled 注释):
-        // 起播后调一次 systemInfo.freezeScreen() —— 对应 WESTON_FREEZE_DISPLAY=/tmp/.weston_freeze
-        if (!this._froze && getCfg('freezeScreen') === true) {
-          this._froze = true
-          try {
-            systemInfo.freezeScreen()
-            log('播放器', '已调用 systemInfo.freezeScreen()')
-          } catch (e) {
-            try { log('播放器', 'freezeScreen 调用失败: ' + (e && e.message ? e.message : e)) } catch (e2) {}
-          }
-        }
         if (this.statusText !== '') this.statusText = ''
         this.startPolling()
         this.startKeepAwake()
