@@ -125,7 +125,7 @@ jobs:
           ls -l ui/libs/
       - name: Static checks (validate + offline regression)
         run: |
-          node .local/patch/validate.mjs || true
+          node tools/validate.mjs
           node tools/check-ui.mjs
 
       - name: Build AMR (production quickjs)

@@ -28,6 +28,13 @@ export async function resolve(specifier, context, next) {
 }
 
 export async function load(url, context, next) {
+  // ui/src 下的 .js 一律按 ESM 解析.
+  // 为什么必须显式声明: CI 用 Node 18, 它**没有**模块语法自动探测 (那是 Node 22.7+ 的默认行为,
+  // 本机 Node 24 会"猜"成 ESM 所以本地看起来没问题) —— 不写这条, CI 上 import m3-scheme.js
+  // 会直接 SyntaxError: Unexpected token 'export'.
+  if (url.startsWith('file:') && url.split('?')[0].endsWith('.js') && url.indexOf('/ui/src/') >= 0) {
+    return { format: 'module', source: fs.readFileSync(new URL(url), 'utf8'), shortCircuit: true }
+  }
   if (url.startsWith('file:') && url.split('?')[0].endsWith('.vue')) {
     const src = fs.readFileSync(new URL(url), 'utf8')
     const m = /<script>([\s\S]*?)<\/script>/.exec(src)
