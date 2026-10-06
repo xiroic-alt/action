@@ -15,45 +15,58 @@
       <text class="l3">{{ l3 }}</text>
       <text class="l4">{{ l4 }}</text>
       <text class="l5">{{ l5 }}</text>
+      <text class="l6">{{ l6 }}</text>
     </div>
   </div>
 </template>
 
 <script>
-// vprobe v2: play() returned undefined and fired nothing, so drive the element
-// through a small matrix and report which call actually starts the sink.
-// Logging uses console.warn because only that level reaches the device log.
+// vprobe v3: the element ignored a bare filesystem path and emitted nothing.
+// The stock player's own atoms (videoproxy, /__video_proxy__/) show it only
+// ever feeds the element an http(s) source, so drive it with a real https mp4.
+// Source comes from loadOptions.src so the debug route can vary it without a rebuild.
+const DEFAULT_SRC = 'https://media.w3.org/2010/05/sintel/trailer.mp4'
+
 export default {
   data () {
     return {
-      src: '/userdata/test.mp4',
-      l0: 'vprobe2 boot',
+      src: DEFAULT_SRC,
+      l0: 'vprobe3 boot',
       l1: 'ref: -',
-      l2: 'matrix: -',
+      l2: 'play: -',
       l3: 'events: -',
-      l4: 'rate: -',
-      l5: 'state: -',
+      l4: 'last: -',
+      l5: 'info: -',
+      l6: 'pos: -',
       evt: [],
-      results: []
+      played: false
     }
   },
   methods: {
-    w (s) { console.warn('[vprobe2] ' + s) },
-    note (k, v) {
-      this.results.push(k + '=' + v)
-      this.l2 = 'matrix: ' + this.results.join(' ')
-      this.w(k + '=' + v)
+    w (s) { console.warn('[vprobe3] ' + s) },
+    short (u) { return String(u).replace(/^https?:\/\//, '').slice(0, 52) },
+    raw (e) {
+      try { return JSON.stringify(e) } catch (err) { return '<?>' }
     },
     mark (name, e) {
-      if (this.evt.length < 6) this.evt.push(name)
+      if (this.evt.length < 8) this.evt.push(name)
       this.l3 = 'events: ' + this.evt.join(',')
-      let raw = ''
-      try { raw = JSON.stringify(e) } catch (err) { raw = 'unserializable' }
-      this.w('EVT ' + name + ' ' + raw)
+      this.l4 = 'last: ' + name + ' ' + this.raw(e).slice(0, 88)
+      this.w('EVT ' + name + ' ' + this.raw(e))
     },
-    onState (e) { this.mark('state', e) },
-    onInfo (e) { this.mark('info', e) },
-    onPosition (e) { this.mark('position', e) },
+    onState (e) {
+      this.mark('state', e)
+      if (e && typeof e.state !== 'undefined') this.l5 = 'info: state=' + e.state
+    },
+    onInfo (e) {
+      this.mark('info', e)
+      this.l5 = 'info: ' + this.raw(e).slice(0, 88)
+    },
+    onPosition (e) {
+      this.mark('position', e)
+      let v = e && typeof e === 'object' ? (e.position || e.pos || e.current) : e
+      this.l6 = 'pos: ' + v
+    },
     onComplete (e) { this.mark('complete', e) },
     onError (e) { this.mark('error', e) },
     onBuffer (e) { this.mark('buffer', e) },
@@ -61,42 +74,38 @@ export default {
     onResumed (e) { this.mark('resumed', e) },
     onAudioType (e) { this.mark('audioType', e) },
 
-    safe (label, fn) {
+    safe (fn) {
       try { return String(fn()) } catch (e) { return 'THREW:' + (e && e.message ? e.message : e) }
     },
 
-    probe () {
+    start () {
       const v = this.$refs.vv
+      const opt = this.$page && this.$page.loadOptions ? this.$page.loadOptions : {}
+      if (opt && opt.src) this.src = opt.src
+      this.l0 = 'vprobe3 ' + this.short(this.src)
       this.l1 = 'ref: ' + (v ? 'OK' : 'MISSING')
-      this.w('ref=' + (v ? 'ok' : 'missing'))
-      if (!v) return
+      this.w('src=' + this.src + ' ref=' + (v ? 'ok' : 'missing'))
+      if (!v || this.played) return
+      this.played = true
 
-      this.l4 = 'rate: ' + this.safe('getRate', function () { return v.getRate() })
-      this.l5 = 'state: ' + this.safe('state', function () { return typeof v.state === 'undefined' ? 'undef' : v.state })
-
-      // Order matters: play() with no argument first, because play(0) may be
-      // rejected as a falsy position while a bare play() falls through.
-      this.note('noArg', this.safe('play()', function () { return v.play() }))
-      this.note('ms0', this.safe('play(0)', function () { return v.play(0) }))
-      this.note('ms1', this.safe('play(1)', function () { return v.play(1) }))
+      const r = this.safe(function () { return v.play(1) })
+      this.l2 = 'play(1): ' + r
+      this.w('play=' + r)
     },
 
-    lateRound () {
+    retry () {
       const v = this.$refs.vv
       if (!v) return
-      // If the first round produced no event at all, retry after layout settles
-      // and force the source through the explicit setter instead of the attr.
       if (this.evt.length === 0) {
-        this.note('setSrc', this.safe('setSrc', function () { return v.setSrc(this.src) }.bind(this)))
-        this.note('afterSrc', this.safe('play(1)', function () { return v.play(1) }))
+        this.l2 = this.l2 + ' | retry=' + this.safe(function () { return v.play(0) })
+        this.w('retry play(0) evt=' + this.evt.length)
       }
-      this.l5 = 'state: ' + this.safe('state', function () { return typeof v.state === 'undefined' ? 'undef' : v.state })
     }
   },
   mounted () {
     const self = this
-    setTimeout(function () { self.probe() }, 600)
-    setTimeout(function () { self.lateRound() }, 2500)
+    setTimeout(function () { self.start() }, 900)
+    setTimeout(function () { self.retry() }, 3500)
   }
 }
 </script>
@@ -136,4 +145,5 @@ export default {
 .l3 { font-size: 11px; color: #99ccff; }
 .l4 { font-size: 11px; color: #ff9999; }
 .l5 { font-size: 11px; color: #ffffff; }
+.l6 { font-size: 11px; color: #66ffcc; }
 </style>
