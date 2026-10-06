@@ -44,12 +44,13 @@
              拖动、坐标->数值、手柄全部在原生 widget 里做, 我们只接两个事件:
                changing  拖动过程中 (受 changingInterval 节流)
                change    松手确认
-             负载形态 (libfalcon 反汇编实证):
-               fireEvent("change", { change: { lvalue:int, value:int, detail:{lvalue,value} } })
+             负载形态 (libfalcon 反汇编 + 真机实测):
+               native: fireEvent("change", { change: { lvalue:int, value:int, detail:{lvalue,value} } })
+               JS 侧: { detail: { lvalue: 0, value: 24 }, type: "changing" }  <- detail.value 就是秒
              值域取 min=0 / max=时长(秒) / step=1, 于是 detail.value 直接就是秒.
              手柄位置由 :value 绑定驱动: 平时跟播放位置, 拖动期间跟拖动目标 (不被 position 抢). -->
         <div class="seek">
-          <seekbar ref="sbar" class="sbar"
+          <seekbar class="sbar"
                    min="0" :max="seekMax" step="1" :value="seekBarValue"
                    backgroundColor="rgba(255,255,255,0.18)" activeColor="#fb7299"
                    handleColor="#ffffff" trackSize="6" handleSize="14" borderRadius="3"
@@ -302,14 +303,7 @@ export default {
       // 先让首帧画出「加载中…」再取流地址: bilinet.httpGet 同步阻塞 JS 线程,
       // 不延迟的话网络差时加载态画不出来, 表现为上一页面冻结 (卡死)
       var self = this
-      afterPaint(function () {
-        try {
-          var sb = self.$refs.sbar
-          console.warn('[player] seekbar ref=' + (sb ? Object.prototype.toString.call(sb) : 'MISSING') +
-            ' keys=' + (sb ? Object.keys(sb).join(',') : '-'))
-        } catch (e) {}
-        self.fetchAndOpen(gen)
-      })
+      afterPaint(function () { self.fetchAndOpen(gen) })
     },
 
     // 网络取流 (首帧绘制后执行): 取详情/播放地址 -> 起播
@@ -643,29 +637,17 @@ export default {
     },
 
     // 拖动中: 手柄跟手 + 时间预览; 不下发 seek, 也不回写位置
-    rawLog: function (tag, e) {
-      var now = Date.now()
-      if (now - (this._rawAt || 0) < 1000) return
-      this._rawAt = now
-      var s = ''
-      try { s = JSON.stringify(e) } catch (er) { s = String(e) }
-      try { console.warn('[player] ' + tag + ' raw=' + s) } catch (er) {}
-    },
-
     onSeekChanging: function (e) {
-      this.rawLog('seek changing', e)
       if (!this.opened) return
       var sec = this.evNum(e)
       if (!(sec >= 0)) return
       this.seekDragging = true
       this.seekDstMs = sec * 1000
       this.showBar()
-      try { console.warn('[player] seek changing sec=' + sec) } catch (er) {}
     },
 
     // 松手: 一次性下发 seekto (元素收秒)
     onSeekChange: function (e) {
-      this.rawLog('seek change', e)
       if (!this.opened) return
       var sec = this.evNum(e)
       this.seekDragging = false
@@ -673,7 +655,7 @@ export default {
       this.showBar()
       if (!(sec >= 0)) return
       this.seekDstMs = sec * 1000
-      try { console.warn('[player] seek change sec=' + sec) } catch (er) {}
+      try { log('播放器', '原生 seekbar 松手 -> ' + sec + 's') } catch (er) {}
       this.applySeek(sec * 1000)
       // 松手后短暂忽略 stage 的点击 (见 toggleBar)
       this._suppressTapUntil = Date.now() + 300
