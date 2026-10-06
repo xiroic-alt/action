@@ -262,8 +262,13 @@ export async function getPlayUrl(bvid, cid) {
   const ckey = 'playurl:' + bvid + ':' + cid
   const cached = cacheGet(ckey, 600000)
   if (cached) return cached
+  // platform=html5&high_quality=1: 返回 mp4 直链且 **CDN 不做 Referer 防盗链** 的取流口.
+  // 内置 <video> 元素的 souphttpsrc 无法加 Referer, 用 web 口会被 CDN 403
+  // (实测: 无 Referer 403 text/html; 加 Referer 206 video/mp4). html5 口无 Referer 直接 206,
+  // 且同一 cid 下 size 与 web 口完全一致 (67570516), 画质不降.
   const url = 'https://api.bilibili.com/x/player/playurl?bvid=' + encodeURIComponent(bvid)
     + '&cid=' + encodeURIComponent(cid) + '&qn=32&fnval=0&fnver=0&fourk=0'
+    + '&platform=html5&high_quality=1'
   const body = await getJsonAsync(url, 15)
   if (body.code !== 0 || !body.data) {
     if (body.code === -412) throw new Error('请求被风控拦截, 请稍后再试')
