@@ -24,7 +24,8 @@
     "settings": "pages/settings/settings.vue",
     "feed": "pages/feed/feed.vue",
     "dyn": "pages/dyn/dyn.vue",
-    "follow": "pages/follow/follow.vue"
+    "follow": "pages/follow/follow.vue",
+    "vprobe": "pages/vprobe/vprobe.vue"
   },
   "options": {
     "external": ["bilinet", "gstplayer", "brightness"],
