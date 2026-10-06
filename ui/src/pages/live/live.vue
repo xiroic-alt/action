@@ -94,7 +94,7 @@ export default {
       playing: false,
       room: { roomid: 0, title: '', up: '', area: '' },
       src: '',
-      vrect: { x: 0, y: 44, w: 960, h: 222 },
+      vrect: { x: 0, y: 0, w: 960, h: 222 },   // 相对 .stage (见样式注释)
       online: 0,
       danmus: [],
       dmTimer: null,
@@ -273,7 +273,9 @@ export default {
 </script>
 
 <style scoped>
-.page { width: 960px; height: 266px; flex-direction: column; }
+/* position: absolute 与 player.vue 一致 —— <video>/<hole> 都按 absolute 定位,
+   需要一个已定位的祖先当坐标系; 不写的话会落到框架根上, 洞和画面就对不齐. */
+.page { width: 960px; height: 266px; position: absolute; left: 0; top: 0; flex-direction: column; }
 .topbar { width: 960px; height: 44px; flex-direction: row; align-items: center; }
 .back { flex-direction: row; align-items: center; height: 40px; width: 132px; margin-left: 12px; justify-content: center; }
 .bac { margin-right: 4px; }
@@ -294,7 +296,8 @@ export default {
 .rmain { flex: 1; flex-direction: column; }
 .rup { margin-top: 4px; }
 .ron { margin-top: 6px; }
-.stage { width: 960px; height: 222px; }
+/* 播放舞台: 让开 44px 应用顶栏, 洞/画面的坐标以它为原点 (vrect 用 0,0,960,222) */
+.stage { position: absolute; left: 0; top: 44px; width: 960px; height: 222px; }
 .vsurf { position: absolute; }
 .hole { position: absolute; }
 .bar { position: absolute; left: 0; top: 0; width: 960px; height: 34px; flex-direction: row; align-items: center; padding-left: 16px; padding-right: 16px; }
