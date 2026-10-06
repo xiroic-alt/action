@@ -27,8 +27,12 @@ globalThis.__bilinet = {
   dbClose: () => true,
   execAsync: (cmd) => {
     execCalls.push(cmd)
-    if (cmd.indexOf('BADSITE') >= 0) return Promise.resolve('code=403 ttfb=0.10 speed=0 size=150 total=0.5')
-    if (cmd.indexOf('SLOWSITE') >= 0) return Promise.resolve('code=206 ttfb=1.20 speed=262144 size=524288 total=2.1')
+    // 被测 URL 现在写在 curl 配置文件里 (命令行放不下, 见 lines.js 的 512 字符说明),
+    // 所以桩件要从磁盘读回来判断该返回哪一档结果.
+    const rc = disk.get('/userdisk/xiro/.curlrc') || ''
+    if (rc.indexOf('BADSITE') >= 0) return Promise.resolve('code=403 ttfb=0.10 speed=0 size=150 total=0.5')
+    if (rc.indexOf('SLOWSITE') >= 0) return Promise.resolve('code=206 ttfb=1.20 speed=262144 size=524288 total=2.1')
+    if (rc.indexOf('url = ') < 0) return Promise.resolve('code=0 ttfb=0 speed=0 size=0 total=0')
     return Promise.resolve('code=206 ttfb=0.21 speed=1048576 size=524288 total=0.71')
   }
 }
@@ -207,9 +211,17 @@ const r1 = await lines.probe(signed, { bytes: 524288, timeoutSec: 8 })
 eq(r1.ok, true, '测速: 206 判定为可用')
 ok(Math.abs(r1.mbps - 1) < 0.001, '测速: MB/s 换算')
 eq(r1.ttfbMs, 210, '测速: 首字节 ms 换算')
-ok(execCalls.length === 1 && execCalls[0].indexOf('-r 0-524287') > 0, 'curl 带 Range')
-ok(execCalls[0].indexOf('-A ') > 0 && execCalls[0].indexOf('-e ') > 0, 'curl 带 UA 与 Referer')
+ok(execCalls.length >= 1 && execCalls[0].indexOf('-r 0-524287') > 0, 'curl 带 Range')
 ok(execCalls[0].indexOf('-o /dev/null') > 0, 'curl 丢弃响应体')
+// native exec/execAsync 有 512 字符硬上限, 超了直接 postError invalid cmd —— 真机踩过.
+ok(execCalls[0].length <= 512, 'curl 命令行不超过 native 的 512 字符上限 (实际 ' + execCalls[0].length + ')')
+ok(execCalls[0].indexOf('-K ' + lines.RC_PATH) > 0, '长参数走 -K 配置文件而不是命令行')
+// 配置文件里必须带齐 url / UA / Referer / -w 格式 (换 host 测速的全部输入)
+const rc = disk.get(lines.RC_PATH) || ''
+ok(rc.indexOf('url = "https://upos-sz-mirrorcoso1.bilivideo.com') === 0, '配置文件首行是被测 URL')
+ok(rc.indexOf('user-agent =') > 0 && rc.indexOf('Mozilla/5.0') > 0, '配置文件带浏览器 UA (CDN 的唯一门槛)')
+ok(rc.indexOf('referer =') > 0, '配置文件带 Referer')
+ok(execCalls[0].indexOf('speed_download') > 0, '-w 度量格式在命令行 (避开 curl 配置文件的 %VAR 展开)')
 const r2 = await lines.probe('https://upos-sz-mirrorali.bilivideo.com/BADSITE', {})
 eq(r2.ok, false, '测速: 403 判定为不可用')
 ok(r2.err.indexOf('403') > 0, '403 有可读原因')

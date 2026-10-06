@@ -28,6 +28,11 @@ import { log } from './log.js'
 export var UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 export var REFERER = 'https://www.bilibili.com'
 
+// curl 配置文件的落盘位置 + 换行常量.
+// 为什么用文件: native exec/execAsync 限 512 字符, 签名 URL 装不下 (见 probe() 注释).
+const NL = String.fromCharCode(10)
+export var RC_PATH = '/userdisk/xiro/.curlrc'
+
 // ---------- 取流口 ----------
 // 本机内置 <video> 只吃单一 http(s) 源的 mp4 (durl), DASH 需要双源 -> 不提供.
 export var SOURCES = [
@@ -130,13 +135,26 @@ export function probe(url, opts) {
   // shell 是 popen('/bin/sh -c'), 单引号包裹前必须保证 URL 里没有单引号/反引号/反斜杠
   if (!/^https?:\/\/[-A-Za-z0-9._~:/?#\[\]@!$&()*+,;=%]+$/.test(safeUrl)) return bad('URL 含非法字符')
   if (safeUrl.indexOf("'") >= 0 || safeUrl.indexOf('`') >= 0 || safeUrl.indexOf('\\') >= 0) return bad('URL 含非法字符')
+  // ★ 关键约束: native 的 exec/execAsync 有 512 字符长度上限
+  // (BiliNet.cpp: cmd.size() > 512 就 postError invalid cmd).
+  // 而 B 站签名 URL 本身就 600~900 字符 —— 直接拼命令行必然超限.
+  // 真机第一次跑就是「执行失败: execAsync: invalid cmd」, 21 个节点全灭.
+  // 解法: 把长参数 (url / UA / Referer / -w 格式) 写进 curl 的配置文件, 用 -K 引用,
+  // 命令行只剩 ~50 字符. 这是 curl 原生能力, 不用改 native, 也不放宽那条安全限制.
   var fmt = 'code=%{http_code} ttfb=%{time_starttransfer} speed=%{speed_download} size=%{size_download} total=%{time_total}'
-  var cmd = "curl -s -o /dev/null -m " + timeoutSec
-    + " -r 0-" + (bytes - 1)
+  // -w 格式留在命令行: curl 的配置文件会做 %VAR 环境变量展开, 把 %{http_code} 这种
+  // 度量占位符放进去有被误解析的风险 (curl 文档: config 文件里 %name 会展开成环境变量).
+  // 实测命令行加上 -w 也只有 ~200 字符, 离 512 还很远.
+  var rc = 'url = "' + safeUrl + '"' + NL
+    + 'user-agent = "' + UA + '"' + NL
+    + 'referer = "' + REFERER + '"' + NL
+  try {
+    if (bilinet && typeof bilinet.writeFile === 'function') bilinet.writeFile(RC_PATH, rc)
+  } catch (e) { /* 写不了就自然失败, err 会把原因带出来 */ }
+  var cmd = 'curl -s -o /dev/null -m ' + timeoutSec
+    + ' -r 0-' + (bytes - 1)
     + " -w '" + fmt + "'"
-    + " -A '" + UA + "'"
-    + " -e '" + REFERER + "'"
-    + " '" + safeUrl + "'"
+    + ' -K ' + RC_PATH
   var t0 = Date.now()
   return bilinet.execAsync(cmd).then(function (out) {
     var ms = Date.now() - t0
