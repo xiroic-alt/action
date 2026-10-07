@@ -39,12 +39,46 @@ var METHODS = [
 
 var cur = rawBilinet
 
+// 取一份**当前上下文**的原生模块.
+//
+// ★ 这里是这个 bug 的关键: 用户复现方式是"返回桌面再进入", 不是杀进程重开 ——
+//   进程活着, 但小程序的 JS 上下文会重建; 上一次上下文里的原生对象此时已经
+//   isJSCallDisabled() (SDK: !((intptr_t)_ctx & 0x01), 判的就是有没有绑到活上下文).
+//   模块级的 cur 缓存 + 框架对 external 模块的 require 缓存都可能**跨上下文复用**,
+//   于是一进应用就是一片 disabled, 再退再进才好 —— 正是用户描述的现象.
+//
+// 所以: 每次调用都重新取, 而且优先走框架的 $falcon.jsapi 表 (auth.js 用的
+// $falcon.jsapi.storage 就是这条路), 它是按上下文活的; 取不到再退回 require.
+var diagOnce = false
 function acquire() {
+  // 1) 框架 JSAPI 表 (按上下文活)
+  try {
+    var j = $falcon && $falcon.jsapi
+    if (j) {
+      var b = j.bilinet
+      if (!b && typeof j.get === 'function') b = j.get('bilinet')
+      if (b && typeof b.readFile === 'function') {
+        if (!diagOnce) { diagOnce = true; warn('原生模块取自 $falcon.jsapi.bilinet') }
+        cur = b
+        return cur
+      }
+      if (!diagOnce) {
+        diagOnce = true
+        var ks = []
+        for (var k in j) { try { ks.push(k) } catch (e0) {} }
+        warn('$falcon.jsapi 里没有 bilinet, 现有键: ' + ks.join(','))
+      }
+    } else if (!diagOnce) {
+      diagOnce = true
+      warn('$falcon.jsapi 不存在, 退回 require(bilinet)')
+    }
+  } catch (e1) {}
+  // 2) 退回 require (每次重新要, 不吃模块级缓存)
   try {
     // eslint-disable-next-line
     var m = require('bilinet')
     if (m) cur = m
-  } catch (e) { /* 拿不到就继续用旧的, 下面会自然失败 */ }
+  } catch (e2) { /* 拿不到就继续用旧的, 下面会自然失败 */ }
   return cur
 }
 
@@ -59,8 +93,9 @@ for (var i = 0; i < METHODS.length; i++) {
     api[name] = function () {
       var args = Array.prototype.slice.call(arguments, 0)
       var lastErr = null
+      // 每次都重新取: 跨上下文复用旧绑定是这次问题的根, 不能省这一步
       for (var attempt = 0; attempt < 2; attempt++) {
-        var mod = attempt === 0 ? cur : acquire()
+        var mod = attempt === 0 ? acquire() : acquire()
         if (!mod || typeof mod[name] !== 'function') {
           lastErr = new Error('native.' + name + ' 不可用')
           continue
