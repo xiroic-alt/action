@@ -56,7 +56,11 @@ function tableExists(n) {
 }
 
 globalThis.__bilinet = {
-  readFile: (p) => (disk.has(p) ? disk.get(p) : ''),
+  // __asyncDisabledAlways 也用来模拟"所有方法都 disabled" (同步路径需要)
+  readFile: (p) => {
+    if (globalThis.__asyncDisabledAlways) throw new Error('this object js call is disabled')
+    return disk.has(p) ? disk.get(p) : ''
+  },
   writeFile: (p, d) => { disk.set(p, String(d)); return true },
   deleteFile: (p) => { const had = disk.has(p); disk.delete(p); return had },
   mkdirs: () => true,
@@ -175,16 +179,24 @@ ok(natSrc.indexOf(String.fromCharCode(39) + './log.js' + String.fromCharCode(39)
 globalThis.__asyncDisabledOnce = true
 await nat.bilinet.httpGetAsync('http://example.invalid/', 1)
 ok(globalThis.__asyncDisabledOnce === false, '异步方法遇 disabled 会重试并最终成功 (不再是 unhandled rejection)')
-// 连试两次仍 disabled = 上下文已作废: 不能再往外抛, 否则又是 unhandled rejection.
-// 真机路径: 返回桌面再进入, 旧上下文的回调仍在跑, 重取回来的还是那个死对象.
+// 连试两次仍 disabled: 必须**如实失败**, 绝不能给一个假值.
+// 我上一版在这里返回了中性值 (httpGet -> '') —— 结果 bili.js 每处都判定
+// "请求失败 (空响应)", 整个应用废掉. 空串在业务语义里是"服务端返回了空",
+// 不是"没拿到"; 降级一个值等于撒谎.
 globalThis.__asyncDisabledAlways = true
-const dead = await nat.bilinet.httpGetAsync('http://example.invalid/', 1)
-ok(dead === '', '上下文已作废时异步调用回退成中性值, 不抛 (实测过: 抛出去就是 unhandled rejection)')
-ok(nat.bilinet.readFile('/nope') !== undefined, '上下文已作废时同步读回退成空串, 不抛')
+let deadErr = null
+try { await nat.bilinet.httpGetAsync('http://example.invalid/', 1) } catch (e) { deadErr = e }
+ok(!!deadErr, '上下文已作废时异步调用如实失败 (不能悄悄resolve成空串)')
+ok(String(deadErr && deadErr.message).indexOf('disabled') >= 0, '失败原因保留原始 disabled 信息, 便于定位')
+let syncErr = null
+try { nat.bilinet.readFile('/nope') } catch (e) { syncErr = e }
+ok(!!syncErr, '上下文已作废时同步调用同样如实失败')
 // 复位: 后面的用例还要正常调原生
 nat.__resetDeadForTest()
 globalThis.__asyncDisabledAlways = false
-ok(!nat.isJSApiNotReady(new Error('ok')), '复位后可正常调用 (不残留 dead 状态)')
+globalThis.__asyncDisabledAlways = false
+ok((await nat.bilinet.httpGetAsync('http://example.invalid/', 1)) === '', '复位后恢复正常调用')
+ok(nat.bilinet.readFile('/anything') === '', '复位后同步读也恢复正常')
 // ================= 2. 配置持久化 =================
 // ★ 先复现真机的时序 bug, 再走正常路径.
 //   真机现象: kv 表建出来了却一行数据都没有, cfg.json 一直留着.

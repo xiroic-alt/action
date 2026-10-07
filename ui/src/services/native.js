@@ -92,7 +92,6 @@ for (var i = 0; i < METHODS.length; i++) {
   (function (name) {
     api[name] = function () {
       var args = Array.prototype.slice.call(arguments, 0)
-      if (deadCtx) return neutralFor(name)
       var lastErr = null
       // 每次都重新取: 跨上下文复用旧绑定是这次问题的根, 不能省这一步
       for (var attempt = 0; attempt < 2; attempt++) {
@@ -117,18 +116,18 @@ for (var i = 0; i < METHODS.length; i++) {
           return out.then(null, function (e) {
             if (!isDisabled(e)) throw e
             var m2 = acquire()
-            if (!m2 || typeof m2[name] !== 'function') { markDead(name); return neutralFor(name) }
+            if (!m2 || typeof m2[name] !== 'function') { noteDead(name); throw e }
             return m2[name].apply(m2, args).then(null, function (e2) {
               if (!isDisabled(e2)) throw e2
-              markDead(name)
-              return neutralFor(name)
+              noteDead(name)
+              throw e2   // 如实失败: 让调用方给出可重试的错误, 而不是拿一个假值
             })
           })
         }
         return out
       }
-      // 两次都 disabled -> 上下文已死, 不再抛 (抛出去只会变 unhandled rejection)
-      if (lastErr && isDisabled(lastErr)) { markDead(name); return neutralFor(name) }
+      // 两次都 disabled: 如实抛出. 上层有 try/catch, 不会变成未处理异常.
+      if (lastErr && isDisabled(lastErr)) noteDead(name)
       throw lastErr || new Error('native.' + name + ' 失败')
     }
   })(METHODS[i])
@@ -141,30 +140,20 @@ for (var i = 0; i < METHODS.length; i++) {
 // "Possibly unhandled promise rejection: InternalError: this object js call is disabled".
 // 所以: 连试两次都 disabled -> 认定这个上下文已死, 后续原生调用直接走中性值,
 // 不再制造噪音; 下一次真正重新进入应用会拿到新上下文, 一切照常.
-var deadCtx = false
 var deadLogged = false
-// 各原生方法在"上下文已死"时的中性返回值 (读操作给空, 写操作给 false, 异步给 resolve)
-var NEUTRAL = {
-  readFile: '', writeFile: false, deleteFile: false, fileExists: false, mkdirs: false,
-  exec: '', execAsync: '', httpGet: '', httpPost: '',
-  httpGetAsync: '', httpPostAsync: '',
-  dbOpen: false, dbExec: false, dbQuery: []
+// ★★ 这里**不要**做"中性值降级". 我上一版就是这么干的, 结果把应用打坏了:
+//   neutralFor('httpGet') = '' -> bili.js 每一处都判定"请求失败 (空响应)".
+//   空串在业务语义里不是"没拿到", 而是"服务端返回了空" —— 降级一个值, 等于撒谎.
+//   正确做法: 该抛就抛. 调用方本来就有 try/catch, 用户看到的是可重试的错误提示,
+//   而不是一个静默的假数据.
+function noteDead(name) {
+  if (deadLogged) return
+  deadLogged = true
+  warn('原生句柄连续两次 disabled (触发点: ' + name + '). 该次调用按失败处理; ' +
+    '若持续如此说明当前 JS 上下文已作废, 重新进入应用即可恢复.')
 }
-function neutralFor(name) {
-  var v = NEUTRAL[name]
-  if (v === undefined) return undefined
-  if (name.indexOf('Async') > 0) return Promise.resolve(v)
-  return v
-}
-function markDead(name) {
-  deadCtx = true
-  if (!deadLogged) {
-    deadLogged = true
-    warn('原生上下文已作废 (连试两次仍 disabled), 后续原生调用走中性值. 下次进入应用会自动恢复. 触发点: ' + name)
-  }
-}
-// 只给离线回归用: 清掉"上下文已死"标记, 免得一个用例把后面所有用例都带成中性值
-export function __resetDeadForTest() { deadCtx = false; deadLogged = false }
+// 只给离线回归用: 清掉一次性诊断标记
+export function __resetDeadForTest() { deadLogged = false }
 
 // 判断一个错误是不是「对象没绑到活上下文」(this object js call is disabled).
 // 导出给上层用: 启动期的原生调用失败要能识别出来并重试, 而不是当成业务错误丢掉.
