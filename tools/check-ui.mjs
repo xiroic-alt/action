@@ -65,6 +65,7 @@ globalThis.__bilinet = {
   httpPost: () => '',
   // 第一次以 disabled 拒绝, 之后正常 —— 复刻真机: 启动期 JSAPI 没绑上, 重试后就好
   httpGetAsync: () => {
+    if (globalThis.__asyncDisabledAlways) return Promise.reject(new Error('this object js call is disabled'))
     if (globalThis.__asyncDisabledOnce) {
       globalThis.__asyncDisabledOnce = false
       return Promise.reject(new Error('this object js call is disabled'))
@@ -174,6 +175,16 @@ ok(natSrc.indexOf(String.fromCharCode(39) + './log.js' + String.fromCharCode(39)
 globalThis.__asyncDisabledOnce = true
 await nat.bilinet.httpGetAsync('http://example.invalid/', 1)
 ok(globalThis.__asyncDisabledOnce === false, '异步方法遇 disabled 会重试并最终成功 (不再是 unhandled rejection)')
+// 连试两次仍 disabled = 上下文已作废: 不能再往外抛, 否则又是 unhandled rejection.
+// 真机路径: 返回桌面再进入, 旧上下文的回调仍在跑, 重取回来的还是那个死对象.
+globalThis.__asyncDisabledAlways = true
+const dead = await nat.bilinet.httpGetAsync('http://example.invalid/', 1)
+ok(dead === '', '上下文已作废时异步调用回退成中性值, 不抛 (实测过: 抛出去就是 unhandled rejection)')
+ok(nat.bilinet.readFile('/nope') !== undefined, '上下文已作废时同步读回退成空串, 不抛')
+// 复位: 后面的用例还要正常调原生
+nat.__resetDeadForTest()
+globalThis.__asyncDisabledAlways = false
+ok(!nat.isJSApiNotReady(new Error('ok')), '复位后可正常调用 (不残留 dead 状态)')
 // ================= 2. 配置持久化 =================
 // ★ 先复现真机的时序 bug, 再走正常路径.
 //   真机现象: kv 表建出来了却一行数据都没有, cfg.json 一直留着.

@@ -92,6 +92,7 @@ for (var i = 0; i < METHODS.length; i++) {
   (function (name) {
     api[name] = function () {
       var args = Array.prototype.slice.call(arguments, 0)
+      if (deadCtx) return neutralFor(name)
       var lastErr = null
       // 每次都重新取: 跨上下文复用旧绑定是这次问题的根, 不能省这一步
       for (var attempt = 0; attempt < 2; attempt++) {
@@ -115,18 +116,55 @@ for (var i = 0; i < METHODS.length; i++) {
         if (out && typeof out.then === 'function') {
           return out.then(null, function (e) {
             if (!isDisabled(e)) throw e
-            warn(name + ' (async) 句柄未绑定, 重新获取原生模块后重试')
             var m2 = acquire()
-            if (!m2 || typeof m2[name] !== 'function') throw e
-            return m2[name].apply(m2, args)
+            if (!m2 || typeof m2[name] !== 'function') { markDead(name); return neutralFor(name) }
+            return m2[name].apply(m2, args).then(null, function (e2) {
+              if (!isDisabled(e2)) throw e2
+              markDead(name)
+              return neutralFor(name)
+            })
           })
         }
         return out
       }
+      // 两次都 disabled -> 上下文已死, 不再抛 (抛出去只会变 unhandled rejection)
+      if (lastErr && isDisabled(lastErr)) { markDead(name); return neutralFor(name) }
       throw lastErr || new Error('native.' + name + ' 失败')
     }
   })(METHODS[i])
 }
+
+// 上下文作废的判定与降级.
+// 真机实测 (返回桌面再进入, 不杀进程): acquire() 取回来的**还是**那个 disabled 对象 ——
+// 说明重取本身发生在一个已经作废的 JS 上下文里 (旧页面的 setTimeout / promise 回调在
+// 上下文销毁后仍在跑). 这种情况下再往外抛, 只会变成框架日志里的
+// "Possibly unhandled promise rejection: InternalError: this object js call is disabled".
+// 所以: 连试两次都 disabled -> 认定这个上下文已死, 后续原生调用直接走中性值,
+// 不再制造噪音; 下一次真正重新进入应用会拿到新上下文, 一切照常.
+var deadCtx = false
+var deadLogged = false
+// 各原生方法在"上下文已死"时的中性返回值 (读操作给空, 写操作给 false, 异步给 resolve)
+var NEUTRAL = {
+  readFile: '', writeFile: false, deleteFile: false, fileExists: false, mkdirs: false,
+  exec: '', execAsync: '', httpGet: '', httpPost: '',
+  httpGetAsync: '', httpPostAsync: '',
+  dbOpen: false, dbExec: false, dbQuery: []
+}
+function neutralFor(name) {
+  var v = NEUTRAL[name]
+  if (v === undefined) return undefined
+  if (name.indexOf('Async') > 0) return Promise.resolve(v)
+  return v
+}
+function markDead(name) {
+  deadCtx = true
+  if (!deadLogged) {
+    deadLogged = true
+    warn('原生上下文已作废 (连试两次仍 disabled), 后续原生调用走中性值. 下次进入应用会自动恢复. 触发点: ' + name)
+  }
+}
+// 只给离线回归用: 清掉"上下文已死"标记, 免得一个用例把后面所有用例都带成中性值
+export function __resetDeadForTest() { deadCtx = false; deadLogged = false }
 
 // 判断一个错误是不是「对象没绑到活上下文」(this object js call is disabled).
 // 导出给上层用: 启动期的原生调用失败要能识别出来并重试, 而不是当成业务错误丢掉.
