@@ -89,10 +89,17 @@ export function themeRev() { return cacheKey }
 // ---------- 形状 / 密度 / 字级 ----------
 // 圆角 (M3 shape scale: extra-small 4 / small 8 / medium 12 / large 16 / extra-large 28,
 // 按钮与 chip 在 M3 里恒为全圆角)
+// 档距是按"能不能一眼看出来"定的, 不是按"好看":
+//   实测 8/12 这种小差在 46px 高的设置行上量得出 (4268 个差异像素) 但眼睛看不出来 ——
+//   用户报的就是"圆角切换没什么区别". 现在每档至少有一个维度是**结构性**变化:
+//     方正: 卡片/按钮/胶囊全部近乎直角 (4~6px)
+//     标准: M3 缺省 (卡片 12, 按钮与 chip 全圆角)
+//     圆润: 卡片 32 —— 46px 的行、112px 的列表卡上都是肉眼可辨的弧
+//   M3 的按钮本来就是全圆角, 所以"方正"档要有明显区别只能把按钮也压成直角.
 var RADIUS = {
-  flat: { card: 8, btn: 8, chip: 8, field: 8 },
+  flat: { card: 4, btn: 6, chip: 6, field: 4 },
   std: { card: 12, btn: 999, chip: 999, field: 12 },
-  round: { card: 28, btn: 999, chip: 999, field: 28 }
+  round: { card: 32, btn: 999, chip: 999, field: 32 }
 }
 
 // 密度: 列表行高 / 内边距 / 控件高 (M3 没有"密度"这个语义, 这是设备可用性扩展:

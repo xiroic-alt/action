@@ -163,9 +163,10 @@ eq(theme.tokens().dark, false, 'tokens().dark 反映当前明暗')
 ok(theme.tokens().c.surface !== '#000000', '浅色模式 surface 合理')
 cfg.setCfg('themeMode', 'dark')
 
-cfg.setCfg('radiusStyle', 'flat'); eq(theme.tokens().rad.btn, '8px', '方正: 按钮 8px')
+cfg.setCfg('radiusStyle', 'flat'); eq(theme.tokens().rad.btn, '6px', '方正: 按钮 6px (把按钮从胶囊压成直角)')
 cfg.setCfg('radiusStyle', 'std'); eq(theme.tokens().rad.card, '12px', '标准: 卡片 12px')
-cfg.setCfg('radiusStyle', 'round'); eq(theme.tokens().rad.card, '28px', '圆润: 卡片 28px')
+cfg.setCfg('radiusStyle', 'round'); eq(theme.tokens().rad.card, '32px', '圆润: 卡片 32px (与标准 12 一眼可辨)')
+ok(theme.tokens().rad.btn === '999px', '圆润: 按钮仍是 M3 全圆角')
 cfg.setCfg('density', 'compact'); eq(theme.tokens().den.itemH, 96, '紧凑行高 96')
 cfg.setCfg('density', 'cozy'); eq(theme.tokens().den.itemH, 128, '宽松行高 128')
 // B 站稿件封面原图是 1146x717 = 1.598 (16:10), 不是 16:9 —— 沿用 180/112 的比例,

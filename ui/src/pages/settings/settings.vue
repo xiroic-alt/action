@@ -30,6 +30,11 @@
                  :style="{ backgroundColor: cfg[r.k] ? T.c.onPrimary : T.c.outline }"></div>
           </div>
 
+          <!-- 形状实时预览: 圆角/密度这种"抽象开关"光看文字没概念,
+               给一个用当前 token 画出来的小样, 改一档立刻看见形状本身. -->
+          <div v-if="r.preview === 'radius'" class="rprev"
+               :style="{ borderRadius: T.rad.card, borderColor: T.c.outline, backgroundColor: T.c.primaryContainer }"></div>
+
           <!-- 分段选择 (M3 segmented button) -->
           <div v-else-if="r.t === 'choice'" class="seg">
             <div v-for="o in r.opts" :key="r.k + '_' + o[0]" class="segi"
@@ -134,7 +139,7 @@ const SCHEMA = [
       { k: 'themeMode', t: 'choice', label: '明暗', desc: '跟随时间 = 06:00-18:00 浅色', opts: [['dark', '深色'], ['light', '浅色'], ['auto', '跟随时间']] },
       { k: 'contrastLevel', t: 'choice', label: '对比度', desc: 'M3 contrast level', opts: [[0, '标准'], [1, '高对比']] },
       { k: 'pureBlack', t: 'switch', label: '纯黑背景', desc: '深色模式下页面底压到纯黑, 更省电' },
-      { k: 'radiusStyle', t: 'choice', label: '圆角', opts: [['flat', '方正'], ['std', '标准'], ['round', '圆润']] },
+      { k: 'radiusStyle', t: 'choice', label: '圆角', preview: 'radius', opts: [['flat', '方正'], ['std', '标准'], ['round', '圆润']] },
       { k: 'density', t: 'choice', label: '列表密度', desc: '影响列表封面大小与行高', opts: [['compact', '紧凑'], ['std', '标准'], ['cozy', '宽松']] },
       { k: 'fontScale', t: 'choice', label: '字号', opts: [['sm', '小'], ['std', '标准'], ['lg', '大']] },
       { k: 'navPos', t: 'choice', label: '导航位置', desc: '左侧竖排 = M3 NavigationRail, 内容多 20% 高', opts: [['left', '左侧竖排'], ['top', '顶部横排']] },
@@ -364,6 +369,7 @@ export default {
 .knob { width: 22px; height: 22px; border-radius: 11px; }
 .knob-on { margin-left: 27px; }
 .knob-off { margin-left: 4px; }
+.rprev { width: 46px; height: 26px; border-width: 2px; margin-right: 14px; }
 .seg { flex-direction: row; align-items: center; }
 /* ★ 可点元素必须有显式尺寸 (本机只挂 padding 的 div 命中区为 0) */
 .segi { height: 30px; padding-left: 12px; padding-right: 12px; margin-left: 6px;
