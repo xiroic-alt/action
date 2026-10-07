@@ -34,6 +34,15 @@ class App extends $falcon.App {
    */
   onLaunch(options) {
     super.onLaunch(options)
+    // ★ 顺序不能反: initAuth() 里会 initStore() 打开 bilibili.db, 而设置也存同一个库.
+    //   原来先 setLogLevel(getCfg('logLevel')) 再 initAuth() —— getCfg 在数据库打开**之前**
+    //   就把配置读进来了, 于是走了"文件兜底"分支并缓存; 等数据库就绪时缓存已经填满,
+    //   迁移逻辑再也没机会跑. 真机现象: kv 表建出来了却一行数据没有, cfg.json 一直留着.
+    try {
+      initAuth()
+    } catch (e) {
+      console.warn('[app] initAuth failed: ' + e)
+    }
     try {
       // 日志级别来自设置 (config.logLevel); 先 initLog 再设级别, 保证"日志不可用"这类
       // 启动期问题无论如何都留下痕迹
@@ -44,12 +53,6 @@ class App extends $falcon.App {
     }
     // 设置页面基类,应用全局的$falcon.Page将被替换成此处指定的BasePage.
     $falcon.useDefaultBasePageClass(BasePage)
-    try {
-      initAuth()
-    } catch (e) {
-      console.warn('[app] initAuth failed: ' + e)
-      try { log('应用', 'initAuth 失败: ' + e) } catch (e2) {}
-    }
   }
 
   /**

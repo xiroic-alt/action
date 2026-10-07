@@ -104,6 +104,23 @@ export function defaults() {
 export function specOf(key) { return SPEC[key] || null }
 
 var cache = null
+// 这份缓存是从"文件兜底"路径来的吗? 数据库晚于配置就绪时, 用它判断要不要补一次迁移.
+var loadedFromFile = false
+
+// 把当前内存里的配置写进数据库, 成功后删掉旧文件.
+// 抽出来是因为它有两个触发点: 首次 loadConfig (库里还没有) 和"数据库晚就绪"的补迁移.
+function migrateToDb(c) {
+  if (!kvReady()) return false
+  var payload = { _v: CFG_VERSION }
+  for (var k in c) if (c.hasOwnProperty(k)) payload[k] = c[k]
+  try {
+    if (!kvSet(KV_KEY, JSON.stringify(payload))) return false
+  } catch (e) { return false }
+  loadedFromFile = false
+  try { if (hasFs()) bilinet.deleteFile(CFG_PATH) } catch (e2) {}
+  log('设置', '旧配置文件已迁移进数据库并删除')
+  return true
+}
 
 function hasFs() {
   return !!(bilinet && typeof bilinet.readFile === 'function' && typeof bilinet.writeFile === 'function')
@@ -123,7 +140,13 @@ function parse(raw) {
 }
 
 export function loadConfig() {
-  if (cache) return cache
+  if (cache) {
+    // ★ 兜底: app.js 里的顺序已经保证"先开库再读配置", 但只要有任何一条路径在
+    //   数据库就绪前先读了配置, 缓存就会一直停在文件版本 —— 这里补一次迁移.
+    //   真机踩过: kv 表建出来了却一行数据都没有, cfg.json 一直留着, 就是这个时序.
+    if (loadedFromFile && kvReady()) migrateToDb(cache)
+    return cache
+  }
   cache = defaults()
   // 1) 首选数据库
   try {
@@ -135,9 +158,8 @@ export function loadConfig() {
         var legacy = bilinet.readFile(CFG_PATH)
         if (legacy) {
           cache = parse(legacy)
-          saveConfig()
-          try { bilinet.deleteFile(CFG_PATH) } catch (e0) {}
-          log('设置', '旧配置文件已迁移进数据库并删除')
+          loadedFromFile = true
+          migrateToDb(cache)
           return cache
         }
       }
@@ -149,7 +171,7 @@ export function loadConfig() {
   try {
     if (hasFs()) {
       var s2 = bilinet.readFile(CFG_PATH)
-      if (s2) cache = parse(s2)
+      if (s2) { cache = parse(s2); loadedFromFile = true }
     }
   } catch (e2) {
     log('设置', '读取配置失败, 用默认值: ' + (e2 && e2.message ? e2.message : e2))
@@ -181,7 +203,7 @@ export function saveConfig() {
   // 数据库写不进去时才落文件 —— 不是并行双写, 避免"改一处、两处不一致"
   if (!okDb) {
     try {
-      if (hasFs()) bilinet.writeFile(CFG_PATH, json)
+      if (hasFs()) { bilinet.writeFile(CFG_PATH, json); loadedFromFile = true }
     } catch (e2) {
       log('设置', '写配置文件失败: ' + (e2 && e2.message ? e2.message : e2))
     }

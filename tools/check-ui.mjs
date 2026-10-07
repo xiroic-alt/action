@@ -11,9 +11,47 @@ import { register } from 'node:module'
 // ---- 设备文件系统桩 (config.js / log.js 走 bilinet.readFile/writeFile) ----
 const disk = new Map()
 const execCalls = []
+// ---- sqlite 桩: 用 Node 自带的真 SQLite, 不手写 SQL 解析 ----
+// 教训: 第一版桩件是 `dbExec: () => true`, 于是 services/store.js 的 initStore 从没被跑过、
+// kvReady() 恒为 false —— "配置进数据库"这条路径在本地是**零覆盖**的 (真机上 kv 表建出来了
+// 却一行数据没有, 就是这么漏过去的). 第二版自己写了个 SQL 解析器, 又因为分隔符匹配
+// 写错而永远 return false, 结论依然是错的. 直接用 node:sqlite 的真引擎 —— 行为不会撒谎.
+import { DatabaseSync } from 'node:sqlite'
+const sqlite = new DatabaseSync(':memory:')
+function dbExec(sql) {
+  const s = String(sql)
+  try {
+    if (/^\s*(create|drop|alter)\b/i.test(s)) { sqlite.exec(s); return true }
+    sqlite.prepare(s).run()
+    return true
+  } catch (e) { return false }
+}
+function dbQuery(sql) {
+  try { return JSON.stringify(sqlite.prepare(String(sql)).all()) } catch (e) { return '[]' }
+}
+// 断言里直接查库 (替代手写的 dbKv)
+function kvRows() { try { return sqlite.prepare('select k, v from kv').all() } catch (e) { return [] } }
+function kvOf(k) {
+  // 表还没建出来时 prepare 会抛 —— 这是合法状态 (数据库没打开), 当成"没有"就行
+  try {
+    const r = sqlite.prepare('select v from kv where k = ?').all(k)
+    return r && r.length ? String(r[0].v) : null
+  } catch (e) { return null }
+}
+function kvHas(k) { return kvOf(k) !== null }
+function kvPut(k, v) {
+  try { sqlite.prepare('insert or replace into kv (k, v, updated_at) values (?, ?, ?)').run(k, v, 1) } catch (e) {}
+}
+function kvDrop(k) { try { sqlite.prepare('delete from kv where k = ?').run(k) } catch (e) {} }
+function tableExists(n) {
+  const r = sqlite.prepare("select name from sqlite_master where type='table' and name=?").all(n)
+  return r && r.length > 0
+}
+
 globalThis.__bilinet = {
   readFile: (p) => (disk.has(p) ? disk.get(p) : ''),
   writeFile: (p, d) => { disk.set(p, String(d)); return true },
+  deleteFile: (p) => { const had = disk.has(p); disk.delete(p); return had },
   mkdirs: () => true,
   fileExists: (p) => disk.has(p),
   httpGet: () => '',
@@ -21,9 +59,9 @@ globalThis.__bilinet = {
   httpGetAsync: () => Promise.resolve(''),
   httpPostAsync: () => Promise.resolve(''),
   exec: () => '',
-  dbOpen: () => true,
-  dbExec: () => true,
-  dbQuery: () => [],
+  dbOpen: (p) => true,
+  dbExec: dbExec,
+  dbQuery: dbQuery,
   dbClose: () => true,
   execAsync: (cmd) => {
     execCalls.push(cmd)
@@ -102,7 +140,28 @@ ok(surf('rose|dark|0') !== surf('rose|light|0'), '深色/浅色 surface 必须�
 ok(surf('rose|dark|0') !== surf('blue|dark|0'), '不同种子色 surface 必须不同 (色相染色)')
 
 // ================= 2. 配置持久化 =================
+// ★ 先复现真机的时序 bug, 再走正常路径.
+//   真机现象: kv 表建出来了却一行数据都没有, cfg.json 一直留着.
+//   根因: app.js 原来先 setLogLevel(getCfg("logLevel")) 再 initAuth() (initAuth 里面才
+//   initStore 开库) —— 配置在数据库就绪**之前**被读走并缓存成"文件版本",
+//   之后缓存一直命中, 迁移逻辑再也跑不到.
+//   这里故意让 config.js 先于 initStore 被 import, 把那时的状态复刻出来.
 const cfg = await import(SRC + 'services/config.js')
+const store = await import(SRC + 'services/store.js')
+ok(!store.kvReady(), '数据库尚未打开时 kvReady() 为 false (时序前提成立)')
+disk.set(cfg.CFG_PATH, JSON.stringify({ _v: 2, themeSeed: 'red', btaudioMs: 111 }))
+cfg.__reloadForTest()
+eq(cfg.getCfg('themeSeed'), 'red', '数据库未就绪: 先走文件兜底读到配置')
+ok(!kvHas('settings'), '数据库未就绪: 库里还没有 settings 行')
+store.initStore()
+ok(store.kvReady(), 'store.initStore() 之后 kvReady() 必须为 true')
+ok(tableExists('kv'), 'initStore 建出了 kv 表')
+eq(cfg.getCfg('themeSeed'), 'red', '数据库就绪后: 值不变 (不能把用户设置读丢)')
+ok(kvHas('settings'), '数据库就绪后**自动补做迁移**: 旧文件进库')
+ok(!disk.has(cfg.CFG_PATH), '补迁移后旧文件被删除 (不留两份真源)')
+
+cfg.resetConfig()
+cfg.__reloadForTest()
 const all = cfg.loadConfig()
 eq(all.themeSeed, 'rose', '默认主题色')
 eq(all.themeMode, 'dark', '默认明暗')
@@ -119,19 +178,33 @@ eq(cfg.getCfg('themeSeed'), 'blue', '合法枚举写入成功')
 cfg.setCfg('motion', 0)
 eq(cfg.getCfg('motion'), false, 'bool 归一化')
 
-const raw = disk.get(cfg.CFG_PATH)
-ok(typeof raw === 'string' && raw.length > 20, '配置已写入设备路径')
-ok(raw.indexOf('"_v":2') >= 0 || raw.indexOf('"_v": 2') >= 0, '文件带 schema 版本')
+// ★ 配置必须进数据库 (用户要求: 和登录信息一起存, 不要单独文件)
+const kvRaw = kvOf('settings')
+ok(typeof kvRaw === 'string' && kvRaw.length > 20, '配置已写进 bilibili.db 的 kv 表')
+ok(kvRaw && (kvRaw.indexOf('"_v":2') >= 0 || kvRaw.indexOf('"_v": 2') >= 0), 'kv 里的配置带 schema 版本')
+ok(!disk.has(cfg.CFG_PATH), '数据库可用时不再落 cfg.json 文件')
 
-// 手改/损坏文件: 已知键夹紧, 未知键保留
-disk.set(cfg.CFG_PATH, JSON.stringify({ _v: 1, btaudioMs: 123456, themeSeed: 'violet', futureKey: 'keep-me' }))
+// 手改/损坏数据: 已知键夹紧, 未知键保留 (改的是数据库里那一行)
+// 反向验证一下桩件本身是活的: 写进去读得回来, 否则后面的断言全是假绿
+kvPut('__probe__', 'hello')
+ok(kvOf('__probe__') === 'hello', 'sqlite 桩件可写可读 (断言的前提)')
+ok(tableExists('kv'), 'sqlite 桩件真的建了表')
+kvPut('settings', JSON.stringify({ _v: 1, btaudioMs: 123456, themeSeed: 'violet', futureKey: 'keep-me' }))
 cfg.__reloadForTest()
 eq(cfg.getCfg('btaudioMs'), 800, '手改超界值被夹紧')
 eq(cfg.getCfg('themeSeed'), 'violet', '手改合法值被采纳')
 eq(cfg.getCfg('futureKey'), 'keep-me', '未知键保留 (回滚不丢数据)')
-disk.set(cfg.CFG_PATH, '{ this is not json')
+kvPut('settings', '{ this is not json')
 cfg.__reloadForTest()
 eq(cfg.getCfg('themeSeed'), 'rose', '损坏 JSON 回落到默认值, 不抛错')
+
+// 老版本升级路径: 库里没有 settings, 但设备上留着一份旧的 cfg.json -> 必须迁移进库并删文件
+kvDrop('settings')
+disk.set(cfg.CFG_PATH, JSON.stringify({ _v: 2, themeSeed: 'green', btaudioMs: 321 }))
+cfg.__reloadForTest()
+eq(cfg.getCfg('themeSeed'), 'green', '旧 cfg.json 被迁移进数据库')
+ok(kvHas('settings'), '迁移后数据库里有了 settings 行')
+ok(!disk.has(cfg.CFG_PATH), '迁移后旧 cfg.json 被删除 (不留两份真源)')
 
 cfg.resetConfig()
 eq(cfg.getCfg('navPos'), 'left', '恢复默认')
