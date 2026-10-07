@@ -165,38 +165,35 @@ ok(surf('rose|dark|0') !== surf('rose|light|0'), '深色/浅色 surface 必须�
 ok(surf('rose|dark|0') !== surf('blue|dark|0'), '不同种子色 surface 必须不同 (色相染色)')
 
 
-// ================= 2.5 原生安全层 (services/native.js) =================
-// 用户报的 this object js call is disabled 就落在这几条上.
+// ================= 2.5 Native boundary =================
+// The creator test executes the C++ production lambda. This test checks that
+// JavaScript preserves native capability, result, error and call semantics.
 const nat = await import(SRC + 'services/native.js')
-ok(typeof nat.isJSApiNotReady === 'function', 'native.js 导出 isJSApiNotReady')
-ok(nat.isJSApiNotReady(new Error('this object js call is disabled')), '识别 disabled 错误 (启动期未就绪)')
-ok(!nat.isJSApiNotReady(new Error('net timeout')), '不把业务错误当成就绪问题 (否则会无意义重试)')
-// 循环依赖: native.js 是最底层, 依赖 log.js 会让 log.js 顶层的 bilinet 绑定拿到未初始化值
-// SRC 是 file:// URL, 读盘要先转回路径
-const natSrc = (await import('node:fs')).readFileSync((await import('node:url')).fileURLToPath(SRC + 'services/native.js'), 'utf8')
-ok(natSrc.indexOf(String.fromCharCode(39) + './log.js' + String.fromCharCode(39)) < 0, 'native.js 不依赖 log.js (防循环依赖)')
-// 异步方法: 失败是 promise 拒绝, 同步 try/catch 抓不到 —— 必须单独兜并重试
-globalThis.__asyncDisabledOnce = true
-await nat.bilinet.httpGetAsync('http://example.invalid/', 1)
-ok(globalThis.__asyncDisabledOnce === false, '异步方法遇 disabled 会重试并最终成功 (不再是 unhandled rejection)')
-// 连试两次仍 disabled: 必须**如实失败**, 绝不能给一个假值.
-// 我上一版在这里返回了中性值 (httpGet -> '') —— 结果 bili.js 每处都判定
-// "请求失败 (空响应)", 整个应用废掉. 空串在业务语义里是"服务端返回了空",
-// 不是"没拿到"; 降级一个值等于撒谎.
-globalThis.__asyncDisabledAlways = true
-let deadErr = null
-try { await nat.bilinet.httpGetAsync('http://example.invalid/', 1) } catch (e) { deadErr = e }
-ok(!!deadErr, '上下文已作废时异步调用如实失败 (不能悄悄resolve成空串)')
-ok(String(deadErr && deadErr.message).indexOf('disabled') >= 0, '失败原因保留原始 disabled 信息, 便于定位')
-let syncErr = null
-try { nat.bilinet.readFile('/nope') } catch (e) { syncErr = e }
-ok(!!syncErr, '上下文已作废时同步调用同样如实失败')
-// 复位: 后面的用例还要正常调原生
-nat.__resetDeadForTest()
-globalThis.__asyncDisabledAlways = false
-globalThis.__asyncDisabledAlways = false
-ok((await nat.bilinet.httpGetAsync('http://example.invalid/', 1)) === '', '复位后恢复正常调用')
-ok(nat.bilinet.readFile('/anything') === '', '复位后同步读也恢复正常')
+ok(nat.bilinet === globalThis.__bilinet, 'native facade preserves the context-owned binding')
+const originalGet = globalThis.__bilinet.httpGetAsync
+const originalPost = globalThis.__bilinet.httpPostAsync
+const originalRead = globalThis.__bilinet.readFile
+const disabled = new Error('this object js call is disabled')
+let calls = 0
+let nativeFailure = null
+globalThis.__bilinet.httpGetAsync = () => { calls++; return Promise.reject(disabled) }
+try { await nat.bilinet.httpGetAsync('http://example.invalid/', 1) } catch (e) { nativeFailure = e }
+ok(nativeFailure === disabled, 'async errors keep identity instead of resolving to an empty body')
+eq(calls, 1, 'disabled binding is not retried through a cached require')
+globalThis.__bilinet.readFile = () => { throw disabled }
+let readFailure = null
+try { nat.bilinet.readFile('/nope') } catch (e) { readFailure = e }
+ok(readFailure === disabled, 'sync errors keep their real failure semantics')
+globalThis.__bilinet.httpGetAsync = () => Promise.resolve('response-body')
+eq(await nat.bilinet.httpGetAsync('http://example.invalid/', 1), 'response-body', 'failure does not latch a dead state across later calls')
+globalThis.__bilinet.httpPostAsync = () => { calls++; return Promise.reject(disabled) }
+calls = 0
+try { await nat.bilinet.httpPostAsync('http://example.invalid/', 'text=x', 1) } catch (e) {}
+eq(calls, 1, 'mutating requests are never automatically replayed')
+globalThis.__bilinet.httpGetAsync = originalGet
+globalThis.__bilinet.httpPostAsync = originalPost
+globalThis.__bilinet.readFile = originalRead
+
 // ================= 2. 配置持久化 =================
 // ★ 先复现真机的时序 bug, 再走正常路径.
 //   真机现象: kv 表建出来了却一行数据都没有, cfg.json 一直留着.

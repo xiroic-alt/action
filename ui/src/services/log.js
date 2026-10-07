@@ -139,7 +139,7 @@ function emit(tag, msg, lv) {
 
 /** 初始化日志 (在 App onLaunch 里调用一次) */
 export function initLog(extra) {
-  if (ready) return          // 重试调用是幂等的 (app.js 在 JSAPI 未就绪时会退避重试)
+  if (ready) return          // 同一上下文内重复初始化保持幂等
   if (!hasFileApi()) {
     failed = true
     try { console.warn('[log] bilinet 缺少文件接口, 日志不可用') } catch (e) {}

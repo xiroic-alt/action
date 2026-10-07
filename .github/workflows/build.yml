@@ -64,6 +64,7 @@ jobs:
           node tools/gen-detail-ring.mjs --check
           node tools/validate.mjs
           node tools/check-ui.mjs
+          node tools/check-native-lifecycle.mjs
 
       - name: Install aarch64 cross toolchain
         run: |

@@ -138,6 +138,13 @@ namespace sql {
 static std::mutex g_curlMutex;
 
 class BiliNet : public JQUTIL_NS::JQBaseObject {
+protected:
+    void OnInit() override {
+        BN_LOG("lifecycle attach obj=%p ctx=%p", (void*)this, (void*)getContext());
+    }
+    void OnGCCollect() override {
+        BN_LOG("lifecycle detach obj=%p ctx=%p", (void*)this, (void*)getContext());
+    }
 public:
     void httpGet(JQUTIL_NS::JQFunctionInfo& info)
     {
@@ -731,13 +738,13 @@ const char* BiliNet::REFERER = "https://www.bilibili.com";
 static JSValue createBiliNet(JQModuleEnv* env)
 {
     JQFunctionTemplateRef tpl = JQFunctionTemplate::New(env, "bilinet");
+    // 每个 JS context 必须拥有独立的 native 对象。
+    // 旧实现把 BiliNet* 做成进程级 static：返回桌面后旧 context detach 清掉 _ctx，
+    // 再进应用仍拿到同一对象，于是所有方法命中 isJSCallDisabled()。
+    // JQObjectTemplate::NewInstance() 会为 creator 返回值增加 SDK 管理的 REF，
+    // creator 本身只负责 new，不能额外 REF 或跨 context 缓存。
     tpl->InstanceTemplate()->setObjectCreator([]() {
-        static BiliNet* instance = []() {
-            BiliNet* p = new BiliNet();
-            p->REF();
-            return p;
-        }();
-        return instance;
+        return new BiliNet();
     });
     tpl->SetProtoMethod("httpGet", &BiliNet::httpGet);
     tpl->SetProtoMethod("httpPost", &BiliNet::httpPost);
