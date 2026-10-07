@@ -97,10 +97,14 @@ jobs:
       #   播放页迁到框架内置 <video> 元素后 (HANDOVER §27) 它零引用,
       #   顺带省掉整条 GStreamer multiarch 安装步骤 -> CI 时间大幅缩短.
 
-      - name: Setup Node.js 18
+      # ★ 必须是 Node 22.5+: 静态闸门 tools/check-ui.mjs 用 node:sqlite 做真实的 SQLite
+      #   桩件 (配置持久化的回归就靠它). Node 18 没有这个内置模块, 会以
+      #   ERR_UNKNOWN_BUILTIN_MODULE 直接让构建挂掉 —— 0.9.62 踩过.
+      #   顺带解决另一个坑: Node 22.7 起才有模块语法自动探测, 18 上按 .js 判断 ESM 会翻车.
+      - name: Setup Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Install dependencies
         run: |
