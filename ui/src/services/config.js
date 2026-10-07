@@ -1,4 +1,4 @@
-// 应用设置持久化: /userdisk/xiro/bilibilipan.cfg.json
+// 应用设置持久化: **bilibili.db 的 kv 表** (用户要求: 和登录信息一起存数据库)
 //
 // 路径约定 (HANDOVER §3 设备路径): 本应用的日志 / 数据库 / 配置统一放 /userdisk/xiro,
 // 与 log.js(LOG_PATH) 同目录. 同目录还有另一个应用 (8001865309000001) 写的
@@ -14,8 +14,9 @@
 // - 未知字段原样保留并写回 —— 回滚到旧版本时不会把新版本的键清掉.
 // - 版本号写进文件, 便于以后做迁移.
 
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 import { log } from './log.js'
+import { kvReady, kvGet, kvSet } from './store.js'
 
 export const CFG_PATH = '/userdisk/xiro/bilibilipan.cfg.json'
 // 兼容别名: 0.9.57 之前的页面 (settings.vue) 用的是这个名字
@@ -25,6 +26,9 @@ export const CONFIG_PATH = CFG_PATH
 export const BT_PATH_CONST = '/userdisk/xiro/btaudio_ms'
 
 var CFG_VERSION = 2
+// 配置在 kv 表里占一行: k='settings', v=整份 JSON.
+// 为什么不逐项建列: 配置项会随版本增删, 逐列的话每次加设置都要写迁移.
+var KV_KEY = 'settings'
 
 // ---- 取值域 ----
 // 每一项: [默认值, 类型, 约束]
@@ -121,13 +125,34 @@ function parse(raw) {
 export function loadConfig() {
   if (cache) return cache
   cache = defaults()
+  // 1) 首选数据库
   try {
-    if (hasFs()) {
-      var s = bilinet.readFile(CFG_PATH)
-      if (s) cache = parse(s)
+    if (kvReady()) {
+      var s = kvGet(KV_KEY)
+      if (s) { cache = parse(s); return cache }
+      // 库里还没有 -> 看看有没有旧版本留下的 JSON 文件, 有就迁移过来
+      if (hasFs()) {
+        var legacy = bilinet.readFile(CFG_PATH)
+        if (legacy) {
+          cache = parse(legacy)
+          saveConfig()
+          try { bilinet.deleteFile(CFG_PATH) } catch (e0) {}
+          log('设置', '旧配置文件已迁移进数据库并删除')
+          return cache
+        }
+      }
     }
   } catch (e) {
-    log('设置', '读取配置失败, 用默认值: ' + (e && e.message ? e.message : e))
+    log('设置', '读数据库失败, 退回默认值: ' + (e && e.message ? e.message : e))
+  }
+  // 2) 数据库不可用 (老设备/打开失败): 仍然读旧 JSON 文件, 保证应用能起来
+  try {
+    if (hasFs()) {
+      var s2 = bilinet.readFile(CFG_PATH)
+      if (s2) cache = parse(s2)
+    }
+  } catch (e2) {
+    log('设置', '读取配置失败, 用默认值: ' + (e2 && e2.message ? e2.message : e2))
   }
   return cache
 }
@@ -146,17 +171,23 @@ export function allCfg() {
 
 export function saveConfig() {
   var c = loadConfig()
-  try {
-    if (hasFs()) {
-      var payload = { _v: CFG_VERSION }
-      for (var k in c) if (c.hasOwnProperty(k)) payload[k] = c[k]
-      bilinet.writeFile(CFG_PATH, JSON.stringify(payload))
-      // 兼容: 旧原生播放器读的纯文本
-      bilinet.writeFile(BT_PATH_CONST, String(c.btaudioMs))
-    }
-  } catch (e) {
-    log('设置', '写入配置失败: ' + (e && e.message ? e.message : e))
+  var payload = { _v: CFG_VERSION }
+  for (var k in c) if (c.hasOwnProperty(k)) payload[k] = c[k]
+  var json = JSON.stringify(payload)
+  var okDb = false
+  try { okDb = kvReady() ? kvSet(KV_KEY, json) : false } catch (e) {
+    log('设置', '写数据库失败: ' + (e && e.message ? e.message : e))
   }
+  // 数据库写不进去时才落文件 —— 不是并行双写, 避免"改一处、两处不一致"
+  if (!okDb) {
+    try {
+      if (hasFs()) bilinet.writeFile(CFG_PATH, json)
+    } catch (e2) {
+      log('设置', '写配置文件失败: ' + (e2 && e2.message ? e2.message : e2))
+    }
+  }
+  // 兼容: 设备上残留的旧原生播放器读这个纯文本 (与配置本体无关, 一直写)
+  try { if (hasFs()) bilinet.writeFile(BT_PATH_CONST, String(c.btaudioMs)) } catch (e3) {}
   return c
 }
 

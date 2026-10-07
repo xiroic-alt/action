@@ -12,7 +12,7 @@
 //   auth(id=1)  当前登录态 + 最近一次账号快照
 //   login_log   每次登录 / 退出的历史 (只记账号, 不记 Cookie 明文)
 
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 
 const DB_DIR = '/userdisk/xiro'
 const DB_PATH = '/userdisk/xiro/bilibili.db'
@@ -92,6 +92,15 @@ const SQL_LOG = 'CREATE TABLE IF NOT EXISTS login_log (' +
   'mid INTEGER, uname TEXT, ' +
   'created_at INTEGER)'
 
+// 应用设置: key-value 表.
+// 用户要求"设置和登录信息一起存数据库, 不要单独创建文件" —— 以前配置写在
+// /userdisk/xiro/bilibilipan.cfg.json, 现在整份配置以一行 JSON 存进这里.
+// 保留 SQL 文本而不是结构化列: 配置项会随版本增删, 逐项建列每次加设置都要迁移.
+const SQL_KV = 'CREATE TABLE IF NOT EXISTS kv (' +
+  'k TEXT PRIMARY KEY NOT NULL, ' +
+  'v TEXT NOT NULL, ' +
+  'updated_at INTEGER)'
+
 // 搜索历史: 关键字唯一, 重复搜索提到最新, 只留最近 20 条
 const SQL_SEARCH = 'CREATE TABLE IF NOT EXISTS search_history (' +
   'id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, ' +
@@ -166,6 +175,7 @@ export function initStore() {
     return cache
   }
   bilinet.dbExec(SQL_SEARCH)  // 搜索历史表建失败不阻塞主流程
+  bilinet.dbExec(SQL_KV)      // 配置表同上
   opened = true
   cache = dbLoad()
   return cache
@@ -174,6 +184,34 @@ export function initStore() {
 /** 同步取当前登录行 (initStore 之前调用返回 null) */
 export function getStoredAuth() {
   return cache
+}
+
+// ------------------------------ 配置 kv ------------------------------
+
+/** 数据库是否可用 (不可用时 config.js 会退回旧 JSON 文件, 保证老设备还能起) */
+export function kvReady() { return opened }
+
+export function kvGet(k) {
+  if (!opened) return null
+  try {
+    const rows = JSON.parse(bilinet.dbQuery("SELECT v FROM kv WHERE k = '" + q(k) + "'"))
+    if (!rows || rows.length === 0) return null
+    return str(rows[0].v)
+  } catch (e) { return null }
+}
+
+/** 写一行; 配置表还没建出来时返回 false, 调用方自行兜底 */
+export function kvSet(k, v) {
+  if (!opened) return false
+  try {
+    return !!bilinet.dbExec("INSERT OR REPLACE INTO kv (k, v, updated_at) VALUES ('" +
+      q(k) + "', '" + q(v) + "', " + nowSec() + ')')
+  } catch (e) { return false }
+}
+
+export function kvDel(k) {
+  if (!opened) return false
+  try { return !!bilinet.dbExec("DELETE FROM kv WHERE k = '" + q(k) + "'") } catch (e) { return false }
 }
 
 /**

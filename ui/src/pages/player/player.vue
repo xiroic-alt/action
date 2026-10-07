@@ -1,5 +1,5 @@
 <template>
-  <div class="page" :style="T.page">
+  <div class="page" :style="T.page" :style="{ backgroundColor: T.c.surface }">
     <!-- 视频面: 框架内置 <video> (VideoElmApi) 把 waylandsink 做成宿主主 surface 的
          subsurface, 并 place_below(wl_surface 主面) —— 视频恒在 UI 之下, 层级不需要
          再靠创建顺序或窗口属性去抢. 协议级实证见 HANDOVER §27. -->
@@ -18,9 +18,9 @@
       <div v-if="barVisible" class="topbar" :style="T.bar">
         <div class="nav-back" @click="goBack" :style="T.actionR">
           <image class="nav-ic" :src="MIc.back"></image>
-          <text class="nav-t" :style="T.t.body">返回</text>
+          <text class="nav-t" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
         </div>
-        <richtext class="nav-title" :style="T.t.title"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+        <richtext class="nav-title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
         <text v-if="rateText !== ''" class="nav-tag">{{ rateText }}</text>
       </div>
 

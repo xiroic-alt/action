@@ -13,32 +13,26 @@
         </div>
         <text class="nlabel" :style="activeTab === t.key ? T.t.onAccentC : T.t.label">{{ t.label }}</text>
       </div>
-      <!-- 刷新: 下拉手势在真机上偶发被框架吞掉, 这里给一个必定可用的入口.
-           M3 的 rail 允许底部承载动作 (顶部 FAB / 底部菜单), 这个位置是合规的. -->
-      <div class="nspacer"></div>
-      <div class="nitem nitem-act" :class="'nitem-' + T.navPos" @click="refreshTab">
-        <div class="nind">
-          <image class="nic" :src="refreshIcon" :style="{ width: '24px', height: '24px' }"></image>
-        </div>
-        <text class="nlabel" :style="T.t.label">刷新</text>
-      </div>
+      <!-- 导轨底部的「刷新」入口已删除 (用户要求).
+           刷新能力本身没丢: 列表停在顶部向下拖仍然触发 refreshTab(), 另外
+           每个列表页都有「回到顶部/刷新」的悬浮按钮. -->
     </div>
 
     <!-- 内容窗格: 左侧导轨时为 872x266 (吃满高度), 顶部横排时为 960x222 -->
     <div class="main">
     <!-- 推荐 (真·主页推荐流 rcmd, 无限滑动) -->
     <div v-if="activeTab === 'recommend'" class="tabbody">
-      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
+      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm" :style="{ color: T.c.onSurfaceVariant }">{{ pullHint }}</text>
 
-      <text v-else-if="recLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
-      <text v-else-if="recStatus !== ''" class="status status-center" :style="T.t.titleVar">{{ recStatus }}</text>
+      <text v-else-if="recLoading" class="status status-center" :style="T.t.titleVar" :style="{ color: T.c.onSurfaceVariant }">{{ '加载中' + dots }}</text>
+      <text v-else-if="recStatus !== ''" class="status status-center" :style="T.t.titleVar" :style="{ color: T.c.onSurfaceVariant }">{{ recStatus }}</text>
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreRecommend"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
-        <div v-for="item in recResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
+        <div v-for="item in recResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
-            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up" :style="T.t.accentSub">{{ item.author }}</text>
             <div v-if="showStat" class="statrow">
               <image class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
@@ -110,6 +104,27 @@
             </div>
           </div>
           <text v-if="history.length === 0" class="his-empty" :style="T.t.empty">还没有搜索记录</text>
+
+          <!-- 大家都在搜: s.search.bilibili.com/main/hotword (匿名可访问) -->
+          <div v-if="hotWords.length > 0" class="his-head">
+            <text class="his-title" :style="T.t.title">大家都在搜</text>
+          </div>
+          <div v-if="hotWords.length > 0" class="his-chips">
+            <div v-for="(kw, i) in hotWords" :key="'h' + i" class="his-chip" :style="T.insetR" @click="searchFromHistory(kw)">
+              <text class="his-chip-text" :style="T.t.subtitle">{{ kw }}</text>
+            </div>
+          </div>
+
+          <!-- 搜索发现: app.bilibili.com/x/v2/search/trending/ranking (匿名可访问) -->
+          <div v-if="trending.length > 0" class="his-head">
+            <text class="his-title" :style="T.t.title">搜索发现</text>
+          </div>
+          <div v-if="trending.length > 0" class="disc">
+            <div v-for="(kw, i) in trending" :key="'t' + i" class="disc-row" :style="T.cardR" @click="searchFromHistory(kw)">
+              <text class="disc-no" :style="i < 3 ? T.t.accentSm : T.t.weak">{{ i + 1 }}</text>
+              <text class="disc-t" :style="T.t.body">{{ kw }}</text>
+            </div>
+          </div>
         </div>
         <template v-else>
           <div v-for="item in results" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
@@ -138,9 +153,15 @@
       <div v-if="dynStatus !== '' && dynStatus.indexOf('未登录') >= 0" class="login-cta" :style="T.accentR" @click="openLogin">
         <text class="login-cta-text" :style="T.t.onAccentTitle">去登录</text>
       </div>
-      <div class="dynbar" :style="T.bar" @click="openFeed">
-        <text class="dynbar-t" :style="T.t.accentSm">分类浏览全类型动态（投稿 / 图文 / 文字 / 转发 / 专栏）</text>
-        <image class="dynbar-ic" :src="MIc.chevron" :style="{ width: '20px', height: '20px' }"></image>
+      <!-- 分类筛选 (M3 filter chip): 全类型动态就在这里看 —— 「动态」tab 与独立动态页合并,
+           不再有"分类浏览"这一跳. feed 页只留给 UP 空间动态 (mid 模式) 用. -->
+      <div class="dyncats">
+        <div v-for="(c, ci) in DY_CATS" :key="'dc' + ci" class="dcat"
+             :style="{ backgroundColor: dynCat === c.k ? T.c.primaryContainer : T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"
+             @click="setDynCat(c.k)">
+          <text class="dcat-t"
+                :style="{ color: dynCat === c.k ? T.c.onPrimaryContainer : T.c.onSurfaceVariant, fontSize: T.fs.label }">{{ c.n }}</text>
+        </div>
       </div>
       <scroller v-if="dynStatus === '' || dynItems.length > 0" class="list"
                 scroll-direction="vertical" :show-scrollbar="true"
@@ -215,7 +236,9 @@
             <text class="login-cta-text" :style="T.t.onAccentTitle">设置</text>
           </div>
           <!-- 「动态」入口已移除 (用户要求): 全类型动态统一在底部「动态」tab 里看,
-               这里再放一个入口既重复又占位置. openFeed() 保留给动态 tab 内的分类条用. -->
+               这里再放一个入口既重复又占位置.
+               0.9.62+: 动态 tab 已内嵌分类筛选, 连"分类浏览"这一跳也去掉了,
+               openFeed() 一并删除 (feed 页只留给 UP 空间动态用). -->
 
           <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
           <text v-else-if="myLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
@@ -229,7 +252,17 @@
 
 <script>
 import { createIME } from '../../services/ime.js'
-import { searchVideos, getPopular, getRecommend, getDynamicFeed, getMyInfo , parseMessage } from '../../services/bili.js'
+import { searchVideos, getPopular, getRecommend, getDynamicFeed, getMyInfo , parseMessage, getHotSearch, getSearchTrending } from '../../services/bili.js'
+
+// 动态分类 (与 feed 页共用同一套接口语义): 键 -> 接口的 type 参数.
+// 原样搬过来, 合并后只有一个真源 —— 两边各写一份必然漂移.
+const DY_CATS = [
+  { k: 'all', n: '全部' },
+  { k: 'av', n: '投稿' },
+  { k: 'pgc', n: '番剧' },
+  { k: 'opus', n: '专栏' }
+]
+const DY_CAT_TYPE = { all: 'all', av: 'video', pgc: 'pgc', opus: 'article' }
 import { afterPaint } from '../../base-page.js'
 import { hasCookie, saveProfile } from '../../services/auth.js'
 import { log, logStatus } from '../../services/log.js'
@@ -297,6 +330,11 @@ export default {
       searchPage: 1,
       searchHasMore: false,
       history: [],
+      // 搜索页的「大家都在搜 / 搜索发现」(匿名可访问的两个榜单接口)
+      hotWords: [],
+      trending: [],
+      discoverLoaded: false,
+      discoverLoading: false,
       // 推荐 (rcmd 真主页推荐流)
       recResults: [],
       recStatus: '',
@@ -315,6 +353,8 @@ export default {
       hotHasMore: false,
       // 动态
       dynItems: [],
+      dynCat: 'all',       // 当前动态分类
+      DY_CATS: DY_CATS,    // 模板要用, 挂到实例上
       dynStatus: '',
       dynOffset: '',
       dynHasMore: false,
@@ -380,6 +420,25 @@ export default {
       return segs
     },
 
+    // 搜索页的「大家都在搜 / 搜索发现」: 两个接口都匿名可访问 (设备 curl 实测),
+    // 进搜索 tab 时拉一次就够, 失败就整块不显示 —— 不挡搜索本身.
+    loadDiscover() {
+      if (this.discoverLoaded || this.discoverLoading) return
+      this.discoverLoading = true
+      afterPaint(async () => {
+        try {
+          const r = await Promise.all([getHotSearch(), getSearchTrending()])
+          this.hotWords = r[0] || []
+          this.trending = r[1] || []
+          this.discoverLoaded = true
+        } catch (e) {
+          log('搜索', '发现词加载失败: ' + (e && e.message ? e.message : e))
+        } finally {
+          this.discoverLoading = false
+        }
+      })
+    },
+
     switchTab(key) {
       this.activeTab = key
       if (key === 'recommend' && !this.recLoaded && !this.recLoading) {
@@ -391,6 +450,7 @@ export default {
       if (key === 'search') {
         // 每次进入刷新历史 (可能在别处搜过 / 首次进入拉取)
         try { this.history = getSearchHistory(12) } catch (e) { this.history = [] }
+        this.loadDiscover()
       }
       if (key === 'dynamic' && !this.dynLoaded && !this.dynLoading) {
         this.loadDynamic('')
@@ -597,7 +657,7 @@ export default {
       this.dynStatus = '加载中…'
       afterPaint(async () => {
         try {
-          const r = await getDynamicFeed(offset)
+          const r = await getDynamicFeed(offset, DY_CAT_TYPE[this.dynCat] || 'all')
           if (gen !== this.dynGeneration) return
           if (offset) {
             for (let i = 0; i < r.items.length; i++) this.dynItems.push(r.items[i])
@@ -608,7 +668,9 @@ export default {
           this.dynHasMore = r.hasMore
           this._scrollY = 0   // 刷新/重载后列表回到顶部, 下拉刷新才能再次触发
           this.dynLoaded = true
-          this.dynStatus = r.items.length === 0 && !offset ? '暂无动态, 去关注一些 UP 主吧' : ''
+          this.dynStatus = r.items.length === 0 && !offset
+            ? (this.dynCat === 'all' ? '暂无动态, 去关注一些 UP 主吧' : '这个分类下暂时没有内容')
+            : ''
         } catch (err) {
           if (gen !== this.dynGeneration) return
           const msg = err && err.message ? err.message : String(err)
@@ -624,6 +686,17 @@ export default {
           if (gen === this.dynGeneration) this.dynLoading = false
         }
       })
+    },
+    // 切换动态分类: 清 offset 重新拉, 列表回到顶部
+    setDynCat(k) {
+      if (this.dynCat === k) return
+      this.dynCat = k
+      this.dynOffset = ''
+      this.dynHasMore = false
+      this.dynItems = []
+      this._scrollY = 0
+      try { log('动态', '分类 -> ' + k) } catch (e) {}
+      this.loadDynamic('')
     },
     loadMoreDynamic() {
       if (this.dynLoading || !this.dynHasMore) return
@@ -782,10 +855,6 @@ export default {
       this.history = []
     },
 
-    // 动态页: 全类型(投稿/图文/文字/转发/专栏) + 分类筛选 + 九宫格 + 独立图片查看器
-    openFeed() {
-      try { $falcon.navTo('feed', {}) } catch (e) { this.dynStatus = '打开动态页失败' }
-    },
     openVideo(item) {
       console.log('open video', item.bvid, item.title)
       $falcon.navTo('page', { bvid: item.bvid, title: item.title })
@@ -890,8 +959,12 @@ export default {
   display: flex;
   flex-direction: column;
 }
-.dynbar { width: 100%; height: 34px; flex-direction: row; align-items: center; padding-left: 20px; }
-.dynbar-t { font-size: 17px; color: #3ca5ec; }
+/* 动态分类栏: M3 filter chip.
+   ★ .dcat 必须有显式 height —— 本机只挂 padding 的 div 命中区是 0 (真机踩过). */
+.dyncats { width: 100%; height: 40px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; }
+.dcat { height: 30px; padding-left: 14px; padding-right: 14px; margin-right: 8px;
+        flex-direction: row; align-items: center; }
+.dcat-t { font-size: 17px; }
 /* 列表区吃满剩余高度 (搜索页有结果时下方不再留空白) */
 .list {
   width: 100%;
@@ -986,6 +1059,13 @@ export default {
   padding-left: 12px;
   padding-right: 12px;
 }
+/* 搜索发现: 编号 + 词. 前三名用强调色 —— 与官方一致的"榜单"语义,
+   注意不只用颜色区分: 编号本身也是信息. */
+.disc { flex-direction: column; margin-top: 2px; }
+.disc-row { height: 40px; flex-direction: row; align-items: center; padding-left: 14px; padding-right: 14px; margin-bottom: 6px; }
+.disc-no { width: 26px; font-size: 17px; }
+.disc-t { font-size: 18px; }
+
 .his-chips {
   flex-direction: row;
   flex-wrap: wrap;

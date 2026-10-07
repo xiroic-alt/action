@@ -1,30 +1,30 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
-    <div class="topbar" :style="T.bar">
-      <div class="back" @click="goBack" :style="T.actionR">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
+    <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
+      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text" :style="T.t.body">返回</text>
+        <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
-      <text class="topbar-title" :style="T.t.title">{{ mode === 'folders' ? '我的收藏' : (currentFolder.title + ' (' + currentFolder.mediaCount + ')') }}</text>
+      <text class="topbar-title" :style="T.t.title" :style="{ color: T.c.onSurface }">{{ mode === 'folders' ? '我的收藏' : (currentFolder.title + ' (' + currentFolder.mediaCount + ')') }}</text>
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <text v-if="status !== ''" class="state">{{ loading ? ('加载中' + dots) : status }}</text>
+      <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
       <div v-if="!logged && loaded" class="gate">
-        <text class="gate-text">收藏夹需要登录后查看</text>
-        <div class="gate-btn" @click="goLogin">
-          <text class="gate-btn-text">去登录 (扫码 / 电脑同步)</text>
+        <text class="gate-text" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">收藏夹需要登录后查看</text>
+        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+          <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
       </div>
       <template v-else-if="mode === 'folders'">
-        <div v-for="f in folders" :key="f.id" class="fitem" @click="openFolder(f)">
-          <text class="fitem-title">{{ f.title }}</text>
-          <text class="fitem-count">{{ f.mediaCount }} 个</text>
+        <div v-for="f in folders" :key="f.id" class="fitem" @click="openFolder(f)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
+          <text class="fitem-title" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ f.title }}</text>
+          <text class="fitem-count" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ f.mediaCount }} 个</text>
           <image class="fitem-ic" :src="MIc.chevron" :style="{ width: '20px', height: '20px' }"></image>
         </div>
-        <text v-if="folders.length === 0 && !loading && status === ''" class="empty" :style="T.t.empty">还没有创建收藏夹</text>
+        <text v-if="folders.length === 0 && !loading && status === ''" class="empty" :style="T.t.empty" :style="{ color: T.c.outline }">还没有创建收藏夹</text>
       </template>
       <template v-else>
         <div v-for="(item, i) in items" :key="item.bvid || ('f' + i)" class="item" @click="openVideo(item)">

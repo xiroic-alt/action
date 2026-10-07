@@ -1,12 +1,12 @@
 <template>
-  <div class="dpage">
-    <div class="dtop">
+  <div class="dpage" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
+    <div class="dtop" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
       <div class="dback" @click="back">
         <image class="dback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="dback-t">返回</text>
       </div>
-      <text class="dtitle">{{ headTitle }}</text>
-      <text v-if="author !== ''" class="dtag">{{ author }}</text>
+      <text class="dtitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ headTitle }}</text>
+      <text v-if="author !== ''" class="dtag" :style="{ backgroundColor: T.c.surfaceContainerHighest, color: T.c.onSurface, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, color: T.c.onSurface, borderRadius: T.rad.card }">{{ author }}</text>
       <div class="dtop-spacer"></div>
       <text v-if="pubText !== ''" class="dtime">{{ pubText }}</text>
     </div>
@@ -18,15 +18,15 @@
           <text :class="['act-text', liked ? 'act-text-on' : '']">{{ liked ? '已赞' : '点赞' }}</text>
           <text :class="['act-num', liked ? 'act-num-on' : '']">{{ likeText }}</text>
         </div>
-        <div class="act-btn act-static">
+        <div class="act-btn act-static" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
           <text class="act-text">评论</text>
-          <text class="act-num">{{ replyText }}</text>
+          <text class="act-num" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ replyText }}</text>
         </div>
-        <div class="act-btn act-static">
+        <div class="act-btn act-static" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
           <text class="act-text">转发</text>
-          <text class="act-num">{{ forwardText }}</text>
+          <text class="act-num" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ forwardText }}</text>
         </div>
-        <text v-if="actStatus !== ''" class="act-status">{{ actStatus }}</text>
+        <text v-if="actStatus !== ''" class="act-status" :style="{ color: T.c.primary, color: T.c.primary }">{{ actStatus }}</text>
       </div>
 
       <div class="dstatus" v-if="status !== ''" @click="retry">
@@ -39,12 +39,12 @@
           <div class="ahead" @click="openUp">
             <div class="aface-wrap">
               <image v-if="face !== ''" class="aface" :src="face" resize="cover"></image>
-              <div v-else class="aface aface-ph"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
+              <div v-else class="aface aface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }"><text class="aface-t">{{ author ? author.charAt(0) : '?' }}</text></div>
               <image v-if="pendant !== ''" class="apendant" :src="pendant" resize="contain"></image>
             </div>
             <div class="acol">
               <div class="anamerow">
-                <text class="aname">{{ author }}</text>
+                <text class="aname" :style="{ color: T.c.primary, color: T.c.primary }">{{ author }}</text>
                 <text class="atime">{{ pubText }}</text>
               </div>
               <!-- 认证标识 (图2 的样式) -->
@@ -52,14 +52,14 @@
                 <div :class="['averify-badge', badgeCls()]">
                   <image class="averify-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
                 </div>
-                <text class="averify-t">{{ verifyText }}</text>
+                <text class="averify-t" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ verifyText }}</text>
               </div>
             </div>
           </div>
 
           <!-- 专栏 / 图文全文 (opus/detail): 标题 + 结构化段落 -->
           <template v-if="art">
-            <text v-if="art.title !== ''" class="artitle">{{ art.title }}</text>
+            <text v-if="art.title !== ''" class="artitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ art.title }}</text>
             <div class="pblock" v-for="(b, bi) in art.blocks" :key="'b' + bi">
               <richtext v-if="b.k === 'text' || b.k === 'quote'" :class="['ptext', b.k === 'quote' ? 'pquote' : '']">
                 <template v-for="(seg, si) in b.segs">

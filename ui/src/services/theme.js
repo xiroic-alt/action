@@ -83,8 +83,19 @@ export function roles() {
   return cacheRoles
 }
 
-// 主题观感变了要让调用方知道 (设置页改完主题, 返回上一页时用它判断是否重算界面)
-export function themeRev() { return cacheKey }
+// 主题观感变了要让调用方知道 (设置页改完设置, 返回上一页时用它判断是否重算界面).
+//
+// ★ 这里必须包含**所有影响界面外观的键**, 不只是配色.
+//   旧实现返回 cacheKey, 而 cacheKey 只在 roles() 里被写, 内容只有
+//   seed|mode|contrast|pureBlack —— 于是改圆角/密度/字级/导航位置时 rev 不变,
+//   页面 onShow 判定"没变"就不重算 token.
+//   真机表现 (用户反馈): "切换导航位置的时候只有退出才会生效".
+//   现在改成从配置**纯函数式**算出来, 不依赖 roles() 有没有被调用过.
+export function themeRev() {
+  var c = loadConfig()
+  return [c.themeSeed, resolveMode(c), c.contrastLevel, c.pureBlack ? 1 : 0,
+    c.radiusStyle, c.density, c.fontScale, c.navPos, c.motion ? 1 : 0].join('|')
+}
 
 // ---------- 形状 / 密度 / 字级 ----------
 // 圆角 (M3 shape scale: extra-small 4 / small 8 / medium 12 / large 16 / extra-large 28,

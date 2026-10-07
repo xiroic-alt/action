@@ -1,28 +1,28 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
-    <div class="topbar" :style="T.bar">
-      <div class="back" @click="goBack" :style="T.actionR">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
+    <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
+      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text" :style="T.t.body">返回</text>
+        <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
-      <text class="topbar-title" :style="T.t.title">历史记录</text>
+      <text class="topbar-title" :style="T.t.title" :style="{ color: T.c.onSurface }">历史记录</text>
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <text v-if="status !== ''" class="state">{{ loading ? ('加载中' + dots) : status }}</text>
+      <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
       <div v-if="!logged && loaded" class="gate">
-        <text class="gate-text">历史记录需要登录后查看</text>
-        <div class="gate-btn" @click="goLogin">
-          <text class="gate-btn-text">去登录 (扫码 / 电脑同步)</text>
+        <text class="gate-text" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">历史记录需要登录后查看</text>
+        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+          <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
       </div>
       <template v-else>
-        <div v-for="(item, i) in items" :key="item.bvid || ('h' + i)" class="item" @click="openVideo(item)" :style="T.cardR">
+        <div v-for="(item, i) in items" :key="item.bvid || ('h' + i)" class="item" @click="openVideo(item)" :style="T.cardR" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
-            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up">{{ item.author }}</text>
             <text class="stat">{{ item.progressText }}  {{ item.pubText }}</text>
           </div>

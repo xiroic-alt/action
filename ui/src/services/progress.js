@@ -5,7 +5,7 @@
 //
 // 写入策略: 内存里攒, 每 5s 或换视频/退出页面时才落盘 —— 播放中每秒写一次文件
 // 在这台设备上是纯粹的浪费.
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 import { logDebug } from './log.js'
 
 const PATH = '/userdisk/xiro/progress.json'

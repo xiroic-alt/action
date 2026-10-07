@@ -1,23 +1,23 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
     <!-- 左栏: 封面 (不放播放器也不放播放条, 点封面进播放器页; 播放按钮在右栏详情 tab) -->
-    <div class="left">
+    <div class="left" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
       <!-- 封面: 按原始比例等比显示, 不裁切 (盒子本身就是同比例) -->
-      <div class="cover-wrap" @click="openPlayer">
+      <div class="cover-wrap" @click="openPlayer" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
         <image v-if="coverSrc" :style="coverStyle" :src="coverSrc" resize="cover"></image>
-        <div v-else class="cover-ph" :style="coverStyle"></div>
+        <div v-else class="cover-ph" :style="coverStyle" :style="{ backgroundColor: T.c.surfaceContainerLow }"></div>
       </div>
-      <text v-if="detail" class="dur">{{ detail.duration }}</text>
+      <text v-if="detail" class="dur" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ detail.duration }}</text>
       <!-- 返回按钮: 左上角悬浮于封面上 (0.9.5 需求: 返回按钮放左上角) -->
       <div class="backbtn" @click="goBack">
         <image class="backbtn-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="backbtn-text">返回</text>
+        <text class="backbtn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">返回</text>
       </div>
     </div>
 
     <!-- 右栏: 详情 / 评论 同页 tab 切换; 左右滑动切换 (touch 事件冒泡自内部 scroller) -->
-    <div class="right" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <div class="tabbar">
+    <div class="right" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
+      <div class="tabbar" :style="{ backgroundColor: T.c.surfaceContainerHighest, backgroundColor: T.c.surfaceContainerHighest }">
         <div :class="['tab', tab === 'detail' ? 'tab-on' : '']" @click="switchTab('detail')">
           <text @click="switchTab('detail')" :class="['tab-text', tab === 'detail' ? 'tab-text-on' : '']">详情</text>
         </div>
@@ -26,7 +26,7 @@
           <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
         </div>
         <div class="tab-spacer"></div>
-        <div class="mini-btn" @click="goHome">
+        <div class="mini-btn" @click="goHome" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
           <image class="mini-ic" :src="MIc.home" :style="{ width: '30px', height: '30px' }"></image>
         </div>
       </div>
@@ -92,6 +92,19 @@
         <div v-if="detail && detail.argue" class="argue">
           <image class="argue-ic" :src="MI.alert" :style="{ width: '20px', height: '20px' }"></image>
           <text class="argue-t">{{ detail.argue }}</text>
+        </div>
+
+        <!-- AI 总结: 官方「AI 视频总结」. 有就显示摘要 + 带时间戳的大纲, 点大纲跳时间点. -->
+        <div v-if="aiSum" class="section">
+          <text class="sec-title">AI 总结</text>
+          <text v-if="aiSum.summary" class="ai-sum">{{ aiSum.summary }}</text>
+          <div v-for="(o, oi) in aiSum.outline" :key="'ao' + oi" class="ai-out">
+            <text class="ai-out-t">{{ o.title }}</text>
+            <div v-for="(p, pi) in o.parts" :key="'ap' + pi" class="ai-part" @click="seekTo(p.ts)">
+              <text class="ai-ts">{{ p.tsText }}</text>
+              <text class="ai-tx">{{ p.text }}</text>
+            </div>
+          </div>
         </div>
 
         <div v-if="detail" class="section">
@@ -327,7 +340,8 @@ import {
   getVideoDetail, getPlayUrl, getRelatedVideos, getReplies, addReply,
   likeVideo, addCoin, dealFav, addToViewLater, delToViewLater, isInToView, getFavFolders,
   getInteractState, isFavoured, cancelFav, parseMessage, likeReply,
-  getRelation, modifyRelation, getRelationTags, setUserTags, addUserTag, TAG_SPECIAL
+  getRelation, modifyRelation, getRelationTags, setUserTags, addUserTag, TAG_SPECIAL,
+  getAiConclusion
 } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
@@ -523,7 +537,11 @@ export default {
       logged: false,
       cStatus: '',
       // 图片查看器 (transform 版: 只把大图 URL 交给 <image resize=contain>, 缩放/平移全用 CSS transform)
-      viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
+      // AI 总结 (官方 x/web-interface/view/conclusion/get)
+  aiSum: null,        // { summary, outline:[{title, parts:[{ts, tsText, text}]}] }
+  aiTried: false,     // 每条稿件只试一次, 失败就不再重试
+  aiLoading: false,
+  viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       posting: false,
       ime: null,
       cGeneration: 0
@@ -576,6 +594,42 @@ export default {
     }
   },
   methods: {
+    // AI 总结 (官方 x/web-interface/view/conclusion/get).
+    // 真机实测: 不带 wbi 签名直接 -403 访问权限不足, 未登录也会失败.
+    // 拿不到就保持 aiSum = null, 模板整块不渲染 —— 不占位、不弹错.
+    // 单独异步拉, 不挂在详情主链路上, 免得拖慢首屏.
+    loadAiSummary(d, gen) {
+      if (!d || this.aiTried) return
+      this.aiTried = true
+      const pgs = d.pages || []
+      const pg = pgs[Math.max(0, this.currentPage - 1)] || pgs[0] || {}
+      const cid = pg.cid || d.cid || 0
+      if (!cid) return
+      this.aiLoading = true
+      afterPaint(async () => {
+        try {
+          const s = await getAiConclusion(this.bvid, cid, d.mid || 0)
+          if (gen !== this.generation) return
+          if (s) {
+            this.aiSum = s
+            try { log('详情', 'AI 总结可用, 大纲 ' + s.outline.length + ' 段') } catch (e0) {}
+          }
+        } catch (e) {
+          try { log('详情', 'AI 总结不可用: ' + (e && e.message ? e.message : e)) } catch (e1) {}
+        } finally {
+          if (gen === this.generation) this.aiLoading = false
+        }
+      })
+    },
+
+    // 点 AI 大纲的某一行 -> 跳到对应时间点 (播放页读 options.t)
+    seekTo(ts) {
+      const t = Number(ts) || 0
+      try {
+        $falcon.navTo('player', { bvid: this.bvid, page: String(this.currentPage), title: this.detail ? this.detail.title : this.fallbackTitle, t: t })
+      } catch (e) { try { log('详情', '跳转播放页失败') } catch (e0) {} }
+    },
+
     beginLoad(options) {
       options = options || this.$page.options || {}
       const bvid = options.bvid || ''
@@ -690,6 +744,9 @@ export default {
             const p = d.pages[this.currentPage - 1]
             if (p && p.part) this.detail.title = d.title + '（' + p.part + '）'
           }
+          // AI 总结: 单独异步拉, 失败静默 (未登录 / 该稿没有总结都会失败).
+          // 不放在主链路上, 免得拖慢详情首屏.
+          this.loadAiSummary(d, gen)
           // 交互状态 (赞/币/藏) 与稍后再看: view 的 req_user 对本应用恒为空,
           // 用专用状态接口异步补齐 (失败静默, 按钮退化为未操作态)
           if (this.logged && d.aid) {
@@ -1886,6 +1943,12 @@ export default {
   margin-top: 12px;
   flex-direction: column;
 }
+.ai-sum { font-size: 18px; padding-left: 16px; padding-right: 16px; padding-bottom: 8px; lines: 6; text-overflow: ellipsis; overflow: hidden; }
+.ai-out { flex-direction: column; padding-left: 16px; padding-right: 16px; padding-bottom: 6px; }
+.ai-out-t { font-size: 18px; padding-bottom: 4px; }
+.ai-part { flex-direction: row; align-items: flex-start; padding-bottom: 4px; }
+.ai-ts { font-size: 17px; width: 62px; }
+.ai-tx { font-size: 17px; flex: 1; }
 .sec-title {
   font-size: 18px;
   color: #ffffff;

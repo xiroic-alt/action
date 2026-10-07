@@ -1,16 +1,19 @@
-<!-- 详情页副本 page10 : 渲染共享详情组件, nextPage 指向轮换环的下一站.
-     固件同名页 navTo 只替换不叠加, 多个副本维持返回栈 (page->page2->...->page12->page). -->
+<!-- 详情页副本 page10 (生成产物, 不要手改)
+     由 tools/gen-detail-ring.mjs 按 services/detail-ring.js 的 RING 生成.
+     固件对同名页 navTo 只替换不入栈, 所以"详情套详情"必须换页面名 —— 见 detail-ring.js 说明. -->
 <template>
-  <DetailPage ref="d" :next-page="'page11'" />
+  <DetailPage ref="d" :next-page="nextOf('page10')" />
 </template>
 
 <script>
 import DetailPage from '../page/page.vue'
+import { nextOf } from '../../services/detail-ring.js'
 
 export default {
   name: 'page10',
   components: { DetailPage: DetailPage },
   methods: {
+    nextOf: nextOf,
     // BasePage 只向页面根组件转发 onShow/onHide/onUnload, 这里继续转给详情组件
     forward: function (hook) {
       var d = this.$refs && this.$refs.d

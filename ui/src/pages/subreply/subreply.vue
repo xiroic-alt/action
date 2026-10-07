@@ -1,16 +1,16 @@
 <template>
-  <div class="page" :style="T.page">
-    <div class="topbar" :style="T.bar">
-      <div class="back" @click="goBack" :style="T.actionR">
+  <div class="page" :style="T.page" :style="{ backgroundColor: T.c.surface }">
+    <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
+      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text" :style="T.t.body">返回</text>
+        <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
-      <text class="title" :style="T.t.title">全部回复 {{ total > 0 ? total : '' }}</text>
+      <text class="title" :style="T.t.title" :style="{ color: T.c.onSurface }">全部回复 {{ total > 0 ? total : '' }}</text>
     </div>
 
     <!-- 原始评论折叠成一行引用: 完整内容按需求隐藏, 但保留「在回复谁」的上下文,
          否则只剩顶栏 + 几条子回复, 页面看着像空白 -->
-    <div class="parent-line" @click="replyToParent">
+    <div class="parent-line" @click="replyToParent" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
       <text class="parent-line-text">回复 @{{ parentAuthor || '该评论' }}: {{ parentPreview }}</text>
     </div>
 
@@ -20,13 +20,13 @@
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <text v-if="status !== ''" class="status" :style="T.t.titleVar">{{ status }}</text>
+      <text v-if="status !== ''" class="status" :style="T.t.titleVar" :style="{ color: T.c.primary }">{{ status }}</text>
       <div v-for="r in replies" :key="r.rpid" class="reply">
         <image class="face" :src="r.face" resize="cover" @click="openUser(r)"></image>
         <div class="reply-main">
           <div class="reply-head">
-            <text class="reply-author" @click="openUser(r)">{{ r.author }}</text>
-            <text v-if="r.isUp" class="tag tag-up">UP主</text>
+            <text class="reply-author" @click="openUser(r)" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ r.author }}</text>
+            <text v-if="r.isUp" class="tag tag-up" :style="{ color: T.c.onSurface, borderRadius: T.rad.card, color: T.c.onSurface, borderRadius: T.rad.card }">UP主</text>
             <text class="reply-time">{{ r.timeText }}</text>
           </div>
           <!-- :key 重建生效: Falcon 的 lines 样式创建后不随 class 更新 -->

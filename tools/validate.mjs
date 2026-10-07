@@ -119,4 +119,20 @@ for (const rel of ['pages/feed/feed.vue', 'pages/dyn/dyn.vue']) {
   const s = fs.readFileSync(f, 'utf8')
   if (!/GRID_COLS/.test(s)) fail(rel + ' 未使用共享的 GRID_COLS (九宫格列数会与 GRID_CELL 漂移)')
 }
+// ---- 详情页副本环: 副本必须是生成器输出, 且每个环位都在 app.json 里登记 ----
+// 背景: 固件对同名页 navTo 只替换不入栈, 所以"详情套详情"要靠换页面名 (见
+// ui/src/services/detail-ring.js). 副本文件是**生成产物** —— 手改一份就漂移,
+// 这条门禁负责在烧 CI 之前拦住.
+try {
+  execFileSync(process.execPath, [path.join(HERE, 'gen-detail-ring.mjs'), '--check'], { stdio: 'pipe', encoding: 'utf8' })
+  const ringSrc = fs.readFileSync(ROOT + '/services/detail-ring.js', 'utf8')
+  const ring = (ringSrc.match(/'page[0-9]*'/g) || []).map((s) => s.split(String.fromCharCode(39)).join(''))
+  const appJson = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'ui', 'src', 'app.json'), 'utf8'))
+  for (const nm of ring) {
+    if (!appJson.pages || appJson.pages[nm] === undefined) fail('详情环位 ' + nm + ' 没有在 app.json 里登记')
+  }
+  if (ring.length < 2) fail('详情环至少要两个环位, 否则详情套详情仍然入不了栈')
+} catch (e) {
+  fail('详情页副本与生成器输出不一致 (跑 node tools/gen-detail-ring.mjs) -> ' + String(e.stdout || e.message || e).slice(0, 160))
+}
 console.log(bad === 0 ? 'VALIDATE PASSED (' + files.length + ' pages, ' + have.size + ' icons)' : bad + ' 个问题')

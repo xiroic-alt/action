@@ -67,7 +67,7 @@
 //   - 取流走 getRoomPlayInfo (匿名可用, 只需 UA), 优先 HLS/avc, 退回 FLV/avc;
 //   - 弹幕只能做降级版: WebSocket 全量方案在 QuickJS 上不可行 (无 ws + zlib/brotli 解包),
 //     用 /dM/gethistory 每 8s 拉最近 10 条去重滚动 —— 密集房间会丢弹幕, 这是已知上限.
-import { bilinet } from 'bilinet'
+import { bilinet } from '../../services/native.js'
 import { searchLive, getLiveRoomPlayUrl, getLiveDanmaku } from '../../services/bili.js'
 import { tokens } from '../../services/theme.js'
 import { createIME } from '../../services/ime.js'

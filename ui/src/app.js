@@ -9,7 +9,7 @@ import { BasePage } from './base-page.js'
 const BUILD_TAG = 'P36-m3'
 
 // 注册 bilinet 原生模块 (bili.js 的 httpGet 依赖它)
-import { bilinet } from 'bilinet'
+import { bilinet } from './services/native.js'
 try {
   console.log('[app] bilinet.httpGet=' + (typeof bilinet.httpGet))
 } catch (e) {

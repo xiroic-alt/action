@@ -62,7 +62,7 @@
 // 关键实测 (2026-10-05, 10 组 A/B): CDN 防盗链的真门槛是 **User-Agent**,
 // Referer 完全不影响 (无 header 403 / 浏览器 UA 206 / GStreamer UA 206 / curl UA 403 /
 // 只有 Referer 仍然 403). 所以框架内置 <video> 的 souphttpsrc 天然过闸, 换 host 可行.
-import { bilinet } from 'bilinet'
+import { bilinet } from '../../services/native.js'
 import { loadConfig, setCfg } from '../../services/config.js'
 import { tokens } from '../../services/theme.js'
 import { SOURCES, CDN_NODES, probe, fmtProbe, currentHost, isValidHost, applyHost, UA, REFERER } from '../../services/lines.js'

@@ -17,7 +17,7 @@
 //
 // 安全: Cookie (SESSDATA / bili_jct / DedeUserID) 一律脱敏后再落盘.
 
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 
 const LOG_DIR = '/userdisk/xiro'
 const LOG_PATH = '/userdisk/xiro/bilibili.log'

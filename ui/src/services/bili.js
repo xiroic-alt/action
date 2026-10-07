@@ -7,7 +7,7 @@
 //   - curl 携带浏览器 UA + Referer 后, popular/view/search/space 全部正常
 //   - 无 Cookie 态 (无 buvid3) 反而绕开部分风控, 故不再取手指纹
 
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 import * as auth from './auth.js'
 import { log, logError, logDebug } from './log.js'
 import { getCfg } from './config.js'
@@ -761,6 +761,56 @@ export async function searchVideos(keyword, page) {
  * @param {boolean} [noCache] 跳过缓存强拉 (点赞/投币等操作后刷新状态用)
  * @returns {Promise<{bvid,aid,title,pic,desc,author,duration,pubdateText,playText,danmakuText,likeText,coinText,favText,shareText,reqLike,reqCoin,reqFav}>}
  */
+// ==================== 搜索页: 大家都在搜 / 搜索发现 ====================
+// 两个接口真机实测都可匿名访问 (设备 curl 直连):
+//   s.search.bilibili.com/main/hotword            -> {code:0, list:[...]}
+//   app.bilibili.com/x/v2/search/trending/ranking -> {code:0, data:{list:[...]}}
+// 取 show_name 而不是 keyword: 前者是给用户看的文案 (可能带活动后缀), 后者是检索词.
+function pickWords(list, max) {
+  const out = []
+  for (let i = 0; list && i < list.length && out.length < max; i++) {
+    const w = String((list[i] && (list[i].show_name || list[i].keyword)) || "")
+    if (w && out.indexOf(w) < 0) out.push(w)
+  }
+  return out
+}
+
+export async function getHotSearch() {
+  const body = await getJsonAsync("https://s.search.bilibili.com/main/hotword", 12)
+  return pickWords(body && body.list, 12)
+}
+
+export async function getSearchTrending() {
+  const body = await getJsonAsync("https://app.bilibili.com/x/v2/search/trending/ranking?limit=10", 12)
+  return pickWords(body && body.data && body.data.list, 10)
+}
+
+// ==================== 详情页: AI 总结 ====================
+// 官方接口 x/web-interface/view/conclusion/get. 真机实测:
+//   不带签名 -> code=-403 访问权限不足; 必须 wbi 签名 (且要登录态, cookie 由 getJsonAsync 统一带).
+//   未登录 / 这条稿件没生成总结都会返回非 0 —— 一律当作"没有 AI 总结"返回 null,
+//   由页面决定隐藏整块, 不当错误弹给用户.
+export async function getAiConclusion(bvid, cid, upMid) {
+  const q = await wbiQuery({ bvid: bvid, cid: Number(cid) || 0, up_mid: Number(upMid) || 0 })
+  const body = await getJsonAsync("https://api.bilibili.com/x/web-interface/view/conclusion/get?" + q, 20)
+  if (!body || body.code !== 0 || !body.data) return null
+  const mr = body.data.model_result
+  if (!mr) return null
+  const outline = []
+  const o = mr.outline || []
+  for (let i = 0; i < o.length; i++) {
+    const parts = []
+    const po = o[i].part_outline || []
+    for (let j = 0; j < po.length; j++) {
+      parts.push({ ts: Number(po[j].timestamp) || 0, tsText: formatDuration(po[j].timestamp), text: String(po[j].content || "") })
+    }
+    outline.push({ title: String(o[i].title || ""), parts: parts })
+  }
+  const summary = String(mr.summary || "")
+  if (!summary && outline.length === 0) return null
+  return { summary: summary, outline: outline }
+}
+
 export async function getVideoDetail(bvid, noCache) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   // 详情缓存 5 分钟 (noCache: 交互操作后强拉最新状态)

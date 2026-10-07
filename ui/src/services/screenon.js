@@ -12,7 +12,7 @@
 // 导入: 命名空间导入 (不会因导出名不符而链接失败); ES 模块未注册时整个模块图
 // 失败, 故本文件只被 player.vue 引用 (失败只影响播放页, 不影响首页其它页面).
 import * as brightnessMod from 'brightness'
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 import { log as appLog } from './log.js'
 import { getCfg } from './config.js'
 

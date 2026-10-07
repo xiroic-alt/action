@@ -20,7 +20,7 @@
 //   含义: 框架内置 <video> 的 souphttpsrc 自带 GStreamer UA, 天然过闸; 换 CDN host 也一样过.
 //   我们把 CDN 节点选择做成"换 host 不换签名"就是因为这条.
 
-import { bilinet } from 'bilinet'
+import { bilinet } from './native.js'
 import { getCfg } from './config.js'
 import { log } from './log.js'
 

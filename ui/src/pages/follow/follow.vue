@@ -1,11 +1,11 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
-    <div class="topbar" :style="T.bar">
-      <div class="back" @click="goBack" :style="T.actionR">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
+    <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
+      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text" :style="T.t.body">返回</text>
+        <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
-      <text class="topbar-title" :style="T.t.title">我的关注{{ total > 0 ? ' (' + total + ')' : '' }}</text>
+      <text class="topbar-title" :style="T.t.title" :style="{ color: T.c.onSurface }">我的关注{{ total > 0 ? ' (' + total + ')' : '' }}</text>
       <text class="topbar-sub">{{ logged ? ('共 ' + items.length + ' 个已加载') : '' }}</text>
     </div>
 
@@ -30,26 +30,26 @@
       <text v-if="status !== ''" class="state" @click="retry">{{ status }}</text>
       <div v-if="!logged && loaded" class="gate">
         <text class="gate-text">关注列表需要登录后查看</text>
-        <div class="gate-btn" @click="goLogin">
-          <text class="gate-btn-text">去登录 (扫码 / 电脑同步)</text>
+        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+          <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
       </div>
       <template v-else>
-        <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)" :style="T.cardR">
+        <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)" :style="T.cardR" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <div class="face-wrap">
             <image class="face" :src="u.face" resize="cover" :lazy-load="true"></image>
           </div>
           <div class="meta">
             <div class="namerow">
-              <text class="name">{{ u.name }}</text>
+              <text class="name" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ u.name }}</text>
               <div v-if="u.officialType >= 0" :class="['vbadge', badgeCls(u)]">
                 <image class="vbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
               </div>
-              <text v-if="u.special" class="sptag">特别关注</text>
+              <text v-if="u.special" class="sptag" :style="{ backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card, backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card }">特别关注</text>
             </div>
-            <text class="sign">{{ u.sign !== '' ? u.sign : '这个人很神秘，什么都没有写' }}</text>
+            <text class="sign" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ u.sign !== '' ? u.sign : '这个人很神秘，什么都没有写' }}</text>
           </div>
-          <div class="manage" @click="openManage(u)">
+          <div class="manage" @click="openManage(u)" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
             <text class="manage-t">管理</text>
           </div>
         </div>

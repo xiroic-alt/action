@@ -6,7 +6,8 @@
         <text class="bat" :style="T.t.body">返回</text>
       </div>
       <text class="ttl" :style="T.t.title">设置</text>
-      <text v-if="status !== ''" class="toast" :style="T.accentChip">{{ status }}</text>
+      <!-- 用户要求: 去掉「已设置为 X」的浮层标识 —— 选中态本身就在控件上,
+           再弹一个提示是噪音. status 只在失败时用. -->
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true">
@@ -30,13 +31,13 @@
                  :style="{ backgroundColor: cfg[r.k] ? T.c.onPrimary : T.c.outline }"></div>
           </div>
 
-          <!-- 形状实时预览: 圆角/密度这种"抽象开关"光看文字没概念,
-               给一个用当前 token 画出来的小样, 改一档立刻看见形状本身. -->
-          <div v-if="r.preview === 'radius'" class="rprev"
-               :style="{ borderRadius: T.rad.card, borderColor: T.c.outline, backgroundColor: T.c.primaryContainer }"></div>
-
-          <!-- 分段选择 (M3 segmented button) -->
+          <!-- 分段选择 (M3 segmented button)
+               ★ 形状预览必须放在这个分支**内部**: 它要是写成链头的 v-if, 后面的
+                 v-else-if="r.t === 'choice'" 就挂到它身上 —— 圆角这一行的选项会整个消失.
+                 真机表现就是"圆角的设置被你改没了", 而 node --check / 静态门禁都查不出来. -->
           <div v-else-if="r.t === 'choice'" class="seg">
+            <div v-if="r.preview === 'radius'" class="rprev"
+                 :style="{ borderRadius: T.rad.card, borderColor: T.c.outline, backgroundColor: T.c.primaryContainer }"></div>
             <div v-for="o in r.opts" :key="r.k + '_' + o[0]" class="segi"
                  :style="isOn(r.k, o[0]) ? T.accentChip : T.insetR" @click="pick(r.k, o[0])">
               <text class="segt" :style="isOn(r.k, o[0]) ? T.t.onAccentC : T.t.label">{{ o[1] }}</text>
@@ -89,7 +90,7 @@
 //
 // 主题相关的键改完立刻生效: 重新 tokens() 赋给 this.T, 整页颜色跟着变.
 import pm from 'pm'
-import { bilinet } from 'bilinet'
+import { bilinet } from '../../services/native.js'
 import { loadConfig, setCfg, resetConfig, specOf, CFG_PATH } from '../../services/config.js'
 import { tokens, seedList, readableOn } from '../../services/theme.js'
 import { currentLineLabel } from '../../services/lines.js'

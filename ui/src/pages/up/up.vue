@@ -1,18 +1,18 @@
 <template>
-  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page">
-    <div class="header">
-      <div class="back" @click="goBack" :style="T.actionR">
+  <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
+    <div class="header" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
+      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="back-text" :style="T.t.body">返回</text>
+        <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
-      <text class="header-title">UP主主页</text>
+      <text class="header-title" :style="{ color: T.c.onSurface, color: T.c.onSurface }">UP主主页</text>
     </div>
 
     <!-- UP 信息栏内嵌为列表首项: 往上滑自然滚出, 滑回顶部自然恢复, 无事件依赖 -->
     <scroller class="results" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMoreVideos" @scroll="onListScroll"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
-      <text v-if="upStatus !== ''" class="state">{{ upStatus }}{{ dots }}</text>
+      <text v-if="upStatus !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ upStatus }}{{ dots }}</text>
 
       <div class="info-row" v-if="info">
         <!-- 头像框: 官方 App 在头像右下角挂装饰 (acc/info 的 pendant) -->
@@ -21,27 +21,27 @@
           <image v-if="info.pendant" class="pendant" :src="info.pendant" resize="contain"></image>
         </div>
         <div class="info-col">
-          <text class="name">{{ info.name }}</text>
+          <text class="name" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ info.name }}</text>
           <!-- 认证标识: 「bilibili个人认证：xxx」(图2 的样式) -->
           <div v-if="info.officialDesc" class="verify">
             <div :class="['verify-badge', badgeCls()]">
               <image class="verify-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
-            <text class="verify-t">{{ verifyText }}</text>
+            <text class="verify-t" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ verifyText }}</text>
           </div>
-          <text class="meta">{{ info.levelText }} · 粉丝 {{ fansText }}</text>
-          <text class="sign">{{ info.sign !== '' ? info.sign : '这个人很神秘，什么都没有写' }}</text>
+          <text class="meta" :style="{ color: T.c.primary, color: T.c.primary }">{{ info.levelText }} · 粉丝 {{ fansText }}</text>
+          <text class="sign" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ info.sign !== '' ? info.sign : '这个人很神秘，什么都没有写' }}</text>
         </div>
         <!-- TA 的动态: 复用动态页 (带 mid 进去走空间动态接口) -->
-        <div class="dynentry" @click="openDynFeed">
-          <text class="dynentry-t">TA 的动态</text>
+        <div class="dynentry" @click="openDynFeed" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+          <text class="dynentry-t" :style="{ color: T.c.primary, color: T.c.primary }">TA 的动态</text>
         </div>
       </div>
 
-      <div v-for="item in videos" :key="item.bvid" class="item" @click="openVideo(item)" :style="T.cardR">
+      <div v-for="item in videos" :key="item.bvid" class="item" @click="openVideo(item)" :style="T.cardR" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
         <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
         <div class="meta2">
-          <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+          <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
           <div class="statrow">
             <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
             <text class="stat">{{ item.playText }}  {{ item.duration }}</text>

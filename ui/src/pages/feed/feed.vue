@@ -1,19 +1,19 @@
 <template>
-  <div class="fpage">
-    <div class="ftop">
+  <div class="fpage" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
+    <div class="ftop" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
       <div class="fback" @click="back">
         <image class="fback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="fback-t">返回</text>
       </div>
-      <text class="ftitle">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
+      <text class="ftitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
       <!-- UP 空间动态模式 (从 UP 主页进来): 分类栏没有意义, 换成 UP 名 -->
       <div class="cats" v-if="mid === ''">
         <div v-for="(c, ci) in cats" :key="'c' + ci"
-             :class="['cat', cat === c.k ? 'cat-on' : '']" @click="setCat(c.k)">
-          <text :class="['cat-t', cat === c.k ? 'cat-t-on' : '']">{{ c.n }}</text>
+             :class="['cat', cat === c.k ? 'cat-on' : '']" @click="setCat(c.k)" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
+          <text :class="['cat-t', cat === c.k ? 'cat-t-on' : '']" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">{{ c.n }}</text>
         </div>
       </div>
-      <text v-else class="fupsub">{{ upName !== '' ? upName : ('UID ' + mid) }}</text>
+      <text v-else class="fupsub" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ upName !== '' ? upName : ('UID ' + mid) }}</text>
     </div>
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
@@ -23,7 +23,7 @@
     </div>
 
     <!-- 下拉刷新提示 -->
-    <div class="fpull" v-if="pullHint !== ''"><text class="fpull-t">{{ pullHint }}</text></div>
+    <div class="fpull" v-if="pullHint !== ''"><text class="fpull-t" :style="{ color: T.c.primary, color: T.c.primary }">{{ pullHint }}</text></div>
 
     <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true"
               :over-scroll="70" :loadmoreoffset="100"
@@ -31,21 +31,21 @@
               @touchstart="onPullStart" @touchmove="onPullMove" @touchend="onPullEnd">
       <div class="fwrap">
 
-        <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)">
+        <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <div class="dhead" @click="openUp(d)">
             <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
             <div class="dface-wrap">
               <image v-if="d.face" class="dface" :src="d.face" resize="cover"></image>
-              <div v-else class="dface dface-ph"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
+              <div v-else class="dface dface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
               <image v-if="d.pendant" class="dpendant" :src="d.pendant" resize="contain"></image>
             </div>
-            <text class="dauthor">{{ d.author }}</text>
+            <text class="dauthor" :style="{ color: T.c.primary, color: T.c.primary }">{{ d.author }}</text>
             <!-- 认证徽章: 黄标=个人认证 / 蓝标=机构认证 (官方样式是彩色圆底 + 白闪电) -->
             <div v-if="d.officialType >= 0" :class="['dvbadge', badgeCls(d)]">
               <image class="dvbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
             <text class="dtime">{{ d.pubText }}</text>
-            <text class="dbadge">{{ kindName(d.kind) }}</text>
+            <text class="dbadge" :style="{ backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card, backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card }">{{ kindName(d.kind) }}</text>
           </div>
 
           <!-- 无正文时不要渲染空 richtext: lines:3 仍会占 3 行高度 -> 卡片里一大片空白 -->

@@ -21,8 +21,16 @@ const DEBUG = false
 // 背景: bilinet.httpGet 是同步原生调用, 会阻塞 JS 线程; 若在页面加载入口
 // 直接发起请求, 「加载中…」来不及绘制, 网络差时表现为上一页面冻结 (卡死).
 // 全 App 统一约定: 页面入口先同步置好加载态 -> afterPaint -> 再发网络请求.
+// ★ 设置页的「页面动效」开关真正生效的地方.
+// 关掉动效 = 不再为"让加载态先画一帧"多等那 30ms, 直接在当前宏任务里继续 ——
+// 用户感知是"点下去立刻出内容". 原来这个开关只写进配置、没有任何代码读它,
+// 用户反馈"改了和没改没区别"说的就是这个.
+import { getCfg } from './services/config.js'
+
 export function afterPaint(fn, ms) {
-  setTimeout(fn, ms || 30)
+  var d = ms || 30
+  try { if (getCfg('motion') === false) d = 0 } catch (e) {}
+  setTimeout(fn, d)
 }
 function _collectFalconEventIds(name, callback)
 {
