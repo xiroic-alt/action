@@ -221,7 +221,8 @@ jobs:
 
       - name: Setup Node.js 18
         uses: actions/setup-node@v4
-        with: { node-version: 24 }
+        # probe 也是 aiot-cli 打包, 同样必须 Node 18 (见上: http_parser)
+        with: { node-version: 18 }
 
       - name: Build probe AMR
         run: |
