@@ -16,7 +16,14 @@ const execCalls = []
 // kvReady() 恒为 false —— "配置进数据库"这条路径在本地是**零覆盖**的 (真机上 kv 表建出来了
 // 却一行数据没有, 就是这么漏过去的). 第二版自己写了个 SQL 解析器, 又因为分隔符匹配
 // 写错而永远 return false, 结论依然是错的. 直接用 node:sqlite 的真引擎 —— 行为不会撒谎.
-import { DatabaseSync } from 'node:sqlite'
+let DatabaseSync
+try {
+  ({ DatabaseSync } = await import('node:sqlite'))
+} catch (e) {
+  console.error('这个静态门禁需要 Node 22.5+ (node:sqlite 内置模块), 当前是 ' + process.version)
+  console.error('CI 里请把 actions/setup-node 的 node-version 提到 22 以上.')
+  process.exit(2)
+}
 const sqlite = new DatabaseSync(':memory:')
 function dbExec(sql) {
   const s = String(sql)
