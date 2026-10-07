@@ -21,7 +21,14 @@
 // 为什么用显式方法表而不是 Proxy: QuickJS 20200705 的 Proxy 行为没在本机验证过,
 // 而实际用到的原生方法就这十几个 (全仓库 grep 出来的), 枚举比赌特性安全.
 import { bilinet as rawBilinet } from 'bilinet'
-import { log } from './log.js'
+
+// ★ 这里**不能** import log.js. 原来为了记一行「句柄失效」引了它, 结果是
+//   native.js -> log.js -> native.js 的循环依赖: log.js 顶层的
+//   import { bilinet } from './native.js' 会在 native.js 还没求值完时拿到未初始化绑定,
+//   启动期就变成一整片 JSAPI 不可用. 这一层是最底层的, 不许依赖上层任何模块.
+function warn(msg) {
+  try { console.warn('[native] ' + msg) } catch (e) {}
+}
 
 var METHODS = [
   'exec', 'execAsync',
@@ -58,19 +65,40 @@ for (var i = 0; i < METHODS.length; i++) {
           lastErr = new Error('native.' + name + ' 不可用')
           continue
         }
+        var out
         try {
-          return mod[name].apply(mod, args)
+          out = mod[name].apply(mod, args)
         } catch (e) {
           lastErr = e
           if (!isDisabled(e)) throw e
-          try { log('native', name + ' 句柄失效, 重新获取原生模块后重试') } catch (e2) {}
+          warn(name + ' 句柄未绑定, 重新获取原生模块后重试')
+          continue
         }
+        // ★ 异步方法必须单独兜: 它的失败是 **promise 拒绝**, 外面的 try/catch 抓不到 ——
+        //   真机上看到的正是 Possibly unhandled promise rejection: InternalError:
+        //   this object js call is disabled, 栈是 at apply (native), 同步 catch 一行都进不去.
+        if (out && typeof out.then === 'function') {
+          return out.then(null, function (e) {
+            if (!isDisabled(e)) throw e
+            warn(name + ' (async) 句柄未绑定, 重新获取原生模块后重试')
+            var m2 = acquire()
+            if (!m2 || typeof m2[name] !== 'function') throw e
+            return m2[name].apply(m2, args)
+          })
+        }
+        return out
       }
       throw lastErr || new Error('native.' + name + ' 失败')
     }
   })(METHODS[i])
 }
 
+// 判断一个错误是不是「对象没绑到活上下文」(this object js call is disabled).
+// 导出给上层用: 启动期的原生调用失败要能识别出来并重试, 而不是当成业务错误丢掉.
+export function isJSApiNotReady(e) {
+  var m = e && e.message !== undefined ? String(e.message) : String(e)
+  return m.indexOf('disabled') >= 0
+}
 // 全仓库原来的写法是 import { bilinet } from 'bilinet' —— 保持同名导出,
 // 这样替换只是换 import 路径, 调用点一行都不用动.
 export var bilinet = api

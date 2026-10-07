@@ -63,7 +63,14 @@ globalThis.__bilinet = {
   fileExists: (p) => disk.has(p),
   httpGet: () => '',
   httpPost: () => '',
-  httpGetAsync: () => Promise.resolve(''),
+  // 第一次以 disabled 拒绝, 之后正常 —— 复刻真机: 启动期 JSAPI 没绑上, 重试后就好
+  httpGetAsync: () => {
+    if (globalThis.__asyncDisabledOnce) {
+      globalThis.__asyncDisabledOnce = false
+      return Promise.reject(new Error('this object js call is disabled'))
+    }
+    return Promise.resolve('')
+  },
   httpPostAsync: () => Promise.resolve(''),
   exec: (cmd) => {
     // config.js 删旧配置文件走的是 exec('rm -f <path>') —— bilinet 没有删除 API.
@@ -152,6 +159,21 @@ const surf = (k) => SCHEMES[k].split(',')[ROLES.indexOf('surface')]
 ok(surf('rose|dark|0') !== surf('rose|light|0'), '深色/浅色 surface 必须不同')
 ok(surf('rose|dark|0') !== surf('blue|dark|0'), '不同种子色 surface 必须不同 (色相染色)')
 
+
+// ================= 2.5 原生安全层 (services/native.js) =================
+// 用户报的 this object js call is disabled 就落在这几条上.
+const nat = await import(SRC + 'services/native.js')
+ok(typeof nat.isJSApiNotReady === 'function', 'native.js 导出 isJSApiNotReady')
+ok(nat.isJSApiNotReady(new Error('this object js call is disabled')), '识别 disabled 错误 (启动期未就绪)')
+ok(!nat.isJSApiNotReady(new Error('net timeout')), '不把业务错误当成就绪问题 (否则会无意义重试)')
+// 循环依赖: native.js 是最底层, 依赖 log.js 会让 log.js 顶层的 bilinet 绑定拿到未初始化值
+// SRC 是 file:// URL, 读盘要先转回路径
+const natSrc = (await import('node:fs')).readFileSync((await import('node:url')).fileURLToPath(SRC + 'services/native.js'), 'utf8')
+ok(natSrc.indexOf(String.fromCharCode(39) + './log.js' + String.fromCharCode(39)) < 0, 'native.js 不依赖 log.js (防循环依赖)')
+// 异步方法: 失败是 promise 拒绝, 同步 try/catch 抓不到 —— 必须单独兜并重试
+globalThis.__asyncDisabledOnce = true
+await nat.bilinet.httpGetAsync('http://example.invalid/', 1)
+ok(globalThis.__asyncDisabledOnce === false, '异步方法遇 disabled 会重试并最终成功 (不再是 unhandled rejection)')
 // ================= 2. 配置持久化 =================
 // ★ 先复现真机的时序 bug, 再走正常路径.
 //   真机现象: kv 表建出来了却一行数据都没有, cfg.json 一直留着.
