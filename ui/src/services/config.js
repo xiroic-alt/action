@@ -107,6 +107,15 @@ var cache = null
 // 这份缓存是从"文件兜底"路径来的吗? 数据库晚于配置就绪时, 用它判断要不要补一次迁移.
 var loadedFromFile = false
 
+// 删文件. ★ bilinet **没有删除 API** —— 它的文件能力只有 readFile/writeFile
+// (native/bilinet/src/BiliNet.cpp 的 SetProtoMethod 表里就这两个).
+// 所以走设备 shell 的 rm; 删不掉就退而求其次把内容清空 ——
+// 目标只是"它不再是一份能被读到的旧配置", 不必强求文件消失.
+function removeFile(p) {
+  try { bilinet.exec('rm -f ' + p) } catch (e) {}
+  try { if (bilinet.readFile(p)) bilinet.writeFile(p, '') } catch (e2) {}
+}
+
 // 把当前内存里的配置写进数据库, 成功后删掉旧文件.
 // 抽出来是因为它有两个触发点: 首次 loadConfig (库里还没有) 和"数据库晚就绪"的补迁移.
 function migrateToDb(c) {
@@ -117,7 +126,7 @@ function migrateToDb(c) {
     if (!kvSet(KV_KEY, JSON.stringify(payload))) return false
   } catch (e) { return false }
   loadedFromFile = false
-  try { if (hasFs()) bilinet.deleteFile(CFG_PATH) } catch (e2) {}
+  removeFile(CFG_PATH)
   log('设置', '旧配置文件已迁移进数据库并删除')
   return true
 }

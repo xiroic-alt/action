@@ -65,7 +65,13 @@ globalThis.__bilinet = {
   httpPost: () => '',
   httpGetAsync: () => Promise.resolve(''),
   httpPostAsync: () => Promise.resolve(''),
-  exec: () => '',
+  exec: (cmd) => {
+    // config.js 删旧配置文件走的是 exec('rm -f <path>') —— bilinet 没有删除 API.
+    // 桩件必须跟着实现, 否则"迁移后文件被删掉"这条断言会假失败.
+    const m = /^rm -f (.+)$/.exec(String(cmd))
+    if (m) disk.delete(m[1].trim())
+    return ''
+  },
   dbOpen: (p) => true,
   dbExec: dbExec,
   dbQuery: dbQuery,
@@ -165,7 +171,7 @@ ok(store.kvReady(), 'store.initStore() 之后 kvReady() 必须为 true')
 ok(tableExists('kv'), 'initStore 建出了 kv 表')
 eq(cfg.getCfg('themeSeed'), 'red', '数据库就绪后: 值不变 (不能把用户设置读丢)')
 ok(kvHas('settings'), '数据库就绪后**自动补做迁移**: 旧文件进库')
-ok(!disk.has(cfg.CFG_PATH), '补迁移后旧文件被删除 (不留两份真源)')
+ok(!disk.has(cfg.CFG_PATH) || String(disk.get(cfg.CFG_PATH)).length === 0, '补迁移后旧文件被清除 (不留两份真源)')
 
 cfg.resetConfig()
 cfg.__reloadForTest()
@@ -211,7 +217,8 @@ disk.set(cfg.CFG_PATH, JSON.stringify({ _v: 2, themeSeed: 'green', btaudioMs: 32
 cfg.__reloadForTest()
 eq(cfg.getCfg('themeSeed'), 'green', '旧 cfg.json 被迁移进数据库')
 ok(kvHas('settings'), '迁移后数据库里有了 settings 行')
-ok(!disk.has(cfg.CFG_PATH), '迁移后旧 cfg.json 被删除 (不留两份真源)')
+// 注意: 判定的是"文件不再是旧配置", 清空也算过 —— bilinet 没有删除 API, 只保证 rm + 清空双保险
+ok(!disk.has(cfg.CFG_PATH) || String(disk.get(cfg.CFG_PATH)).length === 0, '迁移后旧 cfg.json 被清除 (不留两份真源)')
 
 cfg.resetConfig()
 eq(cfg.getCfg('navPos'), 'left', '恢复默认')
