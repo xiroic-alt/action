@@ -511,21 +511,25 @@ export default {
       if (!this.opened || this.audioProbed) return
       this.audioProbed = true
       if (!this._elProbed) { this._elProbed = true; this.probeVideoElement() }
-      // 判据只看 bluetoothctl 的 "Connected: yes" —— 这是唯一"真的连着"的证据.
-      // 连上就切 bluealsa:DEV=<mac> (type=4); 没连就**什么都不做** (默认就是 speaker,
-      // 再调用一次只会白白拆一遍 alsasink). 只在起播后调用一次 (audioProbed 守卫).
+      // 判据只看 bluetoothctl 的 "Connected: yes" —— 唯一"真的连着"的证据.
+      // ★ 必须**逐个**查: 本机 bluez 5.58 的 `bluetoothctl info`(不带地址) 在没有连接时
+      //   直接报 "Missing device address argument", `devices Connected` 也不支持
+      //   ("Too many arguments") —— 两种"省事写法"都会导致永远探测不到.
+      //   连上就切 bluealsa:DEV=<mac> (type=4); 没连就什么都不做 (默认就是 speaker).
+      //   ★ 命令里**不许出现 sed 的 \1 反引用**: QuickJS 以严格模式跑 ESM, 字符串里的 \1
+      //     是八进制转义 -> 整个页面脚本语法错误 (validate.mjs 当场抓到). 用 cut 取第 2 段.
       try {
-        bilinet.execAsync('bluetoothctl info 2>/dev/null | grep -E "^Device|Connected" | head -4').then(function (out) {
-          if (!self.$page) return
-          var txt = String(out || '')
-          var m = /Device\s+([0-9A-Fa-f:]{17})/.exec(txt)
-          if (!(m && /Connected:\s*yes/.test(txt))) {
-            self.audioRoute = 'speaker(默认)'
-            try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
-            return
-          }
-          self.setAudioOut(AUDIO_TYPE_BLUETOOTH, m[1])
-        }).catch(function () {})
+        bilinet.execAsync('for m in $(bluetoothctl devices 2>/dev/null | cut -d" " -f2); do bluetoothctl info $m 2>/dev/null | grep -q "Connected: yes" && echo "CONNECTED $m"; done')
+          .then(function (out) {
+            if (!self.$page) return
+            var m = /CONNECTED ([0-9A-Fa-f:]{17})/.exec(String(out || ''))
+            if (!m) {
+              self.audioRoute = 'speaker(默认)'
+              try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
+              return
+            }
+            self.setAudioOut(AUDIO_TYPE_BLUETOOTH, m[1])
+          }).catch(function () {})
       } catch (e2) {}
     },
     // 切换音频输出设备. 只有"已连接的蓝牙"会走到这里; 失败也只记日志 —— 原生换 sink 失败会

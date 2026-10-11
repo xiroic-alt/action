@@ -206,7 +206,11 @@ ok(/applyAudioRoute/.test(player), 'player: 存在音频输出判定')
 ok(/AUDIO_TYPE_BLUETOOTH = 4/.test(player), 'player: 蓝牙 type=4 (跳转表取证: 4 -> bluealsa:DEV=)')
 ok(!/AUDIO_TYPE_BLUETOOTH = 1/.test(player), 'player: 绝不用 type=1 (那是 tc_digital, 打不开设备)')
 // bluetooth.getCurrentDevices() 会把"已配对但没连"的设备也列出来 —— "不接耳机也炸"就是这个原因
-ok(/Connected:\\s\*yes/.test(player), 'player: 只认 bluetoothctl 的 Connected: yes, 不信配对列表')
+ok(/Connected: yes/.test(player), 'player: 只认 bluetoothctl 的 Connected: yes, 不信配对列表')
+// 本机 bluez 5.58: `info`(不带地址) 未连接时报 "Missing device address argument",
+// `devices Connected` 报 "Too many arguments" —— 必须枚举后逐个查 (真机验过)
+ok(/bluetoothctl devices/.test(player) && /CONNECTED \(\[0-9A-Fa-f:\]\{17\}\)/.test(player),
+  'player: 枚举已配对设备再逐个查 Connected (两种省事写法在本机都取不到)')
 ok(/bluealsa:DEV=/.test(player), 'player: 日志回显 bluealsa:DEV=<mac> (排查用)')
 ok(/self\.setAudioOut\(AUDIO_TYPE_BLUETOOTH, m\[1\]\)/.test(player), 'player: 连上蓝牙才切换输出')
 ok(/execAsync\(/.test(player.split('applyAudioRoute')[1] || ''), 'player: 蓝牙探测必须用 execAsync (同步 exec 冻主线程)')
