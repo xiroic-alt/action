@@ -89,14 +89,17 @@ var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中�
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
 var SEEK_STEP_SEC = 10   // 快退/快进步长 (秒)
 
-// ---------- 音频输出路由 (蓝牙) ----------
-// 官方播放器证据 (x6pro RE-miniapp-player.md §6.1 / §7.3): 视频音轨由 GStreamer alsasink 出,
-// 热切蓝牙靠 setAudioDeviceType(int type, mac) + 内部 _blueMac; 不调用它, 音轨就留在
-// 默认 ALSA 设备 (扬声器) —— 蓝牙耳机上表现为"没有声音".
-// 设备侧旁证: bluealsa 以 --profile=a2dp-source 常驻; /usr/bin/bluetoothctl 可列配对设备.
-// ★ 未在真机确认: type 的枚举值. 文档只给出二进制里的日志串
-//   "onVideoPlayerAudioTypeChanged type:%d macAddress %s", 没有常量表.
-//   这里按 0=本机 / 1=蓝牙 实现, 并把实际 type/mac 写日志 —— 真机若仍无声, 这一个常量是唯一要改处.
+// ---------- 音频输出 (蓝牙): 只探测, **绝不调用 setAudioDeviceType** ----------
+// ★ 真机结论 (2026-10-11, 用户反馈 + 二进制取证): 这个 API 一调就把播放打坏.
+//   官方 app 的字节码里它只做**转发** (system-player-all.txt, index.js 的
+//   onAudioDeviceTypeChanged 处理函数):
+//       onAudioDeviceTypeChanged(t) { ... setAudioDeviceType(t.type, t.macAddress) }
+//   —— type 与 macAddress 全部来自**原生信号**, app 侧从不构造这两个参数.
+//   0.9.64 我按 "0=本机 / 1=蓝牙" 自己造参数调用, 真机直接报
+//   "Could not open audio device for playback"; 而且**不接蓝牙也一样**
+//   (type=0 + 空 mac 同样会让原生把 alsasink 拆了重建, 打开失败即带崩整条管线).
+//   所以这里只保留"探测 + 日志": 把当前蓝牙音频设备写进日志便于定位,
+//   一个字节都不发给元素. 蓝牙出声要另找入口 (系统级路由 / bluealsa), 不能靠猜常量.
 // ---------- 视频页固定深色 ----------
 // 视频画面本身是任意亮度的内容, 控件必须恒定"深色底 + 浅色字"才压得住画面;
 // 浅色主题下沿用全局 token 会让控制条变白底压画面 (用户要求: 视频页不要浅色模式, 统一深色).
@@ -120,9 +123,6 @@ function playerTokens() {
     }
   }
 }
-
-var AUDIO_TYPE_SPEAKER = 0
-var AUDIO_TYPE_BLUETOOTH = 1
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n }
 
@@ -493,27 +493,28 @@ export default {
       if (!this.opened || this.audioProbed) return
       this.audioProbed = true
       if (!this._elProbed) { this._elProbed = true; this.probeVideoElement() }
+      // 只探测 + 记日志. ★ 绝不 setAudioDeviceType —— 见文件头结论.
       var bt = (typeof $falcon !== 'undefined' && $falcon.jsapi && $falcon.jsapi.bluetooth) ? $falcon.jsapi.bluetooth : null
       if (bt && typeof bt.getCurrentDevices === 'function') {
         try {
           var r = bt.getCurrentDevices()
-          if (r && typeof r.length === 'number' && r.length > 0) {
-            var mac = String((r[0] && (r[0].macAddress || r[0].mac || r[0].address)) || '')
-            if (mac) { this.setAudioOut(AUDIO_TYPE_BLUETOOTH, mac); return }
+          if (r && typeof r.length === 'number') {
+            var mac = r.length > 0 ? String((r[0] && (r[0].macAddress || r[0].mac || r[0].address)) || '') : ''
+            this.audioRoute = mac ? ('bluetooth ' + mac) : 'speaker'
+            try { log('播放器', '音频设备探测(仅日志, 不做切换): jsapi=' + this.audioRoute) } catch (e0) {}
+            return
           }
-          if (!r) return   // 回调式固件: 等 signal, 不在这里退到 shell (避免重复切)
         } catch (e) { /* 落到 shell 探测 */ }
       }
       try {
         bilinet.execAsync('bluetoothctl info 2>/dev/null | grep -E "Device|Connected" | head -4').then(function (out) {
           var txt = String(out || '')
           var m = /Device\s+([0-9A-Fa-f:]{17})/.exec(txt)
-          if (m && /Connected:\s*yes/.test(txt)) self.setAudioOut(AUDIO_TYPE_BLUETOOTH, m[1])
-          else self.setAudioOut(AUDIO_TYPE_SPEAKER, '')
-        }).catch(function () { self.setAudioOut(AUDIO_TYPE_SPEAKER, '') })
-      } catch (e2) {
-        this.setAudioOut(AUDIO_TYPE_SPEAKER, '')
-      }
+          var route = (m && /Connected:\s*yes/.test(txt)) ? ('bluetooth ' + m[1]) : 'speaker'
+          self.audioRoute = route
+          try { log('播放器', '音频设备探测(仅日志, 不做切换): ' + route) } catch (e0) {}
+        }).catch(function () {})
+      } catch (e2) {}
     },
     // 元素可用方法清单 (一次性诊断): 内置 <video> 的原生方法如何暴露在 JS 侧没有文档,
     // 只能把真实名字打出来 —— 之前按 setAudioDeviceType 猜, 日志是 elem=n/a.
@@ -533,11 +534,6 @@ export default {
       } catch (e3) {
         try { log('播放器', '元素方法枚举失败: ' + (e3 && e3.message ? e3.message : e3)) } catch (e4) {}
       }
-    },
-    setAudioOut: function (type, mac) {
-      var r = this.elem('setAudioDeviceType', type, mac)
-      this.audioRoute = (type === AUDIO_TYPE_BLUETOOTH ? 'bluetooth ' + mac : 'speaker')
-      try { log('播放器', '音频输出 -> ' + this.audioRoute + ' (type=' + type + ' elem=' + (r === undefined ? 'n/a' : 'ok') + ')') } catch (e) {}
     },
 
     // ---------------- 元素事件 ----------------

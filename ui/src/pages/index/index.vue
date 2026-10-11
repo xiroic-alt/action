@@ -271,7 +271,7 @@ const MI_D = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P39-theme-and-live'
+const BUILD_TAG = 'P40-audio-revert'
 export default {
   name: 'index',
   components: { DynamicFeed, BackTop },

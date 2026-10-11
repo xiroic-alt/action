@@ -301,6 +301,11 @@ export default {
     MI() { return this.MIc },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
+    // 视频卡底色: **只给颜色, 不给圆角** —— T.cardR/insetR 那一族自带 rad.chip(999), 绑上去会把
+    // CSS 里的 8px 直接盖成胶囊 (0.9.63 踩过). 用非圆角版 T.cardHi (比外层卡片高一档).
+    // ★ 这个 computed 在 0.9.63 只写了模板引用、忘了定义 -> :style 绑到 undefined,
+    //   CSS 里写死的 #141416 生效, 浅色主题下视频卡恒为黑 (用户 2026-10-11 反馈).
+    vcardStyle() { return this.T.cardHi },
     // 图片查看器必须是**整屏**浮层. 嵌入态 (首页动态 tab) 里本组件挂在窗格里, 窗格本身带偏移
     // (左导轨 88px / 顶部导航 44px), 而 .iview 是 absolute left:0/top:0.
     // 真机实测 (2026-10-11 14:46): 往 .iview 上写 left:-88px **不生效** —— 渲染器不吃负偏移,

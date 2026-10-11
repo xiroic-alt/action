@@ -430,6 +430,9 @@ export default {
     MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
+    // 视频卡底色: 只给颜色不给圆角 (带圆角的 token 会把 CSS 的 8px 盖成胶囊).
+    // 0.9.63 只写了模板引用没写定义 -> :style=undefined -> 写死的 #141416 生效, 浅色下是黑卡.
+    vcardStyle() { return this.T.cardHi },
     headTitle() { return (this.art && this.art.title !== '') ? '专栏' : '动态' },
     author() {
       if (this.art && this.art.author && this.art.author.name) return this.art.author.name

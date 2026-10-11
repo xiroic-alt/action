@@ -198,7 +198,12 @@ ok(/width: 566px/.test(player), 'player: 滑块加宽到 566')
 
 ok(/setAudioDeviceType/.test(player), 'player: 起播后要切音频输出 (setAudioDeviceType)')
 ok(/applyAudioRoute/.test(player), 'player: 存在音频输出判定')
-ok(/AUDIO_TYPE_BLUETOOTH/.test(player) && /AUDIO_TYPE_SPEAKER/.test(player), 'player: 扬声器/蓝牙两种输出都有分支')
+// ★ 真机回归 (2026-10-11): 自己构造 type/mac 调 setAudioDeviceType 会让原生把 alsasink
+//   拆了重建, 直接报 "Could not open audio device for playback" —— 而且**不接蓝牙也一样**.
+//   官方 app 只转发原生信号里的 type/mac, 从不自己造. 所以这里钉死"绝不调用".
+ok(!/elem\('setAudioDeviceType'/.test(player), 'player: 绝不调用 setAudioDeviceType (真机会把音频设备打坏)')
+ok(!/setAudioOut/.test(player), 'player: 已删除 setAudioOut (唯一调用点)')
+ok(/仅日志, 不做切换/.test(player), 'player: 音频侧只做探测 + 记日志')
 ok(/execAsync\(/.test(player.split('applyAudioRoute')[1] || ''), 'player: 蓝牙探测必须用 execAsync (同步 exec 冻主线程)')
 ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
 ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')
