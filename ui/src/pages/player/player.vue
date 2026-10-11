@@ -328,8 +328,18 @@ export default {
 
     // ---------------- 打开与换源 ----------------
     applyOptions: function (options) {
-      this.mode = options.mode === 'live' ? 'live' : ''
-      this.roomid = parseInt(options.roomid || '0', 10) || 0
+      var rid = parseInt(options.roomid || '0', 10) || 0
+      // 直播态判定: 显式 mode='live' 或带了 roomid 都算 (room.vue 两个都给)
+      var mode = (options.mode === 'live' || rid > 0) ? 'live' : ''
+      // 换房间/换源: 直播的已播时长与重连预算必须归零, 否则上一个房间的读数会串过来
+      if (mode !== this.mode || rid !== this.roomid) {
+        this.liveStartedAt = 0
+        this.liveElapsedSec = 0
+        this.reconnectCount = 0
+        this.lastReconnectAt = 0
+      }
+      this.mode = mode
+      this.roomid = rid
       this.bvid = options.bvid || ''
       this.pageNo = parseInt(options.page || '1', 10) || 1
       this.titleText = options.title || ''

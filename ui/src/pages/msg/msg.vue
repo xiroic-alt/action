@@ -15,6 +15,7 @@
     </div>
 
     <div v-else class="listwrap">
+      <!-- 未读总览 (顶部统计, 与列表分类独立) -->
       <div class="heads">
         <div class="hcell" :style="T.cardR"><text class="hnum" :style="T.t.title">{{ unread.reply }}</text><text :style="T.t.label">回复</text></div>
         <div class="hcell" :style="T.cardR"><text class="hnum" :style="T.t.title">{{ unread.at }}</text><text :style="T.t.label">@我</text></div>
@@ -22,6 +23,7 @@
         <div class="hcell" :style="T.cardR"><text class="hnum" :style="T.t.title">{{ unread.sys }}</text><text :style="T.t.label">系统</text></div>
       </div>
 
+      <!-- 分类 chip: 每类各自一份列表与游标 -->
       <div class="tabs">
         <div v-for="t in tabs" :key="t.k" class="tab"
              :style="tab === t.k ? T.accentR : T.actionR" @click="setTab(t.k)">
@@ -29,42 +31,48 @@
         </div>
       </div>
 
-      <text v-if="loading && items.length === 0" class="st" :style="T.t.titleVar">加载中…</text>
-      <text v-else-if="status !== '' && items.length === 0" class="st" :style="T.t.err" @click="retry">{{ status }}</text>
+      <div v-if="loading && items.length === 0" class="stbox"><text :style="T.t.titleVar">加载中…</text></div>
+      <div v-else-if="status !== '' && items.length === 0" class="stbox-hit" :style="T.errActionR" @click="retry">
+        <text :style="T.t.err">{{ status }} · 点此重试</text>
+      </div>
 
       <scroller v-else class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'msgTop')">
         <div ref="msgTop" class="list-anchor"></div>
 
-        <!-- 私信: 会话列表 -->
+        <!-- 私信: 会话列表 (点进去是 chat 页) -->
         <template v-if="tab === 'im'">
           <div v-for="c in sessions" :key="'s' + c.talkerId" class="row" :style="T.cardR" @click="openChat(c)">
             <image v-if="c.face !== ''" class="face" :src="c.face" resize="cover"></image>
             <div v-else class="face-ph" :style="T.accentR"><text :style="T.t.onAccent">{{ c.name !== '' ? c.name.charAt(0) : '私' }}</text></div>
             <div class="rmain">
-              <text class="rwho" :style="T.t.accentSm">{{ c.name }}{{ c.unread > 0 ? (' (' + c.unread + ')') : '' }}</text>
+              <text class="rwho" :style="T.t.accentSm">{{ c.name !== '' ? c.name : ('UID ' + c.talkerId) }}{{ c.unread > 0 ? (' (' + c.unread + ')') : '' }}</text>
               <text class="rcont" :style="T.t.caption">{{ c.content }}</text>
               <text class="rtime" :style="T.t.tiny">{{ c.timeText }}</text>
             </div>
           </div>
-          <text v-if="sessions.length === 0 && !loading" class="empty2" :style="T.t.empty">还没有私信会话</text>
+          <text v-if="sessions.length === 0 && !loading && status === ''" class="empty2" :style="T.t.empty">还没有私信会话</text>
         </template>
 
-        <!-- 四类通知: 游标分页 -->
+        <!-- 四类通知: 各自游标分页 -->
         <template v-else>
           <div v-for="it in items" :key="it.id" class="row" :style="T.cardR" @click="open(it)">
             <div class="rmain">
-              <text class="rwho" :style="T.t.accentSm">{{ it.uname }}</text>
-              <text class="rtitle" :style="T.t.labelOn">{{ it.title }}</text>
+              <text class="rwho" :style="T.t.accentSm">{{ it.uname !== '' ? it.uname : '系统' }}</text>
+              <text v-if="it.title !== ''" class="rtitle" :style="T.t.labelOn">{{ it.title }}</text>
               <text class="rcont" :style="T.t.caption">{{ it.content }}</text>
-              <text class="rtime" :style="T.t.tiny">{{ timeText(it.time) }}</text>
+              <text class="rtime" :style="T.t.tiny">{{ it.timeText }}</text>
             </div>
           </div>
           <text v-if="items.length === 0 && !loading && status === ''" class="empty2" :style="T.t.empty">这一类还没有消息</text>
         </template>
 
-        <text v-if="hasMore" class="more" :style="T.t.accentSub" @click="loadMore">{{ loading ? '加载中…' : '上滑加载更多…' }}</text>
-        <text v-if="status !== '' && items.length > 0" class="more" :style="T.t.err" @click="retry">{{ status }}</text>
+        <div v-if="hasMore" class="more" @click="loadMore">
+          <text :style="T.t.accentSub">{{ loading ? '加载中…' : '上滑加载更多…' }}</text>
+        </div>
+        <div v-if="status !== '' && items.length > 0" class="more" @click="retry">
+          <text :style="T.t.err">{{ status }} · 点此重试</text>
+        </div>
       </scroller>
     </div>
     <BackTop :visible="topShown" :T="T" @activate="goTop" />
@@ -72,10 +80,12 @@
 </template>
 
 <script>
-// 消息中心 —— 分类 (回复/@我/赞/系统) 各自游标分页 + 私信会话入口.
-// 接口与「不自动重试」的发送约定见 services/messages.js 顶部注释.
+// 消息中心 —— 分类 chip (回复 / @我 / 赞 / 系统 / 私信会话), 前四类各自游标分页.
+// 接口出处、"未真机验证"范围与「发送绝不自动重试」的约定见 services/messages.js 顶部注释.
+// 每类**各持一份** items/cursor/hasMore (itemsBy/cursorBy/moreBy), 切分类不互相清空:
+// 切回来仍在原来那一页, 继续上滑是续翻而不是重新拉首页.
 import { getMsgUnread } from '../../services/bili.js'
-import { getMsgList, getSessions, MSG_TABS, fmtTime } from '../../services/messages.js'
+import { getMsgList, getSessions, MSG_TABS } from '../../services/messages.js'
 import { tokens } from '../../services/theme.js'
 import { hasCookie } from '../../services/auth.js'
 import { scrollTopMixin } from '../../services/scroll-top.js'
@@ -97,9 +107,11 @@ export default {
       tabs: MSG_TABS,
       tab: 'reply',
       unread: { reply: 0, at: 0, like: 0, sys: 0, total: 0 },
-      items: [],
-      cursor: null,
-      hasMore: false,
+      // 键在 data() 里全部声明好: Vue 2 侦测不到"新增对象键", 先占位才能保证切换即时生效
+      itemsBy: { reply: [], at: [], like: [], sys: [] },
+      cursorBy: { reply: null, at: null, like: null, sys: null },
+      moreBy: { reply: false, at: false, like: false, sys: false },
+      loadedBy: { reply: false, at: false, like: false, sys: false },
       sessions: [],
       loading: false,
       status: '',
@@ -111,7 +123,10 @@ export default {
     summary() {
       if (!this.logged) return ''
       return this.unread.total > 0 ? (this.unread.total + ' 条未读') : '暂无未读'
-    }
+    },
+    // 当前分类的视图 (模板只认这三个, 不直接碰 itemsBy)
+    items() { return this.itemsBy[this.tab] || [] },
+    hasMore() { return this.moreBy[this.tab] === true }
   },
   mounted() {
     try { this.logged = hasCookie() } catch (e) { this.logged = false }
@@ -128,48 +143,55 @@ export default {
 
     goBack() { try { this.$page.finish() } catch (e) { try { $falcon.navTo('settings') } catch (e2) {} } },
     goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },
-    timeText(sec) { return fmtTime(sec) },
     retry() { this.load(true) },
 
     setTab(k) {
       if (this.tab === k) return
       this.tab = k
-      this.items = []
-      this.sessions = []
-      this.cursor = null
-      this.hasMore = false
       this.status = ''
       this.topShown = false
-      this.load(true)
+      // 已经加载过的分类直接显示, 不重新拉首页 (各分类的列表/游标都在自己那一格里)
+      if (k === 'im' || !this.loadedBy[k]) this.load(true)
     },
 
     load(reset) {
       const self = this
+      const kind = this.tab
       const g = ++this.gen
       this.loading = true
-      if (reset) { this.items = []; this.sessions = []; this.cursor = null; this.status = '' }
+      if (reset) {
+        this.status = ''
+        if (kind === 'im') this.sessions = []
+        else { this.itemsBy[kind] = []; this.cursorBy[kind] = null; this.moreBy[kind] = false }
+      }
       afterPaint(function () {
-        // 未读计数与列表并行拉, 计数失败不挡列表
+        // 未读计数与列表并行拉; 计数失败不挡列表
         getMsgUnread().then(function (u) {
           if (g !== self.gen) return
           self.unread = u
         }).catch(function () {})
-        const task = self.tab === 'im'
+
+        const task = kind === 'im'
           ? getSessions().then(function (list) {
               if (g !== self.gen) return
               self.sessions = list
-              self.hasMore = false
+              self.loadedBy.im = true
             })
-          : getMsgList(self.tab, reset ? null : self.cursor).then(function (r) {
+          : getMsgList(kind, reset ? null : self.cursorBy[kind]).then(function (r) {
               if (g !== self.gen || !r) return
+              const have = self.itemsBy[kind] || []
               const seen = {}
-              for (let i = 0; i < self.items.length; i++) seen[self.items[i].id] = 1
+              for (let i = 0; i < have.length; i++) seen[have[i].id] = 1
+              const add = []
               for (let i = 0; i < r.items.length; i++) {
-                if (!seen[r.items[i].id]) { self.items.push(r.items[i]); seen[r.items[i].id] = 1 }
+                if (!seen[r.items[i].id]) { add.push(r.items[i]); seen[r.items[i].id] = 1 }
               }
-              self.cursor = r.cursor
-              self.hasMore = r.hasMore
+              self.itemsBy[kind] = have.concat(add)   // 只追加, 不重复
+              self.cursorBy[kind] = r.cursor
+              self.moreBy[kind] = !!r.hasMore
+              self.loadedBy[kind] = true
             })
+
         task.catch(function (e) {
           if (g !== self.gen) return
           self.status = (e && e.message ? e.message : String(e)).substring(0, 60)
@@ -181,7 +203,8 @@ export default {
       })
     },
     loadMore() {
-      if (!this.hasMore || this.loading || this.tab === 'im') return
+      if (this.loading || this.tab === 'im') return
+      if (!this.moreBy[this.tab]) return
       this.load(false)
     },
 
@@ -190,6 +213,7 @@ export default {
       try { $falcon.navTo('chat', { talkerId: String(c.talkerId), name: c.name, face: c.face }) } catch (e) {}
     },
     open(it) {
+      // 回复所在稿件: business_id=1 是视频评论, 有 uri 就能跳; 只有能解析出 bvid 才跳详情页
       const m = /BV[0-9A-Za-z]{10}/.exec(String(it.uri || ''))
       if (!m) return
       try { $falcon.navTo('page', { bvid: m[0], title: it.title }) } catch (e) {}
@@ -212,8 +236,9 @@ export default {
 .hcell { width: 150px; height: 46px; margin-left: 10px; flex-direction: row; justify-content: center; align-items: center; }
 .hnum { margin-right: 6px; }
 .tabs { width: 100%; height: 42px; flex-direction: row; align-items: center; padding-left: 16px; }
-.tab { width: 104px; height: 32px; margin-right: 8px; justify-content: center; align-items: center; }
-.st { width: 100%; text-align: center; margin-top: 20px; }
+.tab { width: 116px; height: 32px; margin-right: 8px; justify-content: center; align-items: center; }
+.stbox { width: 100%; height: 60px; flex-direction: row; justify-content: center; align-items: center; }
+.stbox-hit { width: 100%; height: 44px; flex-direction: row; justify-content: center; align-items: center; margin-top: 12px; }
 .list { width: 100%; flex: 1; }
 .row { width: 100%; flex-direction: row; padding-left: 16px; padding-right: 16px; padding-top: 8px; padding-bottom: 8px; margin-top: 6px; }
 .face { width: 48px; height: 48px; border-radius: 24px; margin-right: 12px; }
@@ -223,6 +248,6 @@ export default {
 .rcont { margin-top: 4px; lines: 2; text-overflow: ellipsis; overflow: hidden; }
 .rtime { margin-top: 6px; }
 .empty2 { width: 100%; text-align: center; margin-top: 28px; }
-.more { width: 100%; text-align: center; margin-top: 10px; margin-bottom: 16px; }
+.more { width: 100%; height: 40px; flex-direction: row; justify-content: center; align-items: center; margin-top: 8px; margin-bottom: 12px; }
 .list-anchor { width: 1px; height: 1px; }
 </style>
