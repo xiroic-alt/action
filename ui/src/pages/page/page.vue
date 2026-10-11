@@ -7,11 +7,15 @@
         <image v-if="coverSrc" :style="coverStyle" :src="coverSrc" resize="cover"></image>
         <div v-else class="cover-ph" :style="coverStyle" :style="{ backgroundColor: T.c.surfaceContainerLow }"></div>
       </div>
-      <text v-if="detail" class="dur" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ detail.duration }}</text>
+      <!-- 时长徽标浮在封面上: 必须走"媒体底衬"(恒定 半透明黑底+白字), 不能吃 surface token ——
+           浅色主题下 onSurface 是近黑, 压在任意封面上都不可读 (用户反馈: 视频时长显示有问题) -->
+      <text v-if="detail" class="dur" :style="mediaBadge">{{ detail.duration }}</text>
       <!-- 返回按钮: 左上角悬浮于封面上 (0.9.5 需求: 返回按钮放左上角) -->
-      <div class="backbtn" @click="goBack">
+      <!-- 返回按钮同样浮在封面上 (0.9.5 起放左上角): 走媒体底衬, 不吃 surface token,
+           否则浅色主题下是"近黑底 + 近黑字" (用户反馈: 返回按钮有问题) -->
+      <div class="backbtn" :style="mediaPill" @click="goBack">
         <image class="backbtn-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="backbtn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">返回</text>
+        <text class="backbtn-text" :style="mediaPillText">返回</text>
       </div>
     </div>
 
@@ -96,24 +100,14 @@
         </div>
 
         <!-- AI 总结: 官方「AI 视频总结」. 有就显示摘要 + 带时间戳的大纲, 点大纲跳时间点. -->
-        <div v-if="aiSum" class="section">
-          <text class="sec-title" :style="T.t.title">AI 总结</text>
-          <text v-if="aiSum.summary" class="ai-sum" :style="T.t.body">{{ aiSum.summary }}</text>
-          <div v-for="(o, oi) in aiSum.outline" :key="'ao' + oi" class="ai-out">
-            <text class="ai-out-t" :style="T.t.labelOn">{{ o.title }}</text>
-            <div v-for="(p, pi) in o.parts" :key="'ap' + pi" class="ai-part" @click="seekTo(p.ts)">
-              <text class="ai-ts" :style="T.t.accentSm">{{ p.tsText }}</text>
-              <text class="ai-tx" :style="T.t.bodyVar">{{ p.text }}</text>
-            </div>
-          </div>
-        </div>
-
-        <!-- AI 总结入口: 旧实现只在"拉取成功"时渲染这块, 真机上接口常返回非 0 ->
-              ​用户既看不到内容也没有任何触发方式 (用户反馈: 没看到任何关于 AI 总结的按钮).
-             现在入口常驻, 未取过/失败/为空都能点, 并在按钮上回显状态. -->
-        <div v-else class="section">
-          <div class="ai-entry" :style="aiLoading ? T.actionR : T.accentR" @click="onAiTap">
-            <text class="ai-entry-t" :style="aiLoading ? T.t.body : T.t.onAccent">{{ aiLabel }}</text>
+        <!-- AI 总结: 只留入口按钮, 内容改到弹窗里看 (用户要求: 点击按钮弹出, 空态也写明原因).
+             入口常驻 —— 旧实现只在拉取成功时渲染, 真机上接口常返回非 0, 用户根本看不到这块. -->
+        <div class="section">
+          <!-- PiliNara 的 AI 图标是"深藏青小电视"(自带底色), 所以入口用容器底而不是 primary 实底,
+               否则深色 logo 压在深色按钮上会糊 -->
+          <div class="ai-entry" :style="T.actionR" @click="openAi">
+            <image class="ai-entry-ic" :src="MI.ai" :style="{ width: '28px', height: '28px' }"></image>
+            <text class="ai-entry-t" :style="T.t.labelOn">{{ aiLabel }}</text>
           </div>
         </div>
         <div v-if="detail" class="section">
@@ -148,8 +142,10 @@
 
         <div v-if="related.length > 0" class="section">
           <text class="sec-title" :style="T.t.title">推荐</text>
-          <div v-for="item in related" :key="item.bvid" class="ritem" @click="openVideo(item)">
-            <image class="rcover" :style="T.t.title" :src="item.pic" resize="cover" :lazy-load="true"></image>
+          <!-- .ritem 原本 <style> 里写死 #0b0b0d 黑底 -> 浅色下整块黑 (用户反馈: 推荐显示有问题)
+               另外 rcover 之前被误绑成 T.t.title (给 <image> 传颜色对象无意义), 已去掉 -->
+          <div v-for="item in related" :key="item.bvid" class="ritem" :style="T.cardR" @click="openVideo(item)">
+            <image class="rcover" :src="item.pic" resize="cover" :lazy-load="true"></image>
             <div class="rmeta">
               <text class="rtitle" :style="T.t.title">{{ item.title }}</text>
               <div class="rstatrow" :style="T.t.caption">
@@ -166,7 +162,7 @@
       <!-- ============ 评论 tab ============ -->
       <div v-else class="cwrap">
         <!-- 排序切换: 热度 / 最新 -->
-        <div class="sortbar">
+        <div class="sortbar" :style="T.bar">
           <div :class="['sort-item', sortMode === 'hot' ? 'sort-on' : '']" :style="sortMode === 'hot' ? T.accentR : T.actionR" @click="switchSort('hot')">
             <text :class="['sort-text', sortMode === 'hot' ? 'sort-text-on' : '']" :style="sortMode === 'hot' ? T.t.onAccent : T.t.body">热度</text>
           </div>
@@ -242,12 +238,40 @@
           <text v-if="logged && !cLoading && replies.length === 0 && cStatus === ''" class="empty" :style="T.t.empty">还没有评论, 抢首评</text>
         </scroller>
         <!-- 底部发评栏 -->
-        <div class="postbar">
-          <div class="post-input" @click="openPostInput">
+        <div class="postbar" :style="T.bar">
+          <div class="post-input" @click="openPostInput" :style="T.insetR">
             <text class="post-input-text" :style="T.t.label">{{ logged ? '说点什么…' : '登录后参与评论' }}</text>
           </div>
-          <div class="post-btn" @click="openPostInput">
+          <div class="post-btn" @click="openPostInput" :style="T.accentR">
             <text class="post-btn-text" :style="T.t.onAccent">发送</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 总结弹窗: 内容较长, 用浮层 + 内部 scroller; 取不到时写明原因而不是空着 -->
+    <div v-if="aiOpen" class="ai-mask">
+      <div class="ai-modal" :style="T.cardR">
+        <div class="ai-head">
+          <text class="ai-title" :style="T.t.title">AI 总结</text>
+          <div class="ai-close" :style="T.actionR" @click="closeAi">
+            <text class="ai-close-t" :style="T.t.labelOn">关闭</text>
+          </div>
+        </div>
+        <scroller v-if="aiSum" class="ai-body" scroll-direction="vertical" :show-scrollbar="true">
+          <text v-if="aiSum.summary" class="ai-sum" :style="T.t.body">{{ aiSum.summary }}</text>
+          <div v-for="(o, oi) in aiSum.outline" :key="'ao' + oi" class="ai-out">
+            <text class="ai-out-t" :style="T.t.labelOn">{{ o.title }}</text>
+            <div v-for="(p, pi) in o.parts" :key="'ap' + pi" class="ai-part" @click="seekTo(p.ts)">
+              <text class="ai-ts" :style="T.t.accentSm">{{ p.tsText }}</text>
+              <text class="ai-tx" :style="T.t.bodyVar">{{ p.text }}</text>
+            </div>
+          </div>
+        </scroller>
+        <div v-else class="ai-body ai-body-empty">
+          <text class="ai-empty-t" :style="T.t.bodyVar">{{ aiEmptyText }}</text>
+          <div class="ai-retry" :style="T.accentR" @click="onAiTap">
+            <text class="ai-retry-t" :style="T.t.onAccent">重新获取</text>
           </div>
         </div>
       </div>
@@ -255,21 +279,21 @@
 
     <!-- 选择器浮层: 收藏夹 / 投币数量 (遮罩不绑点击, 只能点「取消」关闭, 防误触) -->
     <div v-if="pickerMode !== ''" class="picker-mask">
-      <div class="picker">
+      <div class="picker" :style="T.cardR">
         <text class="picker-title" :style="T.t.title">{{ pickerTitle }}</text>
         <!-- 关注菜单 (图4) -->
         <div v-if="pickerMode === 'follow'" class="picker-row">
-          <div class="picker-coin" @click="toggleSpecial">
+          <div class="picker-coin" @click="toggleSpecial" :style="T.accentR">
             <image class="picker-ico" :src="rel.special ? MI.starOn : MI.star" :style="{ width: '20px', height: '20px' }"></image>
             <text class="picker-coin-text" :style="T.t.onAccent">{{ rel.special ? '取消特别关注' : '加入特别关注' }}</text>
           </div>
-          <div class="picker-coin" @click="openTagPicker">
+          <div class="picker-coin" @click="openTagPicker" :style="T.accentR">
             <image class="picker-ico" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
             <text class="picker-coin-text" :style="T.t.onAccent">设置分组</text>
           </div>
         </div>
         <div v-if="pickerMode === 'follow'" class="picker-row">
-          <div class="picker-coin picker-danger" @click="doUnfollow">
+          <div class="picker-coin picker-danger" @click="doUnfollow" :style="T.accentR">
             <text class="picker-coin-text" :style="T.t.onAccent">取消关注</text>
           </div>
         </div>
@@ -283,15 +307,15 @@
           </div>
         </scroller>
         <div v-if="pickerMode === 'tags'" class="picker-row">
-          <div class="picker-coin" @click="saveTags">
+          <div class="picker-coin" @click="saveTags" :style="T.accentR">
             <text class="picker-coin-text" :style="T.t.onAccent">保存分组</text>
           </div>
         </div>
         <div v-if="pickerMode === 'coin'" class="picker-row">
-          <div class="picker-coin" @click="pickCoin(1)">
+          <div class="picker-coin" @click="pickCoin(1)" :style="T.accentR">
             <text class="picker-coin-text" :style="T.t.onAccent">投 1 币</text>
           </div>
-          <div class="picker-coin" @click="pickCoin(2)">
+          <div class="picker-coin" @click="pickCoin(2)" :style="T.accentR">
             <text class="picker-coin-text" :style="T.t.onAccent">投 2 币</text>
           </div>
         </div>
@@ -303,7 +327,7 @@
             <text class="picker-item-sub" :style="T.t.caption">{{ f.mediaCount }} 个</text>
           </div>
         </scroller>
-        <div class="picker-cancel" @click="closePicker">
+        <div class="picker-cancel" @click="closePicker" :style="T.actionR">
           <text class="picker-cancel-text" :style="T.t.body">取消</text>
         </div>
       </div>
@@ -365,6 +389,9 @@ import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W
 // 图标: material-icons-svg 的光栅化产物 (生成器 tools/make-icons.mjs)
 // require 只能写在 .vue 里 —— aiot-cli 只处理 .vue 内的图片 require
 const MI = {
+  // AI 图标取自 PiliNara (assets/images/ai.png, WebP 75x75) -> 转 44px PNG 入库
+  // (Falcon <image> 走 mini-glide, 只可靠解码位图)
+  ai: require('../../assets/mi/ai_logo_44.png'),
   alert: require('../../assets/mi/alert_20_m.png'),
   star: require('../../assets/mi/star_20_m.png'),
   starOn: require('../../assets/mi/star_20_p.png'),
@@ -383,6 +410,7 @@ const MI = {
   plus: require('../../assets/mi/add_32_w.png')
 }
 const MI_D = {
+  ai: require('../../assets/mi/ai_logo_44.png'),
   alert: require('../../assets/mi/alert_20_dm.png'),
   star: require('../../assets/mi/star_20_dm.png'),
   starOn: require('../../assets/mi/star_20_p.png'),
@@ -557,6 +585,7 @@ export default {
       aiTried: false,     // 自动拉取只试一次 (手动入口不受它限制)
       aiLoading: false,
       aiErr: '',          // 失败/为空的原因, 入口按钮上回显
+      aiOpen: false,      // 弹窗显隐
   viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       posting: false,
       ime: null,
@@ -564,7 +593,18 @@ export default {
     }
   },
   computed: {
+    // "媒体底衬"三态: 浮在封面/视频画面上的控件必须恒定半透明黑底 + 白字,
+    // 与主题明暗无关 —— 这是 M3 也认可的"媒体上方"例外 (scrim/overlay 不随 surface 变).
+    mediaBadge() { return { backgroundColor: 'rgba(0, 0, 0, 0.62)', color: '#ffffff' } },
+    mediaPill() { return { backgroundColor: 'rgba(0, 0, 0, 0.62)', borderRadius: '20px' } },
+    mediaPillText() { return { color: '#ffffff' } },
     // AI 按钮三态文案: 入口常驻, 状态必须写清, 否则用户不知道是"没反应"还是"不能用"
+    // 弹窗空态: 必须写明原因, 不能只是空白 (用户要求)
+    aiEmptyText() {
+      if (this.aiLoading) return '正在生成这期视频的 AI 总结，请稍候…'
+      if (this.aiErr !== '') return this.aiErr
+      return '这条稿件暂时没有可用的 AI 总结'
+    },
     aiLabel() {
       if (this.aiSum) return 'AI 总结'
       if (this.aiLoading) return 'AI 总结生成中…'
@@ -623,6 +663,12 @@ export default {
     // 拿不到就保持 aiSum = null, 模板整块不渲染 —— 不占位、不弹错.
     // 单独异步拉, 不挂在详情主链路上, 免得拖慢首屏.
     // 入口按钮: 允许重试 (旧实现 aiTried 是一次性守卫, 失败后永远没机会再取)
+    // 打开弹窗: 没取过就先取 (取的过程中弹窗显示"生成中")
+    openAi() {
+      this.aiOpen = true
+      if (!this.aiSum) this.onAiTap()
+    },
+    closeAi() { this.aiOpen = false },
     onAiTap() {
       if (this.aiLoading) return
       this.aiErr = ''
@@ -2424,4 +2470,19 @@ export default {
 .return-anchor { width: 1px; height: 1px; }
 .ai-entry { width: 100%; height: 44px; justify-content: center; align-items: center; }
 .ai-entry-t { font-size: 19px; }
+.ai-entry { width: 100%; height: 44px; justify-content: center; align-items: center; flex-direction: row; }
+.ai-entry-ic { margin-right: 8px; }
+.ai-entry-t { font-size: 19px; }
+/* AI 弹窗: 遮罩 + 居中卡片; 卡片内正文用 scroller, 长文可滚 */
+.ai-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: rgba(0, 0, 0, 0.55); justify-content: center; align-items: center; }
+.ai-modal { width: 620px; max-height: 226px; flex-direction: column; padding: 12px; }
+.ai-head { width: 100%; height: 34px; flex-direction: row; align-items: center; margin-bottom: 6px; }
+.ai-title { flex: 1; }
+.ai-close { width: 72px; height: 30px; justify-content: center; align-items: center; }
+.ai-close-t { font-size: 17px; }
+.ai-body { width: 100%; max-height: 170px; }
+.ai-body-empty { height: 150px; justify-content: center; align-items: center; }
+.ai-empty-t { font-size: 18px; lines: 2; text-align: center; }
+.ai-retry { width: 180px; height: 38px; margin-top: 14px; justify-content: center; align-items: center; }
+.ai-retry-t { font-size: 18px; }
 </style>
