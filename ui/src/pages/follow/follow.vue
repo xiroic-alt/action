@@ -31,8 +31,8 @@
       <text v-if="status !== ''" class="state" :style="T.t.caption" @click="retry">{{ status }}</text>
       <div v-if="!logged && loaded" class="gate">
         <text class="gate-text" :style="T.t.caption">关注列表需要登录后查看</text>
-        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
-          <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
+        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+          <text class="gate-btn-text" :style="{ color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
       </div>
       <template v-else>
@@ -42,15 +42,15 @@
           </div>
           <div class="meta">
             <div class="namerow">
-              <text class="name" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ u.name }}</text>
+              <text class="name" :style="{ color: T.c.onSurface }">{{ u.name }}</text>
               <div v-if="u.officialType >= 0" :class="['vbadge', badgeCls(u)]">
                 <image class="vbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
               </div>
-              <text v-if="u.special" class="sptag" :style="{ backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card, backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card }">特别关注</text>
+              <text v-if="u.special" class="sptag" :style="{ backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card }">特别关注</text>
             </div>
-            <text class="sign" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ u.sign !== '' ? u.sign : '这个人很神秘，什么都没有写' }}</text>
+            <text class="sign" :style="{ color: T.c.onSurfaceVariant }">{{ u.sign !== '' ? u.sign : '这个人很神秘，什么都没有写' }}</text>
           </div>
-          <div class="manage" @click="openManage(u)" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+          <div class="manage" @click="openManage(u)" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
             <text class="manage-t" :style="T.t.body">管理</text>
           </div>
         </div>
@@ -65,7 +65,7 @@
         <text class="panel-title" :style="T.t.body">{{ picker.name }}</text>
         <div v-if="!picker.tagsOn" class="panel-row">
           <div class="panel-btn" :style="T.card" @click="openTags">
-            <image class="panel-ic" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
+            <image class="panel-ic" :src="MIc.folder" :style="{ width: '20px', height: '20px' }"></image>
             <text class="panel-btn-t" :style="T.t.body">设置分组</text>
           </div>
           <div class="panel-btn panel-danger" :style="T.card" @click="doUnfollow">

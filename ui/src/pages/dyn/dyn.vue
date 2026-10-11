@@ -1,12 +1,12 @@
 <template>
-  <div class="dpage" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
-    <div class="dtop" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
+  <div class="dpage" :style="T.page">
+    <div class="dtop" :style="T.bar">
       <div class="dback" @click="back">
         <image class="dback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="dback-t" :style="T.t.body">返回</text>
       </div>
-      <text class="dtitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ headTitle }}</text>
-      <text v-if="author !== ''" class="dtag" :style="{ backgroundColor: T.c.surfaceContainerHighest, color: T.c.onSurface, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, color: T.c.onSurface, borderRadius: T.rad.card }">{{ author }}</text>
+      <text class="dtitle" :style="T.t.title">{{ headTitle }}</text>
+      <text v-if="author !== ''" class="dtag" :style="T.insetOnSurface">{{ author }}</text>
       <div class="dtop-spacer"></div>
       <text v-if="pubText !== ''" class="dtime" :style="T.t.caption">{{ pubText }}</text>
     </div>
@@ -14,19 +14,22 @@
     <!-- ============ 左栏: 内容 (580px) ============ -->
     <div class="dleft">
       <div class="actrow" :style="T.bar">
-        <div :class="['act-btn', liked ? 'act-on' : '']" @click="doLike">
+        <!-- 未选中态同样要绑 :style: 旧实现只有 liked 时挂 class, 底色落在 <style> 的 #141416,
+             浅色主题下变成一个黑胶囊 (用户反馈的「动态详情页点赞按钮」). 两个态都走中性容器,
+             靠 .act-on 的粉色文字表达"已赞". -->
+        <div :class="['act-btn', liked ? 'act-on' : '']" :style="T.inset" @click="doLike">
           <text :class="['act-text', liked ? 'act-text-on' : '']" :style="liked ? T.t.accent : T.t.label">{{ liked ? '已赞' : '点赞' }}</text>
           <text :class="['act-num', liked ? 'act-num-on' : '']" :style="liked ? T.t.accent : T.t.label">{{ likeText }}</text>
         </div>
-        <div class="act-btn act-static" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
+        <div class="act-btn act-static" :style="T.inset">
           <text class="act-text" :style="T.t.body">评论</text>
-          <text class="act-num" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ replyText }}</text>
+          <text class="act-num" :style="T.t.caption">{{ replyText }}</text>
         </div>
-        <div class="act-btn act-static" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
+        <div class="act-btn act-static" :style="T.inset">
           <text class="act-text" :style="T.t.body">转发</text>
-          <text class="act-num" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ forwardText }}</text>
+          <text class="act-num" :style="T.t.caption">{{ forwardText }}</text>
         </div>
-        <text v-if="actStatus !== ''" class="act-status" :style="{ color: T.c.primary, color: T.c.primary }">{{ actStatus }}</text>
+        <text v-if="actStatus !== ''" class="act-status" :style="{ color: T.c.primary }">{{ actStatus }}</text>
       </div>
 
       <div class="dstatus" v-if="status !== ''" @click="retry">
@@ -40,12 +43,12 @@
           <div class="ahead" @click="openUp">
             <div class="aface-wrap">
               <image v-if="face !== ''" class="aface" :style="T.inset" :src="face" resize="cover"></image>
-              <div v-else class="aface aface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }"><text class="aface-t" :style="T.t.caption">{{ author ? author.charAt(0) : '?' }}</text></div>
+              <div v-else class="aface aface-ph" :style="T.inset"><text class="aface-t" :style="T.t.caption">{{ author ? author.charAt(0) : '?' }}</text></div>
               <image v-if="pendant !== ''" class="apendant" :src="pendant" resize="contain"></image>
             </div>
             <div class="acol">
               <div class="anamerow">
-                <text class="aname" :style="{ color: T.c.primary, color: T.c.primary }">{{ author }}</text>
+                <text class="aname" :style="T.t.accentSm">{{ author }}</text>
                 <text class="atime" :style="T.t.caption">{{ pubText }}</text>
               </div>
               <!-- 认证标识 (图2 的样式) -->
@@ -53,16 +56,16 @@
                 <div :class="['averify-badge', badgeCls()]">
                   <image class="averify-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
                 </div>
-                <text class="averify-t" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ verifyText }}</text>
+                <text class="averify-t" :style="T.t.caption">{{ verifyText }}</text>
               </div>
             </div>
           </div>
 
           <!-- 专栏 / 图文全文 (opus/detail): 标题 + 结构化段落 -->
           <template v-if="art">
-            <text v-if="art.title !== ''" class="artitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ art.title }}</text>
+            <text v-if="art.title !== ''" class="artitle" :style="T.t.title">{{ art.title }}</text>
             <div class="pblock" v-for="(b, bi) in art.blocks" :key="'b' + bi">
-              <richtext v-if="b.k === 'text' || b.k === 'quote'" :class="['ptext', b.k === 'quote' ? 'pquote' : '']">
+              <richtext v-if="b.k === 'text' || b.k === 'quote'" :class="['ptext', b.k === 'quote' ? 'pquote' : '']" :style="b.k === 'quote' ? T.quote : T.t.body">
                 <template v-for="(seg, si) in b.segs">
                   <span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span>
                   <span v-else-if="seg.t === 2" :key="'th' + si" class="phl">{{ seg.v }}</span>
@@ -84,7 +87,7 @@
                   </richtext>
                 </div>
               </div>
-              <text v-else-if="b.k === 'code'" class="pcode" :style="T.t.body">{{ b.text }}</text>
+              <text v-else-if="b.k === 'code'" class="pcode" :style="T.code">{{ b.text }}</text>
               <div v-else-if="b.k === 'line'" class="pline" :style="T.actionR"></div>
               <div v-else-if="b.k === 'card'" class="pcard" :style="T.card"><text class="pcard-t" :style="T.t.caption">{{ b.title }}</text></div>
             </div>
@@ -92,7 +95,7 @@
 
           <!-- 动态本体: 投稿 / 转发 / 纯文字 / 图文 (没有全文时兜底) -->
           <template v-else>
-            <richtext v-if="segs.length > 0" class="ptext">
+            <richtext v-if="segs.length > 0" class="ptext" :style="T.t.body">
               <template v-for="(seg, si) in segs">
                 <span v-if="seg.t === 0" :key="'ps' + si">{{ seg.v }}</span>
                 <span v-else-if="seg.t === 2" :key="'ph' + si" class="phl">{{ seg.v }}</span>
@@ -113,14 +116,14 @@
               <div class="vmeta">
                 <text class="vtitle" :style="T.t.body">{{ archive.title }}</text>
                 <div class="vstatrow">
-                  <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
+                  <image class="vstat-ic" :src="MIc.play" :style="{ width: '18px', height: '18px' }"></image>
                   <text class="vstat" :style="T.t.caption">{{ archive.playText + '   ' + archive.duration }}</text>
                 </div>
               </div>
             </div>
             <div class="ostat" :style="T.inset" v-if="orig">
               <text class="olabel" :style="T.t.caption" @click="openOrigUp">{{ '转发 @' + orig.author }}</text>
-              <richtext v-if="orig.segs.length > 0" class="ptext">
+              <richtext v-if="orig.segs.length > 0" class="ptext" :style="T.t.body">
                 <template v-for="(seg, si) in orig.segs">
                   <span v-if="seg.t === 0" :key="'os' + si">{{ seg.v }}</span>
                   <span v-else-if="seg.t === 2" :key="'oh' + si" class="phl">{{ seg.v }}</span>
@@ -142,7 +145,7 @@
                 <div class="vmeta">
                   <text class="vtitle" :style="T.t.body">{{ orig.archive.title }}</text>
                   <div class="vstatrow">
-                    <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
+                    <image class="vstat-ic" :src="MIc.play" :style="{ width: '18px', height: '18px' }"></image>
                     <text class="vstat" :style="T.t.caption">{{ orig.archive.playText + '   ' + orig.archive.duration }}</text>
                   </div>
                 </div>
@@ -158,10 +161,10 @@
     <!-- ============ 右栏: 评论 (378px) ============ -->
     <div class="dright">
       <div class="sortbar" :style="T.actionR">
-        <div :class="['sort-item', sortMode === 'hot' ? 'sort-on' : '']" @click="switchSort('hot')">
+        <div :class="['sort-item', sortMode === 'hot' ? 'sort-on' : '']" :style="sortMode === 'hot' ? T.inset : {}" @click="switchSort('hot')">
           <text :class="['sort-text', sortMode === 'hot' ? 'sort-text-on' : '']" :style="sortMode === 'hot' ? T.t.accent : T.t.label">热度</text>
         </div>
-        <div :class="['sort-item', sortMode === 'time' ? 'sort-on' : '']" @click="switchSort('time')">
+        <div :class="['sort-item', sortMode === 'time' ? 'sort-on' : '']" :style="sortMode === 'time' ? T.inset : {}" @click="switchSort('time')">
           <text :class="['sort-text', sortMode === 'time' ? 'sort-text-on' : '']" :style="sortMode === 'time' ? T.t.accent : T.t.label">最新</text>
         </div>
         <text class="sort-count" :style="T.t.caption">{{ total > 0 ? ('共 ' + total) : '' }}</text>
@@ -170,7 +173,7 @@
                 :loadmoreoffset="100" @loadmore="loadMoreComments" @scroll="onReturnScroll($event, 'returnTop1')">
       <div ref="returnTop1" class="return-anchor"></div>
         <text v-if="cStatus !== ''" class="c-status" :style="T.t.accent">{{ cStatus }}</text>
-        <div v-for="r in replies" :key="r.rpid" class="reply">
+        <div v-for="r in replies" :key="r.rpid" class="reply" :style="T.lineB">
           <image class="face" :src="r.face" :lazy-load="true" resize="cover"></image>
           <div class="reply-main">
             <div class="reply-head">
@@ -182,13 +185,13 @@
             <!-- 事件挂在 .reply-wrap 这个 div 上 (richtext 上的 @click 本机不触发) -->
             <div class="reply-wrap" @click="toggleReplyText(r)">
               <richtext :key="'r' + r.rpid + (r.expanded ? 1 : 0)"
-                        :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']">
+                        :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" :style="T.t.body">
                 <template v-for="(seg, si) in r.segs">
                   <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
                   <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
                 </template>
               </richtext>
-              <text v-if="!r.expanded && r.long" class="reply-more" :style="T.t.body" @click="toggleReplyText(r)">…</text>
+              <text v-if="!r.expanded && r.long" class="reply-more" :style="T.onPage" @click="toggleReplyText(r)">…</text>
             </div>
             <div class="reply-meta">
               <div class="meta-btn" @click="toggleReplyLike(r)">
@@ -196,14 +199,14 @@
                 <text :class="['meta-text', r.liked ? 'meta-liked' : '']" :style="r.liked ? T.t.accent : T.t.label">{{ r.likeText }}</text>
               </div>
               <div class="meta-btn" @click="openSubReply(r)">
-                <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
+                <image :src="MIc.reply" :style="{ width: '20px', height: '20px' }"></image>
                 <text class="meta-reply" :style="T.t.caption">{{ r.replyCount }}</text>
               </div>
             </div>
           </div>
         </div>
-        <text v-if="hasMore && replies.length > 0" class="load-more" @click="loadMoreComments">加载更多评论…</text>
-        <text v-if="!cLoading && replies.length === 0 && cStatus === ''" class="empty" :style="T.t.caption">还没有评论</text>
+        <text v-if="hasMore && replies.length > 0" class="load-more" :style="T.t.accentSub" @click="loadMoreComments">加载更多评论…</text>
+        <text v-if="!cLoading && replies.length === 0 && cStatus === ''" class="empty" :style="T.t.empty">还没有评论</text>
       </scroller>
       <!-- 发评论: 走系统输入法 (services/ime.js), 与视频详情页同一套 -->
       <div class="postbar" :style="T.actionR">
@@ -946,7 +949,7 @@ export default {
 .ptext { font-size: 18px; color: #dfe4ea; }
 .pquote { font-size: 18px; color: #aab2bd; padding-left: 12px; padding-right: 8px; padding-top: 6px; padding-bottom: 6px; background-color: #0b0b0d; border-radius: 8px; }
 .phl { color: #3ca5ec; }
-.pimg { border-radius: 10px; background-color: #141416; margin-top: 4px; }
+.pimg { border-radius: 10px; margin-top: 4px; }
 .pimg-i { border-radius: 10px; }
 .plist-row { flex-direction: row; margin-top: 4px; }
 .plist-mark { font-size: 18px; color: #3ca5ec; margin-right: 6px; }
@@ -957,7 +960,7 @@ export default {
 .pcard-t { font-size: 16px; color: #3ca5ec; }
 .pics { margin-top: 6px; }
 .pic-row { flex-direction: row; }
-.pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; background-color: #141416; }
+.pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; }
 .pic-img { border-radius: 8px; }
 .vcard { flex-direction: row; margin-top: 8px; padding: 8px; background-color: #141416; border-radius: 8px; }
 .vcover { width: 140px; height: 88px; border-radius: 6px; margin-right: 10px; }

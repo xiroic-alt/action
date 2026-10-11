@@ -1,6 +1,6 @@
 <template>
   <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
-    <div class="header" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
+    <div class="header" :style="{ backgroundColor: T.c.surfaceContainerLow }">
       <div class="back" @click="goBack" :style="T.inset" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
@@ -15,7 +15,7 @@
               :loadmoreoffset="100" @loadmore="loadMoreVideos" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
       <div ref="returnTop0" class="return-anchor"></div>
-      <text v-if="upStatus !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ upStatus }}{{ dots }}</text>
+      <text v-if="upStatus !== ''" class="state" :style="{ color: T.c.onSurfaceVariant }">{{ upStatus }}{{ dots }}</text>
 
       <div class="info-row" v-if="info" :style="T.cardR">
         <!-- 头像框: 官方 App 在头像右下角挂装饰 (acc/info 的 pendant) -->
@@ -24,20 +24,20 @@
           <image v-if="info.pendant" class="pendant" :src="info.pendant" resize="contain"></image>
         </div>
         <div class="info-col">
-          <text class="name" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ info.name }}</text>
+          <text class="name" :style="{ color: T.c.onSurface }">{{ info.name }}</text>
           <!-- 认证标识: 「bilibili个人认证：xxx」(图2 的样式) -->
           <div v-if="info.officialDesc" class="verify">
             <div :class="['verify-badge', badgeCls()]">
               <image class="verify-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
-            <text class="verify-t" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ verifyText }}</text>
+            <text class="verify-t" :style="{ color: T.c.onSurfaceVariant }">{{ verifyText }}</text>
           </div>
-          <text class="meta" :style="{ color: T.c.primary, color: T.c.primary }">{{ info.levelText }} · 粉丝 {{ fansText }}</text>
-          <text class="sign" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ info.sign !== '' ? info.sign : '这个人很神秘，什么都没有写' }}</text>
+          <text class="meta" :style="{ color: T.c.primary }">{{ info.levelText }} · 粉丝 {{ fansText }}</text>
+          <text class="sign" :style="{ color: T.c.onSurfaceVariant }">{{ info.sign !== '' ? info.sign : '这个人很神秘，什么都没有写' }}</text>
         </div>
         <!-- TA 的动态: 复用动态页 (带 mid 进去走空间动态接口) -->
-        <div class="dynentry" @click="openDynFeed" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
-          <text class="dynentry-t" :style="{ color: T.c.primary, color: T.c.primary }">TA 的动态</text>
+        <div class="dynentry" @click="openDynFeed" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+          <text class="dynentry-t" :style="{ color: T.c.primary }">TA 的动态</text>
         </div>
       </div>
 

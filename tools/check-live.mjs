@@ -167,7 +167,8 @@ eq(filter([{ id: '5' }, { id: '6' }]).map((d) => d.id), ['5', '6'], '弹幕过�
 const player = readSrc('pages/player/player.vue')
 ok(/isLive\(\)\s*\{\s*return this\.mode === 'live'\s*\}/.test(player), 'player: isLive 由 options.mode 决定')
 ok(/\(options\.mode === 'live' \|\| rid > 0\) \? 'live' : ''/.test(player), 'player: applyOptions 用 mode=live 或 roomid 判定直播态')
-ok(/getLiveRoomPlayUrl\(this\.roomid\)/.test(player) && /from '\.\.\/\.\.\/services\/bili\.js'/.test(player),
+// 第二个参数是"候选线路序号" (直播起播失败时轮换), 取流仍然一律走 bili.js
+ok(/getLiveRoomPlayUrl\(this\.roomid(, this\.liveSrcTry)?\)/.test(player) && /from '\.\.\/\.\.\/services\/bili\.js'/.test(player),
   'player: 直播取流走 bili.js 的 getLiveRoomPlayUrl')
 
 const seekGate = player.indexOf('v-if="!isLive" class="seek"')
@@ -221,7 +222,7 @@ ok(!/<hole\b/.test(livePage), 'live.vue: 已删除内嵌 <hole>')
 ok(!/vrectStyle|fitRect|reloadRoom|startDanmaku/.test(livePage), 'live.vue: 已删除内嵌播放的几何/重连/弹幕逻辑')
 ok(/\$falcon\.navTo\('room', \{ roomid: String\(r\.roomid\), title: r\.title \}\)/.test(livePage),
   'live.vue: 点房间卡片进独立直播间页')
-ok(/searchLive\(kw, 1\)/.test(livePage), 'live.vue: 保留搜索')
+ok(/searchLive\(kw, nextPage\)/.test(livePage), 'live.vue: 保留搜索')
 ok(/hotAreas/.test(livePage) && /tip\(/.test(livePage), 'live.vue: 保留分区快捷与状态提示')
 
 // ================= 7. 房间页: 信息 + 弹幕轮询 + 两个动作 =================
@@ -309,6 +310,59 @@ RM.stopDanmaku.call(roomVm)
 ok(captured === null && roomVm.dmTimer === null, 'room.vue: stopDanmaku 清掉定时器 (卸载/离页后不再轮询)')
 globalThis.setInterval = realSetInterval
 globalThis.clearInterval = realClearInterval
+
+
+// ================= 11. 直播发现: 推荐 / 关注 (两条真机取证过的接口) =================
+// 被弃用的一条是 xlive/web-interface/v1/second/getList (热门分区榜) —— 本机恒 -352,
+// 与 getInfoByRoom 同款风控. 这里钉死"不许退回它", 免得下次图省事又接上.
+const liveSvc = await import(SRC + 'services/live.js')
+reply = (url) => {
+  if (url.indexOf('room/v1/room/get_user_recommend') >= 0) {
+    return JSON.stringify({ code: 0, msg: 'ok', data: [
+      { roomid: 6650029, title: '【直播】2026IVL秋季赛', uname: '第五人格赛事', face: '//i2.hdslb.com/f.jpg',
+        online: 1076663, user_cover: '//i0.hdslb.com/c.jpg', system_cover: '//i0.hdslb.com/k.jpg', areaName: '赛事' },
+      { roomid: 0, title: '脏数据 (roomid<=0)' }
+    ] })
+  }
+  if (url.indexOf('relation/v1/feed/feed_list') >= 0) {
+    return JSON.stringify({ code: 0, data: { results: 1, page: '1', pagesize: '20', list: [
+      { roomid: 164725, title: '请user查看最新动态', uname: '机器工具人', face: '//i0.hdslb.com/f2.jpg',
+        pic: '//i0.hdslb.com/p.jpg', online: 1031 }
+    ] } })
+  }
+  if (url.indexOf('second/getList') >= 0) return JSON.stringify({ code: -352, message: '-352' })
+  return body({})
+}
+const recRooms = await liveSvc.getRecommendRooms(1)
+eq(recRooms.length, 1, '推荐: 过滤 roomid<=0 的脏数据')
+eq([recRooms[0].roomid, recRooms[0].up, recRooms[0].online], [6650029, '第五人格赛事', 1076663],
+  '推荐: roomid/uname/online 归一化')
+eq(recRooms[0].cover.indexOf('https://'), 0, '推荐: 协议相对封面补成 https')
+eq(recRooms[0].area, '赛事', '推荐: 分区名透传')
+const fdRooms = await liveSvc.getFollowedLives(1)
+eq([fdRooms.length, fdRooms[0].roomid, fdRooms[0].up, fdRooms[0].online], [1, 164725, '机器工具人', 1031],
+  '关注: 读 data.list 并归一化')
+ok(reqUrls.some((u) => u.indexOf('room/v1/room/get_user_recommend?page=1&page_size=20') >= 0),
+  '推荐接口与参数 (真机 code:0)')
+ok(reqUrls.some((u) => u.indexOf('relation/v1/feed/feed_list?page=1&pagesize=20') >= 0),
+  '关注接口与参数 (真机 code:0)')
+try { await liveSvc.getRecommendRooms(1) } catch (e) {}
+// 只看代码行: 注释里会提到这个被弃用的接口 (解释为什么不退回去)
+const liveSvcCode = readSrc('services/live.js').split('\n').filter((ln) => ln.trim().indexOf('//') !== 0).join('\n')
+ok(!/second\/getList/.test(liveSvcCode), 'live.js: 不许退回被风控的 second/getList')
+
+// live.vue: 三个入口 + 各自的数据源
+ok(/getRecommendRooms/.test(livePage) && /getFollowedLives/.test(livePage), 'live.vue: 用推荐/关注两个接口')
+ok(/'推荐'/.test(livePage) && /'关注'/.test(livePage) && /'搜索'/.test(livePage), 'live.vue: 三入口 (推荐/关注/搜索)')
+ok(/hasCookie/.test(livePage) && /登录后才能看到关注的主播/.test(livePage), 'live.vue: 关注需要登录时给明确提示')
+ok(/loaded: \{ rec: false, follow: false, search: false \}/.test(livePage), 'live.vue: 三个分类各自记"已加载"')
+
+// player: 直播起播看门狗 (真机现象: 取流成功但元素从不进 PLAYING, 界面永久停在"缓冲中")
+ok(/armLiveWatchdog/.test(player) && /disarmLiveWatchdog/.test(player), 'player: 直播起播看门狗与解除')
+ok(/getLiveRoomPlayUrl\(this\.roomid, this\.liveSrcTry\)/.test(player), 'player: 换线路靠线路序号')
+ok(/if \(this\.isLive\) \{ if \(!this\.started\) this\.statusText = '缓冲中…'; return \}/.test(player),
+  'player: 直播不显示缓冲百分比 (HLS 滑动窗口会长期停在 99%)')
+ok(/liveLastState/.test(player), 'player: 直播 state 变化写进设备日志 (便于真机定位)')
 
 console.log = realLog
 for (const m of failMsgs) realLog('BAD  ' + m)

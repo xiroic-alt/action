@@ -12,11 +12,11 @@
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
       <div ref="returnTop0" class="return-anchor"></div>
-      <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
+      <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
       <div v-if="!logged && loaded" class="gate">
-        <text class="gate-text" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">历史记录需要登录后查看</text>
-        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
-          <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
+        <text class="gate-text" :style="{ color: T.c.onSurfaceVariant }">历史记录需要登录后查看</text>
+        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+          <text class="gate-btn-text" :style="{ color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
       </div>
       <template v-else>

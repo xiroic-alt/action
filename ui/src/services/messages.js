@@ -83,7 +83,19 @@ function normFace(u) {
   if (s.indexOf('//') === 0) s = 'https:' + s
   if (s.indexOf('http://') === 0) s = 'https://' + s.substring(7)
   if (s === '' || s.indexOf('@') > 0) return s
+  // 系统会话的头像是 png 活动图 (account_info.pic_url) —— 套上 @xx.jpg 会变成 404
+  if (/\.(png|gif|webp)(\?|$)/i.test(s)) return s
   return s + '@72w_72h_1c.jpg'
+}
+
+// 系统通知正文里有 B 站的富文本标记: #{文案}{https://...} / {https://...}
+// stripTags 去不掉它们, 原样显示就是一堆花括号 URL (真机实测).
+function cleanNotice(s) {
+  // 系统通知的 content 有两种真机形态: 纯文本 + 富文本标记, 或 JSON 串 ({"web":"..."})
+  let t = unwrapContent(s)
+  t = t.replace(/#\{([^}]*)\}/g, '$1')      // #{点击查看} -> 点击查看
+  t = t.replace(/\{[^}]*\}/g, '')            // {https://...}   -> 丢掉
+  return stripTags(t)
 }
 
 // 私信正文/系统通知正文可能是 JSON 串 ({"content":".."} / {"web":".."}), 拆不出来就原样用
@@ -152,11 +164,17 @@ const TIME_KEYS = {
 function unameOf(it) {
   const u = it.user || {}
   if (u.nickname) return String(u.nickname)
+  // 赞是多人结构: users[] (真机实测)
   const arr = it.users || []
-  if (arr.length === 0) return ''
-  const first = String((arr[0] && arr[0].nickname) || '')
-  if (!first) return ''
-  return arr.length > 1 ? (first + ' 等' + arr.length + '人') : first
+  if (arr.length > 0) {
+    const first = String((arr[0] && arr[0].nickname) || '')
+    if (first) return arr.length > 1 ? (first + ' 等' + arr.length + '人') : first
+  }
+  // 系统通知: publisher 是站方账号 (多数为空), 退回 source
+  const p = it.publisher || {}
+  if (p.name) return String(p.name)
+  const s = it.source || {}
+  return s.name ? String(s.name) : ''
 }
 
 function faceOf(it) {
@@ -177,8 +195,17 @@ function mapFeedItems(list, kind) {
     const it = arr[i] || {}
     const item = it.item || {}
     const time = firstNum(it, TIME_KEYS[kind] || TIME_KEYS.reply) || parseTimeText(it.time_at)
-    const body = item.target_reply_content || item.source_content || item.root_reply_content ||
-      item.content || (kind === 'sys' ? unwrapContent(it.content) : '')
+    let body = ''
+    if (kind === 'sys') {
+      // 系统通知: 顶层 content 是带富文本标记的串, publisher/source 给站方名 (多为空)
+      body = cleanNotice(it.content || item.content || '')
+    } else {
+      // 回复 = target_reply_content / source_content / root_reply_content
+      // 赞   = item.desc 或 item.title (被赞的那条内容), 没有 target_reply_content
+      body = item.target_reply_content || item.source_content || item.root_reply_content ||
+        item.desc || item.content || ''
+      body = stripTags(typeof body === 'string' ? body : '')
+    }
     const cid = it.cursor != null && it.cursor !== '' ? it.cursor : it.id
     out.push({
       id: String(it.id == null ? '' : it.id),
@@ -187,7 +214,7 @@ function mapFeedItems(list, kind) {
       uname: unameOf(it),
       face: faceOf(it),
       title: stripTags(item.title || (kind === 'sys' ? it.title : '')),
-      content: stripTags(typeof body === 'string' ? body : ''),
+      content: body,
       uri: item.uri || item.native_uri || '',
       cursor: cid == null ? '' : String(cid)
     })
@@ -195,11 +222,26 @@ function mapFeedItems(list, kind) {
   return out
 }
 
-function sysList(body) {
+// 四个分类的列表容器**不在同一层** (全部真机取证 2026-10-11):
+//   回复/@我      data.items
+//   赞            data.total.items   <-- 旧实现只看 data.items, 于是"赞"恒为空
+//   系统(回落口)  data (数组)
+function feedList(body, kind) {
   if (Array.isArray(body)) return body
-  if (body && Array.isArray(body.data)) return body.data
-  if (body && body.data && Array.isArray(body.data.items)) return body.data.items
+  if (!body) return []
+  const d = body.data
+  if (Array.isArray(d)) return d
+  if (d && Array.isArray(d.items)) return d.items
+  if (d && d.total && Array.isArray(d.total.items)) return d.total.items
+  if (d && Array.isArray(d.list)) return d.list
   return []
+}
+
+// 游标也有同样的问题: 赞在 data.total.cursor
+function feedCursor(body) {
+  if (!body || !body.data || Array.isArray(body.data)) return null
+  const d = body.data
+  return d.cursor || (d.total && d.total.cursor) || null
 }
 
 /**
@@ -241,17 +283,28 @@ export async function getMsgList(kind, cursor) {
     url += '&id=' + encodeURIComponent(cursor.id)
     if (kind !== 'sys') url += '&' + timeKey + '=' + encodeURIComponent(cursor.time == null ? '' : cursor.time)
   }
-  let body = await getJson(url)
-  // 系统通知的主口未真机验证: 明确失败 (非登录问题) 时回落到 PiliNara 记的那条口
-  if (kind === 'sys' && body && body.code !== 0 && body.code !== -101) {
+  // ★ 系统通知主口 /x/msgfeed/sys_msg 在真机上返回的是**HTML 错误页** ("出错啦! - bilibili.com"),
+  //   JSON.parse 直接抛 -> 旧实现根本走不到下面的回落分支, 页面只能显示"接口返回非 JSON"
+  //   (真机日志 2026-10-11 12:52 就是这个). 所以这里必须把解析失败也当成"主口不可用".
+  let body = null
+  let primaryErr = null
+  try {
+    body = await getJson(url)
+  } catch (e) {
+    if (kind !== 'sys') throw e
+    primaryErr = e
+  }
+  if (kind === 'sys' && (!body || (body.code !== 0 && body.code !== -101))) {
     const fb = MSG_URLS.sysFallback + '?page_size=20&mobi_app=web&build=0'
       + (cursor && cursor.id ? ('&cursor=' + encodeURIComponent(cursor.id)) : '')
-    try { body = await getJson(fb) } catch (e) {}
+    try { body = await getJson(fb) } catch (e) {
+      if (!body && primaryErr) throw primaryErr
+    }
   }
   if (!body || body.code !== 0) throw new Error(msgErr(body, '消息'))
-  const list = sysList(body)   // 传整个 body: 系统类是 data 数组, 其余类是 data.items
+  const list = feedList(body, kind)   // 容器层级按分类不同 (赞在 data.total.items)
   const items = mapFeedItems(list, kind)
-  const c = (body.data && !Array.isArray(body.data) && body.data.cursor) || null
+  const c = feedCursor(body)
   let outCursor = c
   let hasMore = !!(c && !c.is_end && !c.is_end_time)
   if (kind === 'sys' || !c) {
@@ -295,12 +348,15 @@ export async function getSessions() {
   const out = []
   for (let i = 0; i < list.length; i++) {
     const s = list[i] || {}
+    // ★ 真机取证 (2026-10-11): 普通用户的昵称/头像 get_sessions **不返回**;
+    //   但**系统会话** (system_msg_type=7: 预约通知/服务通知/创作助手/社区中心) 带 account_info
+    //   {name, pic_url} —— 这些 mid 是 844424930xxxxxx 这类"虚拟账号", account/v1/user/cards
+    //   根本查不到, 于是旧实现里它们永远显示成 UID (用户反馈的「私信有部分名称加载不出来」).
+    const ai = s.account_info || {}
     out.push({
       talkerId: Number(s.talker_id) || 0,
-      // ★ 真机取证 (2026-10-11): get_sessions **不返回** name/avatar —— 会话里也没有
-      //   account_info 映射. 昵称/头像只能事后批量补 (见 fillSessionNames), 这里先留空.
-      name: '',
-      face: '',
+      name: ai.name ? String(ai.name) : '',
+      face: ai.pic_url ? normFace(ai.pic_url) : '',
       content: sessionPreview(s.last_msg),
       // session_ts 是**微秒** (真机值 1762052282353535) —— 直接当秒用会算出 NaNN-NaN,
       // 所以统一按量级判定单位, 而不是假定秒.

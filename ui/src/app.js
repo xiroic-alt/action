@@ -6,7 +6,7 @@ import { BasePage } from './base-page.js'
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易"跑的还是旧包",
 // 有这行日志就能一眼确认当前跑的到底是哪一版 (index.vue 里也有一份, 这里进日志首行)
-const BUILD_TAG = 'P38-five-features'
+const BUILD_TAG = 'P39-theme-and-live'
 
 // 注册 bilinet 原生模块 (bili.js 的 httpGet 依赖它)
 import { bilinet } from './services/native.js'

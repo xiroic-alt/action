@@ -180,6 +180,15 @@ export function tokens() {
   t.inverseT = { color: r.inverseOnSurface }
   t.snack = { backgroundColor: r.inverseSurface, color: r.inverseOnSurface, borderRadius: rad.card + 'px' }
 
+  // ---- 容器 x 前景 的**成对**绑定 ----
+  // 有些元素在 <style> 里同时写死了底色和字色 (代码块 / 引用块 / 浮层省略号),
+  // 只绑其中一个会在浅色下变成"半修" —— 这里给成对 token, 一次绑完.
+  t.code = { backgroundColor: r.surfaceContainerHighest, color: r.onSurface }
+  t.quote = { backgroundColor: r.surfaceContainerHigh, color: r.onSurfaceVariant }
+  t.onPage = { backgroundColor: r.surface, color: r.onSurface }   // 浮在正文上的省略号底衬
+  t.lineB = { borderBottomColor: r.outlineVariant }               // 列表分隔线 (只改颜色)
+  // 警示条 (视频详情页的「个人观点, 仅供参考」): M3 里这属于 tertiary container, 不是 error
+  t.warnSoft = { backgroundColor: r.tertiaryContainer }
   // ---- 形状 ----
   t.rad = {
     card: rad.card + 'px',
@@ -255,8 +264,16 @@ export function tokens() {
     onAccent: { color: r.onPrimary, fontSize: t.fs.body },
     onAccentSm: { color: r.onPrimary, fontSize: t.fs.label },
     onAccentC: { color: r.onPrimaryContainer, fontSize: t.fs.label },
+    onWarn: { color: r.onTertiaryContainer, fontSize: t.fs.caption },
     err: { color: r.error, fontSize: t.fs.body }
   }
+
+  // 中性容器 + 前景 (给"自己就是容器"的 <text> 用: 顶栏徽章 / 分 P 胶囊)
+  t.insetOnSurface = { backgroundColor: r.surfaceContainerHighest, color: r.onSurface }
+
+  // 图片计数胶囊 (评论区的"照片 N"): 容器 + 前景 + 字级是一对, 单独绑一个会压色.
+  // ★ 必须放在 t.fs 之后 —— 这里要用到字级表.
+  t.picPill = { backgroundColor: r.surfaceContainerHighest, color: r.primary, fontSize: t.fs.caption }
 
   // 动效开关 (关闭后页面不挂过渡/动画)
   t.motion = c.motion

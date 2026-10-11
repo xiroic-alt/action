@@ -1,11 +1,11 @@
 <template>
   <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
     <!-- 左栏: 封面 (不放播放器也不放播放条, 点封面进播放器页; 播放按钮在右栏详情 tab) -->
-    <div class="left" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
+    <div class="left" :style="{ backgroundColor: T.c.surface }">
       <!-- 封面: 按原始比例等比显示, 不裁切 (盒子本身就是同比例) -->
-      <div class="cover-wrap" @click="openPlayer" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
+      <div class="cover-wrap" @click="openPlayer" :style="{ backgroundColor: T.c.surface }">
         <image v-if="coverSrc" :style="coverStyle" :src="coverSrc" resize="cover"></image>
-        <div v-else class="cover-ph" :style="coverStyle" :style="{ backgroundColor: T.c.surfaceContainerLow }"></div>
+        <div v-else class="cover-ph" :style="coverStyle"></div>
       </div>
       <!-- 时长徽标浮在封面上: 必须走"媒体底衬"(恒定 半透明黑底+白字), 不能吃 surface token ——
            浅色主题下 onSurface 是近黑, 压在任意封面上都不可读 (用户反馈: 视频时长显示有问题) -->
@@ -20,8 +20,8 @@
     </div>
 
     <!-- 右栏: 详情 / 评论 同页 tab 切换; 左右滑动切换 (touch 事件冒泡自内部 scroller) -->
-    <div class="right" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
-      <div class="tabbar" :style="{ backgroundColor: T.c.surfaceContainerHighest, backgroundColor: T.c.surfaceContainerHighest }">
+    <div class="right" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" :style="{ backgroundColor: T.c.surface }">
+      <div class="tabbar" :style="{ backgroundColor: T.c.surfaceContainerHighest }">
         <div :class="['tab', tab === 'detail' ? 'tab-on' : '']" :style="tab === 'detail' ? T.accentSoft : {}" @click="switchTab('detail')">
           <text @click="switchTab('detail')" :class="['tab-text', tab === 'detail' ? 'tab-text-on' : '']" :style="tab === 'detail' ? T.t.onAccentC : T.t.label">详情</text>
         </div>
@@ -30,7 +30,7 @@
           <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']" :style="tab === 'comment' ? T.t.onAccentC : T.t.label">评论{{ total > 0 ? ' ' + total : '' }}</text>
         </div>
         <div class="tab-spacer"></div>
-        <div class="mini-btn" @click="goHome" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
+        <div class="mini-btn" @click="goHome" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
           <image class="mini-ic" :src="MIc.home" :style="{ width: '30px', height: '30px' }"></image>
         </div>
       </div>
@@ -63,7 +63,7 @@
             <text class="play-text" :style="T.t.onAccentTitle">播放</text>
           </div>
           <div v-if="actStatus !== ''" class="status-row">
-            <image v-if="actOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
+            <image v-if="actOk" class="status-ic" :src="MIc.check" :style="{ width: '20px', height: '20px' }"></image>
             <text class="act-status" :style="T.t.accent">{{ actStatus }}</text>
           </div>
         </div>
@@ -94,9 +94,9 @@
         <text v-if="loading" class="state-inline" :style="T.t.err">加载中…</text>
 
         <!-- 警示标识 (官方 App 的「个人观点，仅供参考」): view 接口的 argue_info.argue_msg -->
-        <div v-if="detail && detail.argue" class="argue">
-          <image class="argue-ic" :src="MI.alert" :style="{ width: '20px', height: '20px' }"></image>
-          <text class="argue-t" :style="T.t.caption">{{ detail.argue }}</text>
+        <div v-if="detail && detail.argue" class="argue" :style="T.warnSoft">
+          <image class="argue-ic" :src="MIc.alert" :style="{ width: '20px', height: '20px' }"></image>
+          <text class="argue-t" :style="T.t.onWarn">{{ detail.argue }}</text>
         </div>
 
         <!-- AI 总结: 官方「AI 视频总结」. 有就显示摘要 + 带时间戳的大纲, 点大纲跳时间点. -->
@@ -127,7 +127,8 @@
           <text class="sec-title" :style="T.t.title">分 P ({{ detail.pages.length }})</text>
           <scroller class="plist" scroll-direction="horizontal" :show-scrollbar="true">
             <text v-for="p in detail.pages" :key="p.page"
-                  :class="['pitem', currentPage === p.page ? 'pitem-active' : '']" :style="T.t.body"
+                  :class="['pitem', currentPage === p.page ? 'pitem-active' : '']"
+                  :style="currentPage === p.page ? T.accentSoft : T.insetOnSurface"
                   @click="switchPage(p)">P{{ p.page }} {{ p.part }}</text>
           </scroller>
         </div>
@@ -135,7 +136,8 @@
           <text class="sec-title" :style="T.t.title">合集 · {{ detail.season.title }}</text>
           <scroller class="plist" scroll-direction="horizontal" :show-scrollbar="true">
             <text v-for="e in detail.season.episodes" :key="e.bvid"
-                  :class="['pitem', e.bvid === detail.bvid ? 'pitem-active' : '']" :style="T.t.body"
+                  :class="['pitem', e.bvid === detail.bvid ? 'pitem-active' : '']"
+                  :style="e.bvid === detail.bvid ? T.accentSoft : T.insetOnSurface"
                   @click="switchEpisode(e)">{{ e.title }}</text>
           </scroller>
         </div>
@@ -150,7 +152,7 @@
               <text class="rtitle" :style="T.t.title">{{ item.title }}</text>
               <div class="rstatrow" :style="T.t.caption">
                 <text class="rstat" :style="T.t.caption">{{ item.author }} ·</text>
-                <image class="rstat-ic" :src="MI.play18" :style="{ width: '16px', height: '16px' }"></image>
+                <image class="rstat-ic" :src="MIc.play18" :style="{ width: '16px', height: '16px' }"></image>
                 <text class="rstat" :style="T.t.caption">{{ item.playText }} {{ item.duration }}</text>
               </div>
             </div>
@@ -174,7 +176,7 @@
                   :loadmoreoffset="100" @loadmore="onCommentsLoadmore" @scroll="onReturnScroll($event, 'returnTop1')">
       <div ref="returnTop1" class="return-anchor"></div>
           <div v-if="cStatus !== ''" class="status-row">
-            <image v-if="cOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
+            <image v-if="cOk" class="status-ic" :src="MIc.check" :style="{ width: '20px', height: '20px' }"></image>
             <text class="c-status" :style="T.t.err">{{ cStatus }}</text>
           </div>
           <!-- 未登录: 登录引导 -->
@@ -185,7 +187,7 @@
             </div>
           </div>
           <div v-else>
-            <div v-for="r in replies" :key="r.rpid" class="reply">
+            <div v-for="r in replies" :key="r.rpid" class="reply" :style="T.lineB">
               <image class="face" :src="r.face" resize="cover" @click="openUser(r)"></image>
               <div class="reply-main">
                 <div class="reply-head">
@@ -205,7 +207,7 @@
                     </template>
                   </richtext>
                   <!-- 折叠态右下角省略号 (richtext 被 lines 截断时不会自己带 ...) -->
-                  <text v-if="!r.expanded && r.long" class="reply-more" :style="T.t.accentSub" @click="toggleReply(r)">…</text>
+                  <text v-if="!r.expanded && r.long" class="reply-more" :style="T.onPage" @click="toggleReply(r)">…</text>
                 </div>
                 <!-- 每张图一个独立命中区: 原来所有图挤在一个命中 div 里, 而那个 div 的 :style 引用了
                      内层 v-for 的 pic (作用域外 -> undefined) => 尺寸 0 => 图也点不开 -->
@@ -223,12 +225,12 @@
                     <text :class="['meta-text', r.liked ? 'meta-liked' : '']" :style="T.t.caption">{{ r.likeText }}</text>
                   </div>
                   <div class="meta-btn" @click="openSubReply(r)">
-                    <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
+                    <image :src="MIc.reply" :style="{ width: '20px', height: '20px' }"></image>
                     <text class="meta-reply" :style="T.t.caption">{{ r.replyCount }}</text>
                   </div>
                   <div v-if="r.pics && r.pics.length > 0" class="meta-btn meta-btn-pic" @click="ivOpen(r.pics[0].src)">
-                    <image :src="MI.img" :style="{ width: '20px', height: '20px' }"></image>
-                    <text class="meta-pic" :style="T.t.caption">{{ r.pics.length }}</text>
+                    <image :src="MIc.img" :style="{ width: '20px', height: '20px' }"></image>
+                    <text class="meta-pic" :style="T.picPill">{{ r.pics.length }}</text>
                   </div>
                 </div>
               </div>
@@ -288,7 +290,7 @@
             <text class="picker-coin-text" :style="T.t.onAccent">{{ rel.special ? '取消特别关注' : '加入特别关注' }}</text>
           </div>
           <div class="picker-coin" @click="openTagPicker" :style="T.accentBg">
-            <image class="picker-ico" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
+            <image class="picker-ico" :src="MIc.folder" :style="{ width: '20px', height: '20px' }"></image>
             <text class="picker-coin-text" :style="T.t.onAccent">设置分组</text>
           </div>
         </div>
@@ -2210,7 +2212,6 @@ export default {
 .reply-pic-hit {
   margin-right: 8px;
   border-radius: 8px;
-  background-color: #141416;
 }
 .reply-pic {
   border-radius: 8px;

@@ -5,7 +5,7 @@
         <image class="fback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="fback-t" :style="T.t.body">返回</text>
       </div>
-      <text class="ftitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
+      <text class="ftitle" :style="T.t.title">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
       <!-- UP 空间动态模式 (从 UP 主页进来): 分类栏没有意义, 换成 UP 名 -->
       <div class="cats" v-if="mid === ''">
         <div v-for="(c, ci) in cats" :key="'c' + ci"
@@ -13,7 +13,7 @@
           <text :class="['cat-t', cat === c.k ? 'cat-t-on' : '']" :style="cat === c.k ? T.t.onAccent : T.t.body">{{ c.n }}</text>
         </div>
       </div>
-      <text v-else class="fupsub" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ upName !== '' ? upName : ('UID ' + mid) }}</text>
+      <text v-else class="fupsub" :style="{ color: T.c.onSurfaceVariant }">{{ upName !== '' ? upName : ('UID ' + mid) }}</text>
     </div>
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
@@ -23,7 +23,7 @@
     </div>
 
     <!-- 下拉刷新提示 -->
-    <div class="fpull" v-if="pullHint !== ''" :style="{ width: paneWidth + 'px' }"><text class="fpull-t" :style="{ color: T.c.primary, color: T.c.primary }">{{ pullHint }}</text></div>
+    <div class="fpull" v-if="pullHint !== ''" :style="{ width: paneWidth + 'px' }"><text class="fpull-t" :style="{ color: T.c.primary }">{{ pullHint }}</text></div>
 
     <scroller class="fscroll" :style="{ width: paneWidth + 'px', top: status || pullHint ? '74px' : '44px', height: (paneHeight - (status || pullHint ? 74 : 44)) + 'px' }" scroll-direction="vertical" :show-scrollbar="true"
               :over-scroll="70" :loadmoreoffset="100"
@@ -37,10 +37,10 @@
             <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
             <div class="dface-wrap">
               <image v-if="d.face" class="dface" :style="T.inset" :src="d.face" resize="cover"></image>
-              <div v-else class="dface dface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"><text class="dface-t" :style="T.t.caption">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
+              <div v-else class="dface dface-ph" :style="T.inset"><text class="dface-t" :style="T.t.caption">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
               <image v-if="d.pendant" class="dpendant" :src="d.pendant" resize="contain"></image>
             </div>
-            <text class="dauthor" :style="{ color: T.c.primary, color: T.c.primary }">{{ d.author }}</text>
+            <text class="dauthor" :style="{ color: T.c.primary }">{{ d.author }}</text>
             <!-- 认证徽章: 黄标=个人认证 / 蓝标=机构认证 (官方样式是彩色圆底 + 白闪电) -->
             <div v-if="d.officialType >= 0" :class="['dvbadge', badgeCls(d)]">
               <image class="dvbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
@@ -81,7 +81,7 @@
             </div>
           </div>
 
-          <div class="vcard" :style="vcardStyle" :style="vcardStyle" v-if="d.archive" @click="openVideo(d.archive)">
+          <div class="vcard" :style="vcardStyle" v-if="d.archive" @click="openVideo(d.archive)">
             <image class="vcover" :src="d.archive.cover" resize="cover"></image>
             <div class="vmeta">
               <text class="vtitle" :style="T.t.title">{{ d.archive.title }}</text>
@@ -117,7 +117,7 @@
                 </div>
               </div>
             </div>
-            <div class="vcard" :style="vcardStyle" :style="vcardStyle" v-if="d.orig.archive" @click="openVideo(d.orig.archive)">
+            <div class="vcard" :style="vcardStyle" v-if="d.orig.archive" @click="openVideo(d.orig.archive)">
               <image class="vcover" :src="d.orig.archive.cover" resize="cover"></image>
               <div class="vmeta">
                 <text class="vtitle" :style="T.t.title">{{ d.orig.archive.title }}</text>
@@ -131,7 +131,10 @@
 
           <!-- 底部: 点赞(列表直接点) / 评论(一律进动态详情页) / 转发数 -->
           <div class="dfoot">
-            <div :class="['dfoot-btn', d.stat.liked ? 'dfoot-on' : '']" @click="likeItem(d)">
+            <!-- 未选中态**必须**绑 :style —— 只挂 class 的话容器底色落在 <style> 的 #141416,
+                 浅色主题下就是一个黑胶囊 (用户反馈的「动态页点赞按钮有问题」). 图标是烤进位图的
+                 粉色实心图, 不能染色, 所以两态都走中性容器, 靠 图标+文字 变粉表达"已赞". -->
+            <div :class="['dfoot-btn', d.stat.liked ? 'dfoot-on' : '']" :style="T.inset" @click="likeItem(d)">
               <image class="dfoot-ic" :src="d.stat.liked ? MIc.thumbupOn : MIc.thumbup" :style="{ width: '20px', height: '20px' }"></image>
               <text :class="['dfoot-t', d.stat.liked ? 'dfoot-t-on' : '']" :style="d.stat.liked ? T.t.accent : T.t.label">{{ d.stat.likeText }}</text>
             </div>
@@ -156,7 +159,7 @@
     </scroller>
     <BackTop :visible="topShown && !viewer.on" :T="T" @activate="goTop" />
 
-    <div v-if="viewer.on" class="iview"
+    <div v-if="viewer.on" class="iview" :style="viewerBox"
          @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
       <image class="iview-img" :src="viewer.url" resize="contain" :style="viewerStyle"
              @load="onImgLoad"></image>
@@ -298,6 +301,15 @@ export default {
     MI() { return this.MIc },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
+    // 图片查看器必须是**整屏**浮层. 嵌入态 (首页动态 tab / UP 空间) 里本组件挂在窗格里,
+    // 窗格本身带偏移 (左导轨 88px / 顶部导航 44px), 而 .iview 是 absolute left:0/top:0 ——
+    // 于是查看器会从窗格左缘起铺满 960px, 右边被裁掉、左边压在导航栏下面.
+    // 用窗格尺寸反推偏移, 把浮层挪回"屏幕原点": 872 -> left:-88 / 222 -> top:-44.
+    viewerBox() {
+      var dx = this.embedded ? Math.min(0, this.paneWidth - 960) : 0
+      var dy = this.embedded ? Math.min(0, this.paneHeight - 266) : 0
+      return { left: dx + 'px', top: dy + 'px' }
+    },
     // 分类筛选: 全部 / 投稿 / 番剧 / 专栏 (都走服务端 type)
     // 客户端只兜一层类型过滤, 且过滤后为空就原样显示 —— 别把服务端筛过的内容藏起来
     shown() {
@@ -790,7 +802,7 @@ export default {
 .dmore-t { font-size: 16px; color: #3ca5ec; }
 .pics { margin-top: 6px; }
 .pic-row { flex-direction: row; }
-.pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; background-color: #141416; }
+.pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; }
 .pic-img { border-radius: 8px; }
 .vcard { width: 100%; height: 118px; flex-direction: row; margin-top: 6px; padding: 8px; background-color: #141416; border-radius: 8px; }
 .vcover { width: 160px; height: 100px; border-radius: 6px; margin-right: 10px; }
@@ -811,7 +823,9 @@ export default {
 /* 点赞/评论/转发: 有尺寸的命中区 (事件必须挂在 div 上, text 上的 @click 本机不触发) */
 .dfoot-btn { width: 112px; flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; border-radius: 17px; background-color: #141416; margin-right: 10px; }
 .dfoot-static { background-color: #1f2329; }
-.dfoot-on { background-color: #3a2733; }
+/* 选中态不再靠容器底色区分: 内联 :style="T.inset" 恒定生效 (内联优先于类),
+   这里只保留一个钩子, 真正的"已赞"表达是 .dfoot-t-on 的粉色文字 + 粉色实心图标 */
+.dfoot-on { background-color: transparent; }
 .dfoot-ic { margin-right: 6px; }
 .dfoot-t { font-size: 16px; color: #9aa3af; }
 .dfoot-t-on { color: #fb7299; }

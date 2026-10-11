@@ -244,6 +244,9 @@ export default {
       pollTimer: null,
       audioRoute: '',        // 当前输出 (仅用于日志/回显)
       audioProbed: false,    // 每次起播只判定一次输出设备
+      liveSrcTry: 0,         // 直播第几条候选线路 (起播失败时轮换)
+      liveLastState: -1,     // 直播最近一次元素状态 (看门狗日志用)
+      liveWatchdog: null,    // 直播"12s 未出画面"看门狗定时器
       hideTimer: null,
       keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
@@ -333,6 +336,7 @@ export default {
     onUnload: function () {
       this.generation++
       try { flushProgress() } catch (e) {}
+      this.disarmLiveWatchdog()
       this.stopPolling()
       this.stopKeepAwake()
       screenon.screenOnStop()
@@ -357,6 +361,7 @@ export default {
 
     stopStream: function () {
       this.wantPlay = false
+      this.disarmLiveWatchdog()
       if (this.opened) {
         this.elem('stop')
         this.opened = false
@@ -374,6 +379,9 @@ export default {
         this.liveElapsedSec = 0
         this.reconnectCount = 0
         this.lastReconnectAt = 0
+        // 换房间/换源: 线路轮换从第一条重新开始, 否则新房间会莫名跳过首选协议
+        this.liveSrcTry = 0
+        this.liveLastState = -1
       }
       this.mode = mode
       this.roomid = rid
@@ -406,7 +414,7 @@ export default {
       if (this.isLive) {
         if (!this.roomid) { this.statusText = '缺少直播间号'; return }
         this.statusText = '连接直播中…'
-        getLiveRoomPlayUrl(this.roomid).then(function (p) {
+        getLiveRoomPlayUrl(this.roomid, this.liveSrcTry).then(function (p) {
           if (gen !== self.generation || !p) return
           self.playStream(p.url, gen)
         }).catch(function (err) {
@@ -460,6 +468,7 @@ export default {
       this.curMs = 0
       this.statusText = '缓冲中…'
       this.src = url
+      this.armLiveWatchdog(gen)
       // src 绑定到元素属性后, 元素要等下一次属性 diff 才建管线; 稍后再 play(0) 起播
       setTimer(this, 300, function () {
         if (gen !== self.generation || !self.$page) return
@@ -535,11 +544,17 @@ export default {
     onEvtState: function (e) {
       if (!this.$page) return
       var s = e && typeof e.state !== 'undefined' ? e.state : -1
-      // console.warn: 本机只有这一级进设备日志 (projects 约定)
+      // console.warn 不进设备日志文件 (真机核对过: bilibili.log 里没有 [player] 行),
+      // 直播链路的诊断只能靠 log(). 只在直播态打, 点播不刷屏.
+      if (this.isLive && s !== this.liveLastState) {
+        this.liveLastState = s
+        try { log('直播', 'state=' + s + ' started=' + (this.started === true)) } catch (e0) {}
+      }
       console.warn('[player] state=' + s + ' wantPlay=' + this.wantPlay)
       if (s === 4) {
         this.playing = true
         this.started = true
+        this.disarmLiveWatchdog()
         this.applyOnce()
         if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
         if (this.isLive && !this.liveStartedAt) { this.liveStartedAt = Date.now(); this.reconnectCount = 0 }
@@ -706,7 +721,47 @@ export default {
 
     onEvtBuffer: function (e) {
       var p = e && typeof e.bufferPercent !== 'undefined' ? e.bufferPercent : -1
+      // 直播的 HLS 是"滑动窗口", bufferPercent 会长期停在 99/100 不动 ——
+      // 数字对直播没有意义, 而且会给用户"卡在 99% 起不来"的错觉. 直播只说"缓冲中…".
+      if (this.isLive) { if (!this.started) this.statusText = '缓冲中…'; return }
       if (p >= 0 && p < 100 && !this.started) this.statusText = '缓冲中 ' + p + '%'
+    },
+
+    // ---------------- 直播起播看门狗 ----------------
+    // 真机现象 (2026-10-11 12:51): 直播取流成功 (日志有 线路=http_hls/ts), 但元素**从未**进
+    // PLAYING —— 没有 state=4 也就没有「音频输出」日志, 界面永久停在「缓冲中 N%」.
+    // 这里给直播加一个 12s 看门狗: 到点还没出画面就换下一条候选线路 (hls/ts -> hls/fmp4 -> flv),
+    // 每条线各试一次, 全失败才报错. 同时把 state 与线路序号写进日志, 便于下次真机定位.
+    armLiveWatchdog: function (gen) {
+      this.disarmLiveWatchdog()
+      if (!this.isLive) return
+      var self = this
+      this.liveWatchdog = setTimer(this, 12000, function () {
+        self.liveWatchdog = null
+        if (gen !== self.generation || !self.$page) return
+        if (self.started || !self.wantPlay) return
+        var tried = self.liveSrcTry + 1
+        if (tried >= 3) {
+          try { log('直播', '三条线路都没起播 (last state=' + self.liveLastState + ')') } catch (e0) {}
+          self.statusText = '直播未能起播, 请返回重进'
+          self.showBar()
+          return
+        }
+        self.liveSrcTry = tried
+        try { log('直播', '12s 未出画面 (last state=' + self.liveLastState + ') -> 换线路 #' + tried) } catch (e0) {}
+        self.statusText = '换线路重试…'
+        var g2 = ++self.generation
+        self.stopStream()
+        self.playStreamGuard(g2, 1500)
+      })
+    },
+    disarmLiveWatchdog: function () {
+      if (this.liveWatchdog != null) { clearTimer(this, this.liveWatchdog); this.liveWatchdog = null }
+    },
+    // 换线路: 走一次 fetchAndOpen (直播分支会按 liveSrcTry 取另一条协议)
+    playStreamGuard: function (gen, delayMs) {
+      var self = this
+      setTimer(this, delayMs, function () { if (gen === self.generation) self.fetchAndOpen(gen) })
     },
 
     onEvtRateFailed: function (e) { console.log('[player] setRateFailed ' + JSON.stringify(e || {})) },

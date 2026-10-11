@@ -12,17 +12,17 @@
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
       <div ref="returnTop0" class="return-anchor"></div>
-      <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
+      <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
       <div v-if="!logged && loaded" class="gate">
-        <text class="gate-text" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">收藏夹需要登录后查看</text>
-        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
-          <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
+        <text class="gate-text" :style="{ color: T.c.onSurfaceVariant }">收藏夹需要登录后查看</text>
+        <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+          <text class="gate-btn-text" :style="{ color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
       </div>
       <template v-else-if="mode === 'folders'">
-        <div v-for="f in folders" :key="f.id" class="fitem" @click="openFolder(f)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
-          <text class="fitem-title" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ f.title }}</text>
-          <text class="fitem-count" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ f.mediaCount }} 个</text>
+        <div v-for="f in folders" :key="f.id" class="fitem" @click="openFolder(f)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
+          <text class="fitem-title" :style="{ color: T.c.onSurface }">{{ f.title }}</text>
+          <text class="fitem-count" :style="{ color: T.c.onSurfaceVariant }">{{ f.mediaCount }} 个</text>
           <image class="fitem-ic" :src="MIc.chevron" :style="{ width: '20px', height: '20px' }"></image>
         </div>
         <text v-if="folders.length === 0 && !loading && status === ''" class="empty" :style="T.t.empty" :style="{ color: T.c.outline }">还没有创建收藏夹</text>
@@ -34,7 +34,7 @@
             <richtext class="title" :style="T.t.body"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
             <text class="up" :style="T.t.accent">{{ item.author }}</text>
             <div class="statrow">
-              <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+              <image class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
               <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
             </div>
           </div>

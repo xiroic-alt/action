@@ -432,7 +432,9 @@ var LIVE_PREF = [['http_hls', 'ts', 'avc'], ['http_hls', 'fmp4', 'avc'], ['http_
  * 取直播间播放地址
  * @returns {Promise<{url:string, protocol:string, qn:number}>}
  */
-export async function getLiveRoomPlayUrl(roomId) {
+export async function getLiveRoomPlayUrl(roomId, preferIndex) {
+  // preferIndex>0 时把对应的线路提到最前 (直播"起播失败换线路"用): 只重排优先级,
+  // 不新增接口 —— 三条候选都是一次请求里一起返回的.
   const url = 'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id='
     + encodeURIComponent(roomId) + '&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web&ptype=8'
   const body = await getJsonAsync(url, defTimeout())
@@ -460,10 +462,13 @@ export async function getLiveRoomPlayUrl(roomId) {
     }
     return null
   }
-  for (let i = 0; i < LIVE_PREF.length; i++) {
-    const hit = pick(LIVE_PREF[i][0], LIVE_PREF[i][1], LIVE_PREF[i][2])
+  const order = []
+  const off = (typeof preferIndex === 'number' && preferIndex > 0) ? (preferIndex % LIVE_PREF.length) : 0
+  for (let i = 0; i < LIVE_PREF.length; i++) order.push(LIVE_PREF[(i + off) % LIVE_PREF.length])
+  for (let i = 0; i < order.length; i++) {
+    const hit = pick(order[i][0], order[i][1], order[i][2])
     if (hit) {
-      log('直播', 'room=' + roomId + ' 线路=' + hit.protocol + ' qn=' + hit.qn)
+      log('直播', 'room=' + roomId + ' 线路=' + hit.protocol + ' qn=' + hit.qn + ' try=' + off)
       return hit
     }
   }

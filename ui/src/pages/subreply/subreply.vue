@@ -10,7 +10,7 @@
 
     <!-- 原始评论折叠成一行引用: 完整内容按需求隐藏, 但保留「在回复谁」的上下文,
          否则只剩顶栏 + 几条子回复, 页面看着像空白 -->
-    <div class="parent-line" @click="replyToParent" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
+    <div class="parent-line" @click="replyToParent" :style="{ backgroundColor: T.c.surfaceContainerLow }">
       <text class="parent-line-text" :style="T.t.caption">回复 @{{ parentAuthor || '该评论' }}: {{ parentPreview }}</text>
     </div>
 
@@ -26,8 +26,8 @@
         <image class="face" :src="r.face" resize="cover" @click="openUser(r)"></image>
         <div class="reply-main">
           <div class="reply-head">
-            <text class="reply-author" @click="openUser(r)" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ r.author }}</text>
-            <text v-if="r.isUp" class="tag tag-up" :style="{ color: T.c.onSurface, borderRadius: T.rad.card, color: T.c.onSurface, borderRadius: T.rad.card }">UP主</text>
+            <text class="reply-author" @click="openUser(r)" :style="{ color: T.c.onSurfaceVariant }">{{ r.author }}</text>
+            <text v-if="r.isUp" class="tag tag-up" :style="{ color: T.c.onSurface, borderRadius: T.rad.card }">UP主</text>
             <text class="reply-time" :style="T.t.caption">{{ r.timeText }}</text>
           </div>
           <!-- :key 重建生效: Falcon 的 lines 样式创建后不随 class 更新 -->
@@ -53,11 +53,11 @@
               <text :class="['meta-text', r.liked ? 'meta-liked' : '']" :style="r.liked ? T.t.accent : T.t.label">{{ r.likeText }}</text>
             </div>
             <div class="meta-btn" @click="setTarget(r)">
-              <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
+              <image :src="MIc.reply" :style="{ width: '20px', height: '20px' }"></image>
               <text class="meta-reply" :style="T.t.accent">回复</text>
             </div>
             <div v-if="r.pics && r.pics.length > 0" class="meta-btn meta-btn-pic" @click="ivOpen(r.pics[0].src)">
-              <image :src="MI.img" :style="{ width: '20px', height: '20px' }"></image>
+              <image :src="MIc.img" :style="{ width: '20px', height: '20px' }"></image>
               <text class="meta-pic">{{ r.pics.length }}</text>
             </div>
           </div>

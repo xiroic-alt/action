@@ -23,18 +23,18 @@
       <div v-if="mode === 'qr'" class="qr-status">
         <div v-if="pollState === 'ok'" class="strow">
           <image class="st-ic" :src="MIc.check" :style="{ width: '20px', height: '20px' }"></image>
-          <text class="st st-ok" :style="{ color: T.c.onSurface, color: T.c.onSurface }">登录成功</text>
+          <text class="st st-ok" :style="{ color: T.c.onSurface }">登录成功</text>
         </div>
-        <text v-else-if="pollState === 'scanned'" class="st st-ok" :style="{ color: T.c.onSurface, color: T.c.onSurface }">已扫描, 请在手机上确认</text>
-        <text v-else-if="pollState === 'expired'" class="st st-err" :style="{ color: T.c.onSurface, color: T.c.onSurface }">二维码已过期</text>
-        <text v-else-if="pollState === 'error'" class="st st-err" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ pollError }}</text>
-        <text v-else class="st" :style="{ color: T.c.onSurface, color: T.c.onSurface }">用手机 B 站 App 扫右侧二维码</text>
-        <text class="st2" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">App → 扫一扫 → 确认登录 · 码 3 分钟内有效</text>
-        <text v-if="pollState === 'waiting'" class="st2" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">等待扫描中…</text>
-        <div v-if="pollState === 'expired' || pollState === 'error'" class="btn" @click="startQr" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+        <text v-else-if="pollState === 'scanned'" class="st st-ok" :style="{ color: T.c.onSurface }">已扫描, 请在手机上确认</text>
+        <text v-else-if="pollState === 'expired'" class="st st-err" :style="{ color: T.c.onSurface }">二维码已过期</text>
+        <text v-else-if="pollState === 'error'" class="st st-err" :style="{ color: T.c.onSurface }">{{ pollError }}</text>
+        <text v-else class="st" :style="{ color: T.c.onSurface }">用手机 B 站 App 扫右侧二维码</text>
+        <text class="st2" :style="{ color: T.c.onSurfaceVariant }">App → 扫一扫 → 确认登录 · 码 3 分钟内有效</text>
+        <text v-if="pollState === 'waiting'" class="st2" :style="{ color: T.c.onSurfaceVariant }">等待扫描中…</text>
+        <div v-if="pollState === 'expired' || pollState === 'error'" class="btn" @click="startQr" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
           <text class="btn-text" :style="T.t.labelOn" :style="{ color: T.c.onSurface }">刷新二维码</text>
         </div>
-        <div v-if="pollState === 'ok'" class="btn" @click="goBack" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+        <div v-if="pollState === 'ok'" class="btn" @click="goBack" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
           <text class="btn-text" :style="T.t.labelOn" :style="{ color: T.c.onSurface }">完成, 返回</text>
         </div>
       </div>
@@ -42,18 +42,18 @@
       <!-- 电脑同步: 左区全宽铺满, 无二维码、不留空白 -->
       <div v-else class="pc-wrap">
         <scroller class="pc-scroll" scroll-direction="vertical" :show-scrollbar="true">
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">① 在电脑上安装 Python 3 (Windows/Mac/Linux 均可), 无需第三方包, 全部使用 Python 标准库。</text>
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">② 电脑与词典笔连接到同一个 WiFi 局域网 (注意: 公共 WiFi 或访客网络可能隔离设备, 建议用家用路由器)。</text>
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">③ 在电脑上运行本仓库 tools/pc-cookie-server.py, 启动后命令行会打印本机局域网 IP, 例如 http://192.168.1.100:9527。</text>
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">④ 电脑浏览器打开 http://127.0.0.1:9527, 在文本框粘贴 B 站 Cookie (要求包含 SESSDATA), 点「保存」。</text>
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">获取 Cookie 的方法: 电脑浏览器登录 bilibili.com → F12 打开 DevTools → Network 标签 → 任一 api.bilibili.com 请求 → 找到 Request Headers → 复制整行 Cookie 值。</text>
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">⑤ 返回本页面, 在下面输入电脑的局域网 IP (如 192.168.1.100), 点「获取并登录」即可把 Cookie 同步到词典笔。</text>
-          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">安全提示: Cookie 相当于登录凭证, 保存后请尽快关闭电脑上的服务 (Ctrl+C)。笔端获取成功后可立即关闭服务。</text>
-          <div class="pc-input" @click="inputIp" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">① 在电脑上安装 Python 3 (Windows/Mac/Linux 均可), 无需第三方包, 全部使用 Python 标准库。</text>
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">② 电脑与词典笔连接到同一个 WiFi 局域网 (注意: 公共 WiFi 或访客网络可能隔离设备, 建议用家用路由器)。</text>
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">③ 在电脑上运行本仓库 tools/pc-cookie-server.py, 启动后命令行会打印本机局域网 IP, 例如 http://192.168.1.100:9527。</text>
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">④ 电脑浏览器打开 http://127.0.0.1:9527, 在文本框粘贴 B 站 Cookie (要求包含 SESSDATA), 点「保存」。</text>
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">获取 Cookie 的方法: 电脑浏览器登录 bilibili.com → F12 打开 DevTools → Network 标签 → 任一 api.bilibili.com 请求 → 找到 Request Headers → 复制整行 Cookie 值。</text>
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">⑤ 返回本页面, 在下面输入电脑的局域网 IP (如 192.168.1.100), 点「获取并登录」即可把 Cookie 同步到词典笔。</text>
+          <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant }">安全提示: Cookie 相当于登录凭证, 保存后请尽快关闭电脑上的服务 (Ctrl+C)。笔端获取成功后可立即关闭服务。</text>
+          <div class="pc-input" @click="inputIp" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
             <text class="pc-input-text" :style="T.t.caption">{{ pcIp ? pcIp : '点击输入电脑 IP (如 192.168.1.100)' }}</text>
           </div>
           <div class="btn-row">
-            <div class="btn" @click="fetchFromPc" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
+            <div class="btn" @click="fetchFromPc" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
               <text class="btn-text" :style="T.t.labelOn" :style="{ color: T.c.onSurface }">{{ fetching ? '获取中…' : '获取并登录' }}</text>
             </div>
           </div>
@@ -64,7 +64,7 @@
 
     <!-- 右区: 二维码 (本地编码器渲染, 不依赖外部图片服务).
          仅扫码登录模式渲染 —— 电脑同步模式无二维码且不留空白. -->
-    <div v-if="mode === 'qr'" class="qr-zone" :style="{ backgroundColor: T.c.surfaceContainerHighest, backgroundColor: T.c.surfaceContainerHighest }">
+    <div v-if="mode === 'qr'" class="qr-zone" :style="{ backgroundColor: T.c.surfaceContainerHighest }">
       <div v-if="qr.size > 0" class="qr-box"
            :style="{ width: (qr.size * MOD + QPAD * 2) + 'px', height: (qr.size * MOD + QPAD * 2) + 'px', left: ((280 - (qr.size * MOD + QPAD * 2)) / 2) + 'px' }">
         <div v-for="(row, r) in qrRows" :key="r" class="qr-row"
@@ -79,7 +79,7 @@
              :style="{ width: (qr.size * MOD + QPAD * 2) + 'px', height: (qr.size * MOD + QPAD * 2) + 'px' }"
              @click="startQr">
           <text class="qr-mask-text">{{ pollState === 'expired' ? '已过期' : '出错了' }}</text>
-          <text class="qr-mask-sub" :style="{ color: T.c.primary, color: T.c.primary }">点此刷新</text>
+          <text class="qr-mask-sub" :style="{ color: T.c.primary }">点此刷新</text>
         </div>
         <div v-else-if="pollState === 'ok'" class="qr-mask"
              :style="{ width: (qr.size * MOD + QPAD * 2) + 'px', height: (qr.size * MOD + QPAD * 2) + 'px' }">

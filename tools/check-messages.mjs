@@ -332,6 +332,76 @@ test('页面契约: 分类 tab / 私信入口 / 草稿 / 生命周期位置', as
   assert.equal(appJson.pages.chat, 'pages/chat/chat.vue')
 })
 
+
+// ---------------- 10. 真机形态回归 (2026-10-11 三处真 bug) ----------------
+// 这一节的桩件**照抄真机响应形态**, 不是"好走"的形态:
+//   赞的列表在 data.total.items (旧实现只看 data.items -> 页面永远"没有此类消息");
+//   系统主口返回 HTML 错误页 (旧实现 JSON.parse 直接抛 -> 永远看不到回落口);
+//   系统会话的名/头像在 account_info (这些虚拟 mid 查不到 user/cards)。
+test('真机形态: 赞在 data.total.items / 系统主口 HTML 要回落 / 系统会话名走 account_info', async () => {
+  calls = []
+  getReply = (u) => {
+    if (u.indexOf('/x/msgfeed/unread') >= 0) return unread()
+    if (u.indexOf('/x/msgfeed/like') >= 0) {
+      return JSON.stringify({ code: 0, data: {
+        latest: { items: [], last_view_at: 1 },
+        total: {
+          cursor: { is_end: false, id: 9001, time: 1789258592 },
+          items: [{ id: 9001, like_time: 1789258592, counts: 3,
+            users: [{ nickname: '丙', avatar: '//i2.hdslb.com/c.jpg' }],
+            item: { title: '被赞的稿件', desc: '', uri: 'https://www.bilibili.com/video/BV1xx411c7mD' } }]
+        }
+      } })
+    }
+    if (u.indexOf('/x/msgfeed/sys_msg') >= 0) {
+      return '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">\n<html lang="zh-cn"><head><title>出错啦! - bilibili.com</title></head></html>'
+    }
+    if (u.indexOf('message.bilibili.com/x/sys-msg/query_notify_list') >= 0) {
+      return JSON.stringify({ code: 0, data: [
+        { id: 20458189, cursor: 1782552697895022800, publisher: { name: '', mid: 0 }, type: 4,
+          title: '您已通过LV6试炼',
+          content: '恭喜，您已通过LV6试炼。#{点击查看试炼结果>>}{https://www.bilibili.com/h5/senior-newbie/pass}',
+          source: { name: '' }, time_at: '2026-06-27 17:31:37' }
+      ] })
+    }
+    return feed([], { is_end: true })
+  }
+
+  const like = await msg.getMsgList('like', null)
+  assert.equal(like.items.length, 1, '赞的列表在 data.total.items (旧实现恒为空)')
+  assert.equal(like.items[0].uname, '丙')
+  assert.equal(like.items[0].title, '被赞的稿件')
+  assert.equal(like.hasMore, true, '赞的游标在 data.total.cursor')
+  const like2 = await msg.getMsgList('like', like.cursor)
+  assert.match(hits('/x/msgfeed/like')[1].u, /&id=9001&like_time=1789258592/, '续翻用 total.cursor')
+  assert.equal(like2.items.length, 1)
+
+  const sys = await msg.getMsgList('sys', null)
+  assert.equal(hits('/x/msgfeed/sys_msg').length, 1, '系统先试主口')
+  assert.equal(hits('message.bilibili.com/x/sys-msg/query_notify_list').length, 1,
+    '主口返回非 JSON 时也必须回落 (旧实现直接抛"接口返回非 JSON")')
+  assert.equal(sys.items.length, 1)
+  assert.equal(sys.items[0].title, '您已通过LV6试炼')
+  assert.equal(sys.items[0].content, '恭喜，您已通过LV6试炼。点击查看试炼结果>>', '清掉 #{...}{url} 富文本标记')
+  assert.equal(sys.items[0].time > 0, true, 'time_at 字符串转时间戳')
+
+  getReply = (u) => {
+    if (u.indexOf('/session_svr/v1/session_svr/get_sessions') >= 0) {
+      return JSON.stringify({ code: 0, data: { session_list: [
+        { talker_id: 844424930131957, session_type: 1, system_msg_type: 7, session_ts: 1762052282353535,
+          account_info: { name: '预约通知', pic_url: 'https://i0.hdslb.com/bfs/activity-plat/x.png' },
+          last_msg: { msg_type: 10, content: JSON.stringify({ title: '直播已开始', text: '快来围观' }) } }
+      ] } })
+    }
+    return JSON.stringify({ code: 0, data: [] })
+  }
+  const sess = await msg.getSessions()
+  assert.equal(sess[0].name, '预约通知', '系统会话名走 account_info.name (这些 mid 查不到 user/cards)')
+  assert.equal(sess[0].face, 'https://i0.hdslb.com/bfs/activity-plat/x.png', 'png 头像不套 @xx.jpg 缩略后缀')
+  assert.equal(sess[0].content, '[直播] 快来围观')
+  assert.notEqual(sess[0].timeText, '')
+})
+
 let passed = 0
 try {
   for (const t of tests) {

@@ -18,6 +18,7 @@
 import { getLiveRoomPlayUrl, getLiveDanmaku } from './bili.js'
 import { bilinet } from './native.js'
 import { log } from './log.js'
+import * as auth from './auth.js'
 
 function num(v, def) {
   const n = Number(v)
@@ -31,12 +32,17 @@ function httpsUrl(u) {
   return s.indexOf('//') === 0 ? 'https:' + s : s
 }
 
+function cookieHeaders() {
+  try { return auth.hasCookie() ? [auth.cookieHeader()] : undefined } catch (e) { return undefined }
+}
+
 // 同步/异步取 JSON: 旧 .so 没有 httpGetAsync 时退回同步 httpGet (与 services/bili.js 同一约定)
 async function getJson(url, timeoutSec) {
   const to = timeoutSec || 12
+  const hd = cookieHeaders()
   const s = (bilinet && typeof bilinet.httpGetAsync === 'function')
-    ? await bilinet.httpGetAsync(url, to)
-    : bilinet.httpGet(url, to)
+    ? await bilinet.httpGetAsync(url, to, hd)
+    : bilinet.httpGet(url, to, hd)
   if (!s) throw new Error('请求失败 (空响应)')
   try {
     return JSON.parse(s)
@@ -159,4 +165,70 @@ export function onlineText(n) {
   const v = Number(n) || 0
   if (v >= 10000) return (v / 10000).toFixed(1) + '万'
   return String(v)
+}
+
+// ==================== 直播发现页 (推荐 / 关注) ====================
+// ★ 接口选择全部按真机实测 (2026-10-11, 9E11700007500215):
+//   GET https://api.live.bilibili.com/room/v1/room/get_user_recommend?page=N&page_size=20
+//       -> code:0, data[] 推荐直播间 (roomid/title/uname/face/online/user_cover/system_cover/areaName)
+//   GET https://api.live.bilibili.com/relation/v1/feed/feed_list?page=1&pagesize=20
+//       -> code:0, data.list[] 已关注且正在直播的 UP (roomid/title/uname/face/pic/online)
+//   被弃用的一条: xlive/web-interface/v1/second/getList (热门分区榜) 在本机恒 {"code":-352},
+//   与 getInfoByRoom 同款风控 —— 不要再退回它.
+
+function pickCover(o) {
+  return httpsUrl(o.cover || o.pic || o.user_cover || o.system_cover || o.keyframe || '')
+}
+
+/** 推荐直播间 (分页; 匿名可用) */
+export async function getRecommendRooms(page) {
+  const p = Math.max(1, num(page, 1))
+  const body = await getJson('https://api.live.bilibili.com/room/v1/room/get_user_recommend?page='
+    + p + '&page_size=20')
+  if (!body || body.code !== 0 || !Array.isArray(body.data)) {
+    throw new Error((body && (body.message || body.msg)) || ('推荐直播失败 code=' + (body && body.code)))
+  }
+  const out = []
+  for (let i = 0; i < body.data.length; i++) {
+    const it = body.data[i] || {}
+    const rid = num(it.roomid, 0)
+    if (rid <= 0) continue
+    out.push({
+      roomid: rid,
+      title: String(it.title || '').trim(),
+      up: String(it.uname || '').trim(),
+      face: httpsUrl(it.face || ''),
+      cover: pickCover(it),
+      online: num(it.online, 0),
+      area: String(it.areaName || it.area_name || '')
+    })
+  }
+  return out
+}
+
+/** 关注 UP 的直播 (需要登录; 未登录时上游给空 list / -101) */
+export async function getFollowedLives(page) {
+  const p = Math.max(1, num(page, 1))
+  const body = await getJson('https://api.live.bilibili.com/relation/v1/feed/feed_list?page='
+    + p + '&pagesize=20')
+  if (!body || body.code !== 0) {
+    throw new Error((body && (body.message || body.msg)) || ('关注直播失败 code=' + (body && body.code)))
+  }
+  const list = (body.data && body.data.list) || []
+  const out = []
+  for (let i = 0; i < list.length; i++) {
+    const it = list[i] || {}
+    const rid = num(it.roomid, 0)
+    if (rid <= 0) continue
+    out.push({
+      roomid: rid,
+      title: String(it.title || '').trim(),
+      up: String(it.uname || '').trim(),
+      face: httpsUrl(it.face || ''),
+      cover: pickCover(it),
+      online: num(it.online, 0),
+      area: ''
+    })
+  }
+  return out
 }
