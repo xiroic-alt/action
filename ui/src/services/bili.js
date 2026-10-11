@@ -7,6 +7,7 @@
 //   - curl 携带浏览器 UA + Referer 后, popular/view/search/space 全部正常
 //   - 无 Cookie 态 (无 buvid3) 反而绕开部分风控, 故不再取手指纹
 
+import { splitMentionSegs } from './mention.js'
 import { bilinet } from './native.js'
 import * as auth from './auth.js'
 import { log, logError, logDebug } from './log.js'
@@ -2405,7 +2406,8 @@ function mapReply(r, upperMid, builtinEmoji, opts) {
     face: thumb(face, 60, 60),
     message: stripTags(content.message),
     pics: mapReplyPics(content),                   // 评论图片 (最多 6 张)
-    segs: parseMessage(content.message, content.emote, builtinEmoji),
+    // 评论正文里的 @昵称 切成 t=3 提及段 -> 三个评论页面 (视频详情/楼中楼/动态详情) 都高亮
+    segs: splitMentionSegs(parseMessage(content.message, content.emote, builtinEmoji)),
     long: isLongMessage(stripTags(content.message)),
     likeText: formatPlay(r.like),
     timeText: formatRelative(r.ctime),

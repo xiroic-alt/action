@@ -167,8 +167,10 @@
         <text class="iv-mask-t">{{ viewer.err !== '' ? viewer.err : '加载中…' }}</text>
       </div>
       <!-- 左上角返回: material 图标 + 文字 (✕ 字形本机字体没有, 会渲染成空白) -->
+      <!-- ★ 查看器是**恒黑**的媒体浮层, 里面的控件必须用白图标那一套 (MI), 不能吃 MIc:
+           浅色主题下 MIc 给的是深色图标 -> 黑压黑, 用户看到的"返回按钮是黑色的"就是这个. -->
       <div class="iv-back" @click="ivClose">
-        <image class="iv-back-ic" :src="MIc.back" :style="{ width: '24px', height: '24px' }"></image>
+        <image class="iv-back-ic" :src="MI.back" :style="{ width: '24px', height: '24px' }"></image>
         <text class="iv-back-t">返回</text>
       </div>
       <div v-if="viewer.hint" class="iv-hint">
@@ -176,9 +178,9 @@
       </div>
       <div class="iv-bar">
         <div class="iv-panel">
-          <div class="iv-btn" @click="ivZoomOut"><image :src="MIc.minus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-btn" @click="ivZoomOut"><image :src="MI.minus" :style="{ width: '32px', height: '32px' }"></image></div>
           <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
-          <div class="iv-btn" @click="ivZoomIn"><image :src="MIc.plus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-btn" @click="ivZoomIn"><image :src="MI.plus" :style="{ width: '32px', height: '32px' }"></image></div>
           <div class="iv-sep"></div>
           <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">复位</text></div>
           <text v-if="viewer.sizeText !== ''" class="iv-size">{{ viewer.sizeText }}</text>

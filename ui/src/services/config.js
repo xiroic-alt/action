@@ -217,7 +217,10 @@ export function saveConfig() {
       log('设置', '写配置文件失败: ' + (e2 && e2.message ? e2.message : e2))
     }
   }
-  // 兼容: 设备上残留的旧原生播放器读这个纯文本 (与配置本体无关, 一直写)
+  // 这个纯文本文件是**历史包袱**: 当初以为"原生播放器会读它", 但本仓库能拿到的所有 .so
+  // (libfalcon / libjsapi_export / ydal_*) 里都没有这个路径 —— 没有任何东西读它.
+  // 蓝牙音画补偿现在由 pages/player 直接拼进 bluealsa 设备串 (bluealsa:DEV=<mac>,DELAY=<µs>),
+  // 见 player.vue 的 applyAudioRoute. 这里保留写入只为不动历史行为 (纯冗余, 不影响播放).
   try { if (hasFs()) bilinet.writeFile(BT_PATH_CONST, String(c.btaudioMs)) } catch (e3) {}
   return c
 }

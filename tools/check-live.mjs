@@ -212,7 +212,12 @@ ok(/Connected: yes/.test(player), 'player: 只认 bluetoothctl 的 Connected: ye
 ok(/bluetoothctl devices/.test(player) && /CONNECTED \(\[0-9A-Fa-f:\]\{17\}\)/.test(player),
   'player: 枚举已配对设备再逐个查 Connected (两种省事写法在本机都取不到)')
 ok(/bluealsa:DEV=/.test(player), 'player: 日志回显 bluealsa:DEV=<mac> (排查用)')
-ok(/self\.setAudioOut\(AUDIO_TYPE_BLUETOOTH, m\[1\]\)/.test(player), 'player: 连上蓝牙才切换输出')
+ok(/getCfg\('btaudioMs'\)/.test(player), 'player: 蓝牙音画补偿读设置页的 btaudioMs')
+// bluealsa 的 PCM 认 device/profile/delay; libfalcon 只拼 DEV= -> 延迟被少报 -> 画面超前.
+// 补偿必须拼成设备串的 DELAY=<µs> (插件键名已从 libasound_module_pcm_bluealsa.so 校验)
+ok(/',DELAY=' \+ \(comp \* 1000\)/.test(player), 'player: 补偿拼成 bluealsa DELAY=<µs>')
+ok(/comp = Math\.max\(0, Math\.round\(comp\)\)/.test(player), 'player: 补偿负值夹到 0 (插件不接受负 delay)')
+ok(/isFinite\(comp\)\) comp = 200/.test(player), 'player: 设置缺省时兜底 200ms')
 ok(/execAsync\(/.test(player.split('applyAudioRoute')[1] || ''), 'player: 蓝牙探测必须用 execAsync (同步 exec 冻主线程)')
 ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
 ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')

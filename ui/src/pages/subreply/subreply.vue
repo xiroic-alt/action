@@ -35,6 +35,8 @@
                     :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" @click="toggleReply(r)">
             <template v-for="(seg, si) in r.segs">
               <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
+              <!-- @昵称: 主题色高亮 (本机 richtext 内元素点不动, 只能做视觉) -->
+              <span v-else-if="seg.t === 3" :key="'m' + si" class="mn">{{ seg.v }}</span>
               <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
             </template>
           </richtext>
@@ -114,6 +116,7 @@ import { scrollTopMixin } from '../../services/scroll-top.js'
 // 点某条回复的「回复」= 设置目标 (发评时 parent=该条 rpid); 点父评论 = 回复主楼 (parent=root).
 import { createIME } from '../../services/ime.js'
 import { getSubReplies, addReply, parseMessage, likeReply } from '../../services/bili.js'
+import { applyMention } from '../../services/mention.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -683,8 +686,12 @@ export default {
       this.posting = true
       this.status = '发送中…'
       const parent = this.target ? this.target.rpid : this.root
+      // ★ 协议要求: 回复某人时正文必须以 "@昵称 + 空格" 开头, 否则对方**收不到 @ 通知**,
+      //   楼中楼也不会显示「回复 @某人：」(真机/协议语义, B 站客户端同样这么做).
+      //   回复主楼 (target=null) 不加前缀.
+      const body = applyMention(message, this.target ? this.target.author : '')
       try {
-        await addReply(this.aid, message, this.root, parent, this.ctype)
+        await addReply(this.aid, body, this.root, parent, this.ctype)
         this.target = null
         this.pn = 1
         this.replies = []
@@ -878,6 +885,7 @@ function parseParentSegs(msg) {
   font-size: 16px;
   color: #5c6672;
 }
+.mn { color: #3ca5ec; }
 .reply-msg {
   font-size: 20px;
   color: #e8edf3;

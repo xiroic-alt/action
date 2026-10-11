@@ -69,6 +69,8 @@ jobs:
           node tools/check-feed-scroll.mjs
           node tools/check-live.mjs
           node tools/check-messages.mjs
+          node tools/check-bindings.mjs
+          node tools/check-mention.mjs
 
       - name: Install aarch64 cross toolchain
         run: |

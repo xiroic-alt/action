@@ -528,7 +528,18 @@ export default {
               try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
               return
             }
-            self.setAudioOut(AUDIO_TYPE_BLUETOOTH, m[1])
+            // ★ 蓝牙音画补偿 (设置页 btaudioMs, 默认 200ms): 必须拼成 bluealsa 的 DELAY.
+            //   取证: /etc/alsa/conf.d/20-bluealsa.conf 的 pcm.bluealsa 声明 @args [DEV PROFILE DELAY SRV],
+            //   默认 defaults.bluealsa.delay = 20000 (仅 20ms); libasound_module_pcm_bluealsa.so 的键名
+            //   就是 device/profile/delay (拼错会 "Unknown field"). 而 libfalcon 只拼 "bluealsa:DEV="+mac
+            //   —— 整条 A2DP 链路 (编码+链路+耳机缓冲) 的延迟被少报, 管线以为声音已经播到, 画面就超前.
+            //   把补偿量接在 mac 后面即可, 用户的设置从此真的生效 (设 0 = 不加, 回到默认行为).
+            var comp = Number(getCfg('btaudioMs'))
+            if (!isFinite(comp)) comp = 200
+            comp = Math.max(0, Math.round(comp))          // 负值对插件无意义 -> 夹到 0
+            var dev = comp > 0 ? (m[1] + ',DELAY=' + (comp * 1000)) : m[1]
+            self.setAudioOut(AUDIO_TYPE_BLUETOOTH, dev)
+            try { log('播放器', '蓝牙音画补偿 ' + comp + 'ms -> bluealsa DELAY=' + (comp * 1000) + 'us') } catch (e3) {}
           }).catch(function () {})
       } catch (e2) {}
     },

@@ -203,6 +203,8 @@
                             :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" :style="T.t.body" @click="toggleReply(r)">
                     <template v-for="(seg, si) in r.segs">
                       <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
+                      <!-- @昵称: 主题色高亮 (本机 richtext 内元素点不动, 只能做视觉) -->
+                      <span v-else-if="seg.t === 3" :key="'m' + si" class="mn">{{ seg.v }}</span>
                       <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
                     </template>
                   </richtext>
@@ -2230,6 +2232,7 @@ export default {
   font-size: 15px;
   color: #5c6672;
 }
+.mn { color: #3ca5ec; }
 .reply-msg {
   font-size: 18px;
   color: #e8edf3;

@@ -188,6 +188,7 @@
                         :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" :style="T.t.body">
                 <template v-for="(seg, si) in r.segs">
                   <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
+                  <span v-else-if="seg.t === 3" :key="'m' + si" class="mn">{{ seg.v }}</span>
                   <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
                 </template>
               </richtext>
@@ -951,7 +952,8 @@ export default {
 .pblock { margin-top: 8px; }
 .ptext { font-size: 18px; color: #dfe4ea; }
 .pquote { font-size: 18px; color: #aab2bd; padding-left: 12px; padding-right: 8px; padding-top: 6px; padding-bottom: 6px; background-color: #0b0b0d; border-radius: 8px; }
-.phl { color: #3ca5ec; }
+.mn { color: #3ca5ec; }
+.phl {
 .pimg { border-radius: 10px; margin-top: 4px; }
 .pimg-i { border-radius: 10px; }
 .plist-row { flex-direction: row; margin-top: 4px; }
