@@ -248,6 +248,9 @@ export default {
       liveLastState: -1,     // 直播最近一次元素状态 (看门狗日志用)
       liveWatchdog: null,    // 直播起播看门狗 (周期检查, 不是一次性超时)
       liveProgressAt: 0,     // 最近一次"还在动"的时间 (bufferPercent/position 事件)
+      liveFlapAt: 0,         // 直播"状态抖动"上一次换线的时间 (节流)
+      liveFlapWinAt: 0,      // 抖动计数窗口起点
+      liveFlapN: 0,          // 窗口内 state 变化次数
       hideTimer: null,
       keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
@@ -540,11 +543,30 @@ export default {
     // GstState: 1 NULL / 2 READY / 3 PAUSED / 4 PLAYING
     onEvtState: function (e) {
       if (!this.$page) return
+      var self = this
       var s = e && typeof e.state !== 'undefined' ? e.state : -1
       // console.warn 不进设备日志文件 (真机核对过: bilibili.log 里没有 [player] 行),
       // 直播链路的诊断只能靠 log(). 只在直播态打, 点播不刷屏.
       if (this.isLive && s !== this.liveLastState) {
         this.liveLastState = s
+        var nowMs = Date.now()
+        // ---- 直播状态抖动检测 (真机 2026-10-11 15:09) ----
+        // 现象: state 以 4->3->2->3->4 的循环每秒约 5 次反复, 用户看到的就是"画面出来 1s 就卡死".
+        // 这不是我们代码造成的 (我们只在 state=3 时最多 1.5s 补一次 resume), 而是这条线路的
+        // 分片在该设备上让原生反复重建管线. JS 侧唯一能做的自救 = 换下一条候选协议.
+        if (nowMs - this.liveFlapWinAt > 3000) { this.liveFlapWinAt = nowMs; this.liveFlapN = 0 }
+        this.liveFlapN++
+        if (this.liveFlapN > 8 && nowMs - this.liveFlapAt > 15000 && this.liveSrcTry < 2) {
+          var flapSeen = this.liveFlapN
+          this.liveFlapAt = nowMs
+          this.liveFlapN = 0
+          this.liveSrcTry++
+          try { log('直播', '状态抖动 (3s 内 ' + flapSeen + ' 次) -> 换线路 #' + this.liveSrcTry) } catch (e1) {}
+          var gf = ++this.generation
+          this.stopStream()
+          setTimer(this, 1500, function () { if (gf === self.generation) self.fetchAndOpen(gf) })
+          return
+        }
         try { log('直播', 'state=' + s + ' started=' + (this.started === true)) } catch (e0) {}
       }
       console.warn('[player] state=' + s + ' wantPlay=' + this.wantPlay)

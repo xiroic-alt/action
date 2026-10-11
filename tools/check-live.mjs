@@ -375,6 +375,11 @@ ok(/if \(this\.isLive\) \{/.test(bufFn) && /缓冲中…/.test(bufFn), 'player: 
 ok(bufFn.indexOf("'缓冲中 ' + p + '%'") > bufFn.indexOf('this.isLive'),
   'player: 数字百分比在直播早返回之后才可能执行 (HLS 滑动窗口会长期停在 99%)')
 ok(/liveLastState/.test(player), 'player: 直播 state 变化写进设备日志 (便于真机定位)')
+// 真机 2026-10-11 15:09: 直播 state 以 4->3->2->3->4 每秒约 5 次抖动 = 画面 1s 就卡.
+// 这不是 JS 造成的, 但 JS 侧必须能自救: 抖到阈值换下一条候选协议, 且只换一次.
+ok(/this\.liveFlapN > 8/.test(player) && /nowMs - this\.liveFlapAt > 15000/.test(player),
+  'player: 直播状态抖动检测 (阈值 + 15s 节流)')
+ok(/this\.liveSrcTry < 2/.test(player), 'player: 抖动换线最多换两条 (不无限循环)')
 
 console.log = realLog
 for (const m of failMsgs) realLog('BAD  ' + m)
