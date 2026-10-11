@@ -89,7 +89,18 @@ var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中�
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
 var SEEK_STEP_SEC = 10   // 快退/快进步长 (秒)
 
-// ---------- 音频输出 (蓝牙): 只探测, **绝不调用 setAudioDeviceType** ----------
+// ---------- 音频输出 (蓝牙) ----------
+// ★★ type 枚举是二进制取证出来的, 不是猜的 (libfalcon-live.so):
+//   VideoPlayer::getAudioDeviceStr() 读 _audioDeviceType 走 5 项跳转表 (>4 走默认),
+//   跳转表 @0x4bbc10 -> case 各自取 .rodata @0x4ba8ad/8b5/8bf/8ca:
+//     0 -> "speaker"      1 -> "tc_digital"   2 -> "tc_analog"
+//     3 -> "speaker"      4 -> "bluealsa:DEV=" + _blueMac
+//   日志串亦印证: "[GST_PLAYER]videoplayer setAudioDeviceType _audioDeviceType=%d, _blueMac=%s"
+//   ⚠ 0.9.64 我按 "1=蓝牙" 猜 -> 实际选到 tc_digital -> 真机直接
+//     "Could not open audio device for playback" (VOD/直播一起挂). 蓝牙是 **4**.
+//   ⚠ 另一个坑: bluetooth.getCurrentDevices() 会把"已配对但未连接"的设备也列出来,
+//     所以"不接耳机也炸" —— 现在只认 bluetoothctl 的 "Connected: yes".
+// ---------- (历史注记) 曾经一版完全不敢调用该 API ----------
 // ★ 真机结论 (2026-10-11, 用户反馈 + 二进制取证): 这个 API 一调就把播放打坏.
 //   官方 app 的字节码里它只做**转发** (system-player-all.txt, index.js 的
 //   onAudioDeviceTypeChanged 处理函数):
@@ -123,6 +134,10 @@ function playerTokens() {
     }
   }
 }
+
+// ALSA 设备串枚举 (取证见文件头): 0/3=speaker, 1=tc_digital, 2=tc_analog, 4=bluealsa:DEV=<mac>
+var AUDIO_TYPE_SPEAKER = 0
+var AUDIO_TYPE_BLUETOOTH = 4
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n }
 
@@ -496,28 +511,30 @@ export default {
       if (!this.opened || this.audioProbed) return
       this.audioProbed = true
       if (!this._elProbed) { this._elProbed = true; this.probeVideoElement() }
-      // 只探测 + 记日志. ★ 绝不 setAudioDeviceType —— 见文件头结论.
-      var bt = (typeof $falcon !== 'undefined' && $falcon.jsapi && $falcon.jsapi.bluetooth) ? $falcon.jsapi.bluetooth : null
-      if (bt && typeof bt.getCurrentDevices === 'function') {
-        try {
-          var r = bt.getCurrentDevices()
-          if (r && typeof r.length === 'number') {
-            var mac = r.length > 0 ? String((r[0] && (r[0].macAddress || r[0].mac || r[0].address)) || '') : ''
-            this.audioRoute = mac ? ('bluetooth ' + mac) : 'speaker'
-            try { log('播放器', '音频设备探测(仅日志, 不做切换): jsapi=' + this.audioRoute) } catch (e0) {}
-            return
-          }
-        } catch (e) { /* 落到 shell 探测 */ }
-      }
+      // 判据只看 bluetoothctl 的 "Connected: yes" —— 这是唯一"真的连着"的证据.
+      // 连上就切 bluealsa:DEV=<mac> (type=4); 没连就**什么都不做** (默认就是 speaker,
+      // 再调用一次只会白白拆一遍 alsasink). 只在起播后调用一次 (audioProbed 守卫).
       try {
-        bilinet.execAsync('bluetoothctl info 2>/dev/null | grep -E "Device|Connected" | head -4').then(function (out) {
+        bilinet.execAsync('bluetoothctl info 2>/dev/null | grep -E "^Device|Connected" | head -4').then(function (out) {
+          if (!self.$page) return
           var txt = String(out || '')
           var m = /Device\s+([0-9A-Fa-f:]{17})/.exec(txt)
-          var route = (m && /Connected:\s*yes/.test(txt)) ? ('bluetooth ' + m[1]) : 'speaker'
-          self.audioRoute = route
-          try { log('播放器', '音频设备探测(仅日志, 不做切换): ' + route) } catch (e0) {}
+          if (!(m && /Connected:\s*yes/.test(txt))) {
+            self.audioRoute = 'speaker(默认)'
+            try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
+            return
+          }
+          self.setAudioOut(AUDIO_TYPE_BLUETOOTH, m[1])
         }).catch(function () {})
       } catch (e2) {}
+    },
+    // 切换音频输出设备. 只有"已连接的蓝牙"会走到这里; 失败也只记日志 —— 原生换 sink 失败会
+    // 让整条管线报 "Could not open audio device for playback", 所以 mac 必须是 17 位 BD 地址.
+    setAudioOut: function (type, mac) {
+      var r = this.elem('setAudioDeviceType', type, mac)
+      this.audioRoute = (type === AUDIO_TYPE_BLUETOOTH ? ('bluetooth ' + mac) : 'speaker')
+      try { log('播放器', '音频输出 -> ' + this.audioRoute + ' (type=' + type + ' bluealsa:DEV=' + mac + ')') } catch (e) {}
+      return r
     },
     // 元素可用方法清单 (一次性诊断): 内置 <video> 的原生方法如何暴露在 JS 侧没有文档,
     // 只能把真实名字打出来 —— 之前按 setAudioDeviceType 猜, 日志是 elem=n/a.

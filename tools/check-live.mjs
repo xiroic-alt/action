@@ -198,12 +198,17 @@ ok(/width: 566px/.test(player), 'player: 滑块加宽到 566')
 
 ok(/setAudioDeviceType/.test(player), 'player: 起播后要切音频输出 (setAudioDeviceType)')
 ok(/applyAudioRoute/.test(player), 'player: 存在音频输出判定')
-// ★ 真机回归 (2026-10-11): 自己构造 type/mac 调 setAudioDeviceType 会让原生把 alsasink
-//   拆了重建, 直接报 "Could not open audio device for playback" —— 而且**不接蓝牙也一样**.
-//   官方 app 只转发原生信号里的 type/mac, 从不自己造. 所以这里钉死"绝不调用".
-ok(!/elem\('setAudioDeviceType'/.test(player), 'player: 绝不调用 setAudioDeviceType (真机会把音频设备打坏)')
-ok(!/setAudioOut/.test(player), 'player: 已删除 setAudioOut (唯一调用点)')
-ok(/仅日志, 不做切换/.test(player), 'player: 音频侧只做探测 + 记日志')
+// ★ 音频输出 type 枚举 = 二进制取证 (libfalcon-live.so 的 VideoPlayer::getAudioDeviceStr
+//   跳转表 @0x4bbc10 -> .rodata @0x4ba8ad/8b5/8bf/8ca):
+//     0/3 -> speaker · 1 -> tc_digital · 2 -> tc_analog · 4 -> bluealsa:DEV=<mac>
+//   0.9.64 我按 "1=蓝牙" 猜, 实际选到 tc_digital -> 真机 "Could not open audio device
+//   for playback", VOD 与直播一起挂. 这条断言就是防再猜一次.
+ok(/AUDIO_TYPE_BLUETOOTH = 4/.test(player), 'player: 蓝牙 type=4 (跳转表取证: 4 -> bluealsa:DEV=)')
+ok(!/AUDIO_TYPE_BLUETOOTH = 1/.test(player), 'player: 绝不用 type=1 (那是 tc_digital, 打不开设备)')
+// bluetooth.getCurrentDevices() 会把"已配对但没连"的设备也列出来 —— "不接耳机也炸"就是这个原因
+ok(/Connected:\\s\*yes/.test(player), 'player: 只认 bluetoothctl 的 Connected: yes, 不信配对列表')
+ok(/bluealsa:DEV=/.test(player), 'player: 日志回显 bluealsa:DEV=<mac> (排查用)')
+ok(/self\.setAudioOut\(AUDIO_TYPE_BLUETOOTH, m\[1\]\)/.test(player), 'player: 连上蓝牙才切换输出')
 ok(/execAsync\(/.test(player.split('applyAudioRoute')[1] || ''), 'player: 蓝牙探测必须用 execAsync (同步 exec 冻主线程)')
 ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
 ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')
