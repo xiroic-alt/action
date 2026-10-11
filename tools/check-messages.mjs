@@ -274,14 +274,19 @@ test('会话列表: 归一化, 昵称补全失败不影响列表', async () => {
   getReply = (u) => {
     if (u.indexOf('/account/v1/user/cards') >= 0) {
       if (cardsDown) throw new Error('cards 挂了')
-      return JSON.stringify({ code: 0, data: { '77': { name: '好友名', face: '//i2.hdslb.com/f.jpg' } } })
+      // ★ 真机取证 (2026-10-11): account/v1/user/cards 的 data 是**数组** [{mid,name,face}],
+      // 不是 map —— 桩件原先按 map 写, 会把"只认数组"的实现误判成失败.
+      return JSON.stringify({ code: 0, data: [{ mid: 77, name: '好友名', face: '//i2.hdslb.com/f.jpg' }] })
     }
     return JSON.stringify({ code: 0, data: { session_list: [{
-      talker_id: 77, session_ts: 1700000100, unread_count: 2,
-      last_msg: { content: JSON.stringify({ content: '在吗' }), timestamp: 1700000100 }
+      talker_id: 77, unread_count: 2,
+      // session_ts 真机是**微秒**; 秒级值放在 last_msg.timestamp (真机同款)
+      session_ts: 1700000100000000,
+      last_msg: { content: JSON.stringify({ content: '在吗' }), timestamp: 1700000100, msg_type: 1 }
     }] } })
   }
   const list = await msg.getSessions()
+  await new Promise((res) => setImmediate(res))   // 昵称补全是异步补的, 等它 settle
   assert.equal(list.length, 1)
   assert.equal(list[0].talkerId, 77)
   assert.equal(list[0].content, '在吗', '私信正文是 JSON 串, 要拆出来')
@@ -292,6 +297,7 @@ test('会话列表: 归一化, 昵称补全失败不影响列表', async () => {
     /get_sessions\?session_type=1&group_fold=1&unfollow_fold=0/)
   cardsDown = true
   const l2 = await msg.getSessions()
+  await new Promise((res) => setImmediate(res))
   assert.equal(l2.length, 1, '昵称接口挂了也要给出会话列表')
   assert.equal(l2[0].name, '')
 })

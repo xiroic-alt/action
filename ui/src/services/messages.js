@@ -70,6 +70,14 @@ function firstNum(obj, keys) {
 function num(v) { const n = Number(v); return isFinite(n) ? n : 0 }
 
 // 头像统一: 协议补全 + 缩略尺寸 (与 services/bili.js 的 thumb 同规则; 已带 @ 的不重复追加)
+// 时间戳单位归一化: 会话接口给**微秒** (1762052282353535), 消息接口给秒 (1762052282).
+// 直接假定秒会算出 NaNN-NaN (真机 2026-10-11 实测就是这个显示).
+function normSeconds(v) {
+  const n = Number(v) || 0
+  if (n <= 0) return 0
+  return n > 1e12 ? Math.floor(n / 1000000) : Math.floor(n)
+}
+
 function normFace(u) {
   let s = String(u || '')
   if (s.indexOf('//') === 0) s = 'https:' + s
@@ -279,35 +287,81 @@ async function fillUserCards(list) {
  */
 export async function getSessions() {
   // 出处: PiliNara lib/http/api.dart:495-506 (query 与 sort_rule 逐字来自其注释)
-  const url = MSG_URLS.sessions + '?session_type=1&group_fold=1&unfollow_fold=0&sort_rule=2&build=0&mobi_app=web'
+  const url = 'https://api.vc.bilibili.com/session_svr/v1/session_svr/get_sessions?session_type=1&group_fold=1&unfollow_fold=0&sort_rule=2&build=0&mobi_app=web'
   const body = await getJson(url)
-  if (body && body.code && body.code !== 0) throw new Error(msgErr(body, '会话'))
-  const list = (body && body.data && body.data.session_list) || []
+  if (!body) throw new Error('会话接口无响应')
+  if (body.code !== 0) throw new Error(msgErr(body, '会话'))
+  const list = (body.data && body.data.session_list) || []
   const out = []
   for (let i = 0; i < list.length; i++) {
     const s = list[i] || {}
-    const last = s.last_msg || {}
-    const ts = num(s.session_ts) || num(last.timestamp)
     out.push({
-      talkerId: num(s.talker_id),
-      name: String(s.name || s.talker_name || ''),
-      face: normFace(s.avatar || s.face || ''),
-      content: unwrapContent(last.content).substring(0, 60),
-      time: ts,
-      timeText: fmtTime(ts),
-      unread: num(s.unread_count)
+      talkerId: Number(s.talker_id) || 0,
+      // ★ 真机取证 (2026-10-11): get_sessions **不返回** name/avatar —— 会话里也没有
+      //   account_info 映射. 昵称/头像只能事后批量补 (见 fillSessionNames), 这里先留空.
+      name: '',
+      face: '',
+      content: sessionPreview(s.last_msg),
+      // session_ts 是**微秒** (真机值 1762052282353535) —— 直接当秒用会算出 NaNN-NaN,
+      // 所以统一按量级判定单位, 而不是假定秒.
+      time: normSeconds(s.session_ts || (s.last_msg && s.last_msg.timestamp)),
+      unread: Number(s.unread_count) || 0
     })
   }
-  try { await fillUserCards(out) } catch (e) {}
+  // ★ 必须 await: 页面是 `this.sessions = list` 一次性赋值的, 若这里 fire-and-forget,
+  // 补名结果落在同一个数组上也不会再触发渲染 —— 昵称就永远不显示 (真机 09:44 就是这样)
+  try { await fillSessionNames(out) } catch (e) {}
+  for (let i = 0; i < out.length; i++) out[i].timeText = out[i].time ? fmtTime(out[i].time) : ''
   return out
 }
 
 /**
- * 会话内消息 (接口按时间倒序下发, 这里统一成升序)
- * @param {number} talkerId 对方 mid
- * @param {number} endSeq 0 = 最近一页; 其余传上一页返回的 endSeq 往回翻
- * @returns {Promise<{items:Array, endSeq:number, hasMore:boolean}>}
+ * 补昵称/头像: get_sessions 不给, 用 account/v1/user/cards 一次批量取 (最多 60 个).
+ * 失败就保持空 —— 页面会退化成只显示 UID, 不会整块崩掉.
  */
+async function fillSessionNames(sessions) {
+  const ids = []
+  for (let i = 0; i < sessions.length && ids.length < 60; i++) {
+    const id = sessions[i].talkerId
+    if (id && ids.indexOf(id) < 0) ids.push(id)
+  }
+  if (ids.length === 0) return
+  const url = 'https://api.vc.bilibili.com/account/v1/user/cards?uids=' + ids.join(',') + '&build=0&mobi_app=web'
+  let body = null
+  try { body = await getJson(url) } catch (e) { return }
+  if (!body || body.code !== 0 || !body.data) return
+  const map = {}
+  for (let i = 0; i < body.data.length; i++) {
+    const c = body.data[i] || {}
+    if (c.mid) map[String(c.mid)] = c
+  }
+  for (let i = 0; i < sessions.length; i++) {
+    const c = map[String(sessions[i].talkerId)]
+    if (!c) continue
+    if (!sessions[i].name && c.name) sessions[i].name = String(c.name)
+    if (!sessions[i].face && c.face) sessions[i].face = normFace(c.face)
+  }
+}
+
+// 会话最后一句话的预览: content 是 JSON 串, 按 msg_type 取不同字段 (真机三种形态都见过了)
+//   msg_type 1  纯文本      -> {content}
+//   msg_type 7  视频分享    -> {author,title,bvid}
+//   msg_type 10 直播/结构化 -> {title,text}
+function sessionPreview(last) {
+  const m = last || {}
+  const raw = String(m.content || '')
+  if (raw === '') return ''
+  let j = null
+  try { j = JSON.parse(raw) } catch (e) { return stripTags(raw).substring(0, 60) }
+  if (!j || typeof j !== 'object') return stripTags(raw).substring(0, 60)
+  const t = Number(m.msg_type)
+  if (t === 7) return '[视频] ' + stripTags(String(j.title || '')).substring(0, 50)
+  if (t === 10) return '[直播] ' + stripTags(String(j.text || j.title || '')).substring(0, 50)
+  const text = typeof j.content === 'string' ? j.content : (j.title || j.text || '')
+  return stripTags(String(text)).substring(0, 60)
+}
+
+
 export async function getSessionMsgs(talkerId, endSeq) {
   const tid = num(talkerId)
   if (!tid) throw new Error('缺少会话对象 mid')
