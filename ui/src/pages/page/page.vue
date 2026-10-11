@@ -180,7 +180,7 @@
           <!-- 未登录: 登录引导 -->
           <div v-if="!logged && !cLoading" class="gate">
             <text class="gate-text" :style="T.t.bodyVar">评论需要登录后查看</text>
-            <div class="gate-btn" @click="goLogin">
+            <div class="gate-btn" :style="T.accentR" @click="goLogin">
               <text class="gate-btn-text" :style="T.t.onAccent">去登录 (扫码 / 电脑同步)</text>
             </div>
           </div>

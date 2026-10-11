@@ -20,7 +20,7 @@
       <div class="info-row" v-if="info" :style="T.cardR">
         <!-- 头像框: 官方 App 在头像右下角挂装饰 (acc/info 的 pendant) -->
         <div class="face-wrap">
-          <image class="face" :src="info.face" resize="cover"></image>
+          <image class="face" :style="T.actionR" :src="info.face" resize="cover"></image>
           <image v-if="info.pendant" class="pendant" :src="info.pendant" resize="contain"></image>
         </div>
         <div class="info-col">

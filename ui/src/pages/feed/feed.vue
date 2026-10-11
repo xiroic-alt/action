@@ -3,7 +3,7 @@
     <div class="ftop" :style="{ backgroundColor: T.c.surfaceContainerLow, width: paneWidth + 'px' }">
       <div v-if="!embedded" class="fback" @click="back">
         <image class="fback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
-        <text class="fback-t">返回</text>
+        <text class="fback-t" :style="T.t.body">返回</text>
       </div>
       <text class="ftitle" :style="{ color: T.c.onSurface, color: T.c.onSurface }">{{ mid !== '' ? 'TA 的动态' : '动态' }}</text>
       <!-- UP 空间动态模式 (从 UP 主页进来): 分类栏没有意义, 换成 UP 名 -->
@@ -19,7 +19,7 @@
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
     <div class="fstatus" v-if="status !== ''" :style="{ width: paneWidth + 'px' }" @click="retry">
       <image class="fstatus-ic" :src="MIc.refresh" :style="{ width: '24px', height: '24px' }"></image>
-      <text class="fstatus-t">{{ status }}</text>
+      <text class="fstatus-t" :style="T.t.caption">{{ status }}</text>
     </div>
 
     <!-- 下拉刷新提示 -->
@@ -36,8 +36,8 @@
           <div class="dhead" @click="openUp(d)">
             <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
             <div class="dface-wrap">
-              <image v-if="d.face" class="dface" :src="d.face" resize="cover"></image>
-              <div v-else class="dface dface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"><text class="dface-t">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
+              <image v-if="d.face" class="dface" :style="T.actionR" :src="d.face" resize="cover"></image>
+              <div v-else class="dface dface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"><text class="dface-t" :style="T.t.caption">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
               <image v-if="d.pendant" class="dpendant" :src="d.pendant" resize="contain"></image>
             </div>
             <text class="dauthor" :style="{ color: T.c.primary, color: T.c.primary }">{{ d.author }}</text>
@@ -67,7 +67,7 @@
           </div>
           <!-- 点文字 / 点这里都进详情页 (用户要求: 收起和展开都一样进详情), 不再就地展开 -->
           <div v-if="d.isLong || d.kind === 'opus' || d.kind === 'draw'" class="dmore" :style="T.actionR" @click="openDynRow(d)">
-            <text class="dmore-t">查看全文</text>
+            <text class="dmore-t" :style="T.t.caption">查看全文</text>
             <image class="dmore-ic" :src="MIc.expand" :style="{ width: '20px', height: '20px' }"></image>
           </div>
 
@@ -81,7 +81,7 @@
             </div>
           </div>
 
-          <div class="vcard" :style="T.insetR" v-if="d.archive" @click="openVideo(d.archive)">
+          <div class="vcard" :style="vcardStyle" :style="vcardStyle" v-if="d.archive" @click="openVideo(d.archive)">
             <image class="vcover" :src="d.archive.cover" resize="cover"></image>
             <div class="vmeta">
               <text class="vtitle" :style="T.t.title">{{ d.archive.title }}</text>
@@ -117,7 +117,7 @@
                 </div>
               </div>
             </div>
-            <div class="vcard" :style="T.insetR" v-if="d.orig.archive" @click="openVideo(d.orig.archive)">
+            <div class="vcard" :style="vcardStyle" :style="vcardStyle" v-if="d.orig.archive" @click="openVideo(d.orig.archive)">
               <image class="vcover" :src="d.orig.archive.cover" resize="cover"></image>
               <div class="vmeta">
                 <text class="vtitle" :style="T.t.title">{{ d.orig.archive.title }}</text>
@@ -133,24 +133,24 @@
           <div class="dfoot">
             <div :class="['dfoot-btn', d.stat.liked ? 'dfoot-on' : '']" @click="likeItem(d)">
               <image class="dfoot-ic" :src="d.stat.liked ? MIc.thumbupOn : MIc.thumbup" :style="{ width: '20px', height: '20px' }"></image>
-              <text :class="['dfoot-t', d.stat.liked ? 'dfoot-t-on' : '']">{{ d.stat.likeText }}</text>
+              <text :class="['dfoot-t', d.stat.liked ? 'dfoot-t-on' : '']" :style="d.stat.liked ? T.t.accent : T.t.label">{{ d.stat.likeText }}</text>
             </div>
-            <div class="dfoot-btn" @click="openDynPage(d)">
+            <div class="dfoot-btn" :style="T.actionR" @click="openDynPage(d)">
               <image class="dfoot-ic" :src="MIc.comment" :style="{ width: '20px', height: '20px' }"></image>
-              <text class="dfoot-t">{{ d.stat.replyText }}</text>
+              <text class="dfoot-t" :style="T.t.caption">{{ d.stat.replyText }}</text>
             </div>
-            <div class="dfoot-btn dfoot-static">
+            <div class="dfoot-btn dfoot-static" :style="T.actionR">
               <image class="dfoot-ic" :src="MIc.share" :style="{ width: '20px', height: '20px' }"></image>
-              <text class="dfoot-t">{{ d.stat.forwardText }}</text>
+              <text class="dfoot-t" :style="T.t.caption">{{ d.stat.forwardText }}</text>
             </div>
           </div>
         </div>
 
         <div class="loadmore" :style="T.t.accentSub" v-if="hasMore" @click="loadMore">
-          <text class="loadmore-t">{{ loading ? '加载中…' : '加载更多动态' }}</text>
+          <text class="loadmore-t" :style="T.t.caption">{{ loading ? '加载中…' : '加载更多动态' }}</text>
         </div>
         <div class="empty" :style="T.t.empty" v-if="!loading && shown.length === 0">
-          <text class="empty-t">{{ status !== '' ? status : '这个分类下暂时没有动态' }}</text>
+          <text class="empty-t" :style="T.t.caption">{{ status !== '' ? status : '这个分类下暂时没有动态' }}</text>
         </div>
       </div>
     </scroller>

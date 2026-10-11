@@ -24,8 +24,8 @@
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
             <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-            <text class="up">{{ item.author }}</text>
-            <text class="stat">{{ item.duration }}  {{ item.pubText }}</text>
+            <text class="up" :style="T.t.accent">{{ item.author }}</text>
+            <text class="stat" :style="T.t.caption">{{ item.duration }}  {{ item.pubText }}</text>
           </div>
         </div>
         <text v-if="items.length === 0 && !loading && status === ''" class="empty">稍后再看是空的, 去详情页点「稍后看」吧</text>

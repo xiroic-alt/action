@@ -28,11 +28,11 @@
         <text v-if="folders.length === 0 && !loading && status === ''" class="empty" :style="T.t.empty" :style="{ color: T.c.outline }">还没有创建收藏夹</text>
       </template>
       <template v-else>
-        <div v-for="(item, i) in items" :key="item.bvid || ('f' + i)" class="item" @click="openVideo(item)">
+        <div v-for="(item, i) in items" :key="item.bvid || ('f' + i)" class="item" :style="T.cardR" @click="openVideo(item)">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
-            <richtext class="title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-            <text class="up">{{ item.author }}</text>
+            <richtext class="title" :style="T.t.body"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
+            <text class="up" :style="T.t.accent">{{ item.author }}</text>
             <div class="statrow">
               <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
               <text class="stat">{{ item.playText }}  {{ item.duration }}</text>

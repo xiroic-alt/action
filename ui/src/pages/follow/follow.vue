@@ -6,21 +6,21 @@
         <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
       <text class="topbar-title" :style="T.t.title" :style="{ color: T.c.onSurface }">我的关注{{ total > 0 ? ' (' + total + ')' : '' }}</text>
-      <text class="topbar-sub">{{ logged ? ('共 ' + items.length + ' 个已加载') : '' }}</text>
+      <text class="topbar-sub" :style="T.t.caption">{{ logged ? ('共 ' + items.length + ' 个已加载') : '' }}</text>
     </div>
 
     <!-- 分组筛选: 全部 / 特别关注 / 自定义分组 (分组列表来自 x/relation/tags) -->
     <scroller class="gtabs" scroll-direction="horizontal" :show-scrollbar="false">
       <!-- 「全部」用哨兵 TAG_ALL(-999): 不能拿 0 当全部 —— 0 是「默认分组」的真实 tagid -->
-      <div :class="['gtab', tagFilter === TAG_ALL ? 'gtab-on' : '']" @click="setFilter(TAG_ALL)">
+      <div :class="['gtab', tagFilter === TAG_ALL ? 'gtab-on' : '']" :style="tagFilter === TAG_ALL ? T.accentR : T.actionR" @click="setFilter(TAG_ALL)">
         <text :class="['gtab-t', tagFilter === TAG_ALL ? 'gtab-t-on' : '']">全部</text>
       </div>
       <!-- 特别关注(-10) 与 默认分组(0) 本来就由接口的分组列表给出 (x/relation/tags 里就有这两条),
            这里只在接口没给的情况下兜一个 —— 否则会出现两个「特别关注」tab (0.9.61 踩过) -->
-      <div v-if="!hasSpecialTag" :class="['gtab', tagFilter === TAG_SPECIAL ? 'gtab-on' : '']" @click="setFilter(TAG_SPECIAL)">
+      <div v-if="!hasSpecialTag" :class="['gtab', tagFilter === TAG_SPECIAL ? 'gtab-on' : '']" :style="tagFilter === TAG_SPECIAL ? T.accentR : T.actionR" @click="setFilter(TAG_SPECIAL)">
         <text :class="['gtab-t', tagFilter === TAG_SPECIAL ? 'gtab-t-on' : '']">特别关注</text>
       </div>
-      <div v-for="t in tags" :key="'t' + t.tagid" :class="['gtab', tagFilter === t.tagid ? 'gtab-on' : '']" @click="setFilter(t.tagid)">
+      <div v-for="t in tags" :key="'t' + t.tagid" :class="['gtab', tagFilter === t.tagid ? 'gtab-on' : '']" :style="tagFilter === t.tagid ? T.accentR : T.actionR" @click="setFilter(t.tagid)">
         <text :class="['gtab-t', tagFilter === t.tagid ? 'gtab-t-on' : '']">{{ t.name + ' ' + t.count }}</text>
       </div>
     </scroller>
@@ -28,9 +28,9 @@
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
               :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')">
       <div ref="returnTop0" class="return-anchor"></div>
-      <text v-if="status !== ''" class="state" @click="retry">{{ status }}</text>
+      <text v-if="status !== ''" class="state" :style="T.t.caption" @click="retry">{{ status }}</text>
       <div v-if="!logged && loaded" class="gate">
-        <text class="gate-text">关注列表需要登录后查看</text>
+        <text class="gate-text" :style="T.t.caption">关注列表需要登录后查看</text>
         <div class="gate-btn" @click="goLogin" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
           <text class="gate-btn-text" :style="{ color: T.c.onSurface, color: T.c.onSurface }">去登录 (扫码 / 电脑同步)</text>
         </div>
@@ -38,7 +38,7 @@
       <template v-else>
         <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)" :style="T.cardR" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <div class="face-wrap">
-            <image class="face" :src="u.face" resize="cover" :lazy-load="true"></image>
+            <image class="face" :style="T.actionR" :src="u.face" resize="cover" :lazy-load="true"></image>
           </div>
           <div class="meta">
             <div class="namerow">
@@ -51,7 +51,7 @@
             <text class="sign" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ u.sign !== '' ? u.sign : '这个人很神秘，什么都没有写' }}</text>
           </div>
           <div class="manage" @click="openManage(u)" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
-            <text class="manage-t">管理</text>
+            <text class="manage-t" :style="T.t.body">管理</text>
           </div>
         </div>
         <text v-if="hasMore && items.length > 0" class="more" @click="loadMore">上滑加载更多…</text>
@@ -61,31 +61,31 @@
 
     <!-- 管理菜单: 设置分组 / 取消关注 -->
     <div v-if="picker.on" class="mask">
-      <div class="panel">
-        <text class="panel-title">{{ picker.name }}</text>
+      <div class="panel" :style="T.cardR">
+        <text class="panel-title" :style="T.t.body">{{ picker.name }}</text>
         <div v-if="!picker.tagsOn" class="panel-row">
-          <div class="panel-btn" @click="openTags">
+          <div class="panel-btn" :style="T.cardR" @click="openTags">
             <image class="panel-ic" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="panel-btn-t">设置分组</text>
+            <text class="panel-btn-t" :style="T.t.body">设置分组</text>
           </div>
-          <div class="panel-btn panel-danger" @click="doUnfollow">
-            <text class="panel-btn-t">取消关注</text>
+          <div class="panel-btn panel-danger" :style="T.cardR" @click="doUnfollow">
+            <text class="panel-btn-t" :style="T.t.body">取消关注</text>
           </div>
         </div>
         <scroller v-else class="panel-list" scroll-direction="vertical" :show-scrollbar="true">
-          <text v-if="tags.length === 0" class="panel-state">还没有分组 (可在官方 App 里创建)</text>
+          <text v-if="tags.length === 0" class="panel-state" :style="T.t.caption">还没有分组 (可在官方 App 里创建)</text>
           <div v-for="t in tags" :key="'p' + t.tagid" class="panel-item" @click="toggleTag(t)">
-            <text class="panel-item-t">{{ (tagSel.indexOf(t.tagid) >= 0 ? '☑ ' : '☐ ') + t.name }}</text>
-            <text class="panel-item-s">{{ t.count }} 人</text>
+            <text class="panel-item-t" :style="T.t.body">{{ (tagSel.indexOf(t.tagid) >= 0 ? '☑ ' : '☐ ') + t.name }}</text>
+            <text class="panel-item-s" :style="T.t.caption">{{ t.count }} 人</text>
           </div>
         </scroller>
         <div v-if="picker.tagsOn" class="panel-row">
-          <div class="panel-btn" @click="saveTags">
-            <text class="panel-btn-t">保存分组</text>
+          <div class="panel-btn" :style="T.cardR" @click="saveTags">
+            <text class="panel-btn-t" :style="T.t.body">保存分组</text>
           </div>
         </div>
-        <div class="panel-cancel" @click="closePicker">
-          <text class="panel-cancel-t">取消</text>
+        <div class="panel-cancel" :style="T.cardR" @click="closePicker">
+          <text class="panel-cancel-t" :style="T.t.body">取消</text>
         </div>
       </div>
     </div>

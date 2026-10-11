@@ -11,10 +11,10 @@
         <text class="title" :style="T.t.title" :style="{ color: T.c.onSurface }">登录哔哩哔哩</text>
       </div>
       <div class="modes">
-        <div :class="['mode-tab', mode === 'qr' ? 'mode-active' : '']" @click="switchMode('qr')">
+        <div :class="['mode-tab', mode === 'qr' ? 'mode-active' : '']" :style="mode === 'qr' ? T.accentR : T.actionR" @click="switchMode('qr')">
           <text :class="['mode-text', mode === 'qr' ? 'mode-text-active' : '']">扫码登录</text>
         </div>
-        <div :class="['mode-tab', mode === 'pc' ? 'mode-active' : '']" @click="switchMode('pc')">
+        <div :class="['mode-tab', mode === 'pc' ? 'mode-active' : '']" :style="mode === 'pc' ? T.accentR : T.actionR" @click="switchMode('pc')">
           <text :class="['mode-text', mode === 'pc' ? 'mode-text-active' : '']">电脑同步</text>
         </div>
       </div>
@@ -50,7 +50,7 @@
           <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">⑤ 返回本页面, 在下面输入电脑的局域网 IP (如 192.168.1.100), 点「获取并登录」即可把 Cookie 同步到词典笔。</text>
           <text class="pc-tip" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">安全提示: Cookie 相当于登录凭证, 保存后请尽快关闭电脑上的服务 (Ctrl+C)。笔端获取成功后可立即关闭服务。</text>
           <div class="pc-input" @click="inputIp" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
-            <text class="pc-input-text">{{ pcIp ? pcIp : '点击输入电脑 IP (如 192.168.1.100)' }}</text>
+            <text class="pc-input-text" :style="T.t.caption">{{ pcIp ? pcIp : '点击输入电脑 IP (如 192.168.1.100)' }}</text>
           </div>
           <div class="btn-row">
             <div class="btn" @click="fetchFromPc" :style="{ backgroundColor: T.c.primary, borderRadius: T.rad.chip, backgroundColor: T.c.primary, borderRadius: T.rad.chip }">
@@ -86,7 +86,7 @@
           <image :src="MIc.checkBig" :style="{ width: '56px', height: '56px' }"></image>
         </div>
       </div>
-      <text v-else class="qr-ph">{{ qrError !== '' ? '生成失败' : '生成中…' }}</text>
+      <text v-else class="qr-ph" :style="T.t.caption">{{ qrError !== '' ? '生成失败' : '生成中…' }}</text>
     </div>
   </div>
 </template>
