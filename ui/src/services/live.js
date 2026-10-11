@@ -1,8 +1,10 @@
 // 直播间服务 —— 只做"取房间信息 + 归一化", 取流与弹幕继续复用 services/bili.js 的既有实现
 // (那两条已在真机验证过 URL 与降级策略, 不在这里重复一套).
 //
-// 接口来源 (bilibili-API-collect docs/live/info.md「获取直播间信息」, 匿名可访问):
-//   GET https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=<短号或真实号>
+// 接口来源 (bilibili-API-collect docs/live/info.md, 但**接口选择按真机实测改了**, 见 getRoomInfo 注释):
+//   GET https://api.live.bilibili.com/room/v1/Room/get_info?room_id=<号>          <- 本机可用
+//   GET https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid=<号>  <- 主播名/头像
+//   (getInfoByRoom 在本机恒 -352, 已弃用)
 //   响应: data.room_info{room_id,short_id,title,cover,area_name,parent_area_name,live_status,online,description}
 //         data.anchor_info.base_info{uname,face}
 //         data.watched_show.num (看过人数)
@@ -63,38 +65,64 @@ export function liveStateText(status) {
  *   area:string,parentArea:string,online:number,watched:number,liveStatus:number,
  *   liveText:string,live:boolean,notice:string}>}
  */
-export async function getRoomInfo(roomid) {
-  const rid = String(roomid == null ? '' : roomid).trim()
-  if (!rid) throw new Error('缺少直播间号')
-  const url = 'https://api.live.bilibili.com/xlive/web-room/v1/index/getInfoByRoom?room_id=' + encodeURIComponent(rid)
-  const body = await getJson(url)
-  if (!body || body.code !== 0 || !body.data) {
-    throw new Error((body && body.message) || ('直播间信息获取失败 code=' + (body && body.code)))
-  }
-  const d = body.data || {}
-  const room = d.room_info || {}
-  const anchor = (d.anchor_info && d.anchor_info.base_info) || {}
+// ★ 真机取证 (2026-10-11, 序列号 9E11700007500215): getInfoByRoom 在本机被风控挡成
+//   {"code":-352} —— 带 Cookie、带 Referer、换 UA、加 web_location 全部一样, 是接口级拦截,
+//   不是登录态问题。同一次探测里 room/v1/Room/get_info 与 getRoomPlayInfo v2 都是 code=0,
+//   所以信息面改走这两个可用口, 主播名/头像单独取 (get_anchor_in_room)。
+//   老实现只打一条"信息失败"就整页空着 —— 那是把"接口被风控"当成了"房间不存在"。
+function pickRoom(d) {
+  const room = d || {}
   const raw = room.live_status
   const known = raw !== undefined && raw !== null && raw !== '' && Number.isFinite(Number(raw))
-  const status = known ? Number(raw) : -1
-  const info = {
-    roomid: num(room.room_id, 0) || num(rid, 0),
+  return {
+    roomid: num(room.room_id, 0),
     shortId: num(room.short_id, 0),
     title: String(room.title || '').trim(),
-    cover: httpsUrl(room.cover || room.keyframe),
-    up: String(anchor.uname || '').trim(),
-    face: httpsUrl(anchor.face),
+    cover: httpsUrl(room.user_cover || room.cover || room.keyframe),
     area: String(room.area_name || ''),
     parentArea: String(room.parent_area_name || ''),
     online: num(room.online, 0),
-    watched: num(d.watched_show && d.watched_show.num, 0),
-    liveStatus: status,
-    liveText: liveStateText(status),
-    live: status === 1,
-    notice: String(room.description || (d.news_info && d.news_info.content) || '').trim()
+    watched: num(room.attention, 0),
+    notice: String(room.description || '').trim(),
+    liveStatus: known ? Number(raw) : -1
   }
-  try { log('直播间', 'room=' + info.roomid + ' ' + info.liveText + ' up=' + info.up) } catch (e) {}
-  return info
+}
+
+export async function getRoomInfo(roomid) {
+  const rid = String(roomid == null ? '' : roomid).trim()
+  if (!rid) throw new Error('缺少直播间号')
+  // 两个信息口都是匿名可用; 谁先回就用谁, 全失败才报错
+  const urls = [
+    'https://api.live.bilibili.com/room/v1/Room/get_info?room_id=' + encodeURIComponent(rid),
+    'https://api.live.bilibili.com/xlive/web-room/v2/index/getRoomPlayInfo?room_id=' + encodeURIComponent(rid)
+      + '&protocol=0,1&format=0,1,2&codec=0,1&qn=10000&platform=web&ptype=8'
+  ]
+  let base = null
+  let lastErr = null
+  for (let i = 0; i < urls.length; i++) {
+    try {
+      const body = await getJson(urls[i])
+      if (body && body.code === 0 && body.data) { base = pickRoom(body.data); break }
+      lastErr = new Error((body && (body.message || body.msg)) || ('直播间信息失败 code=' + (body && body.code)))
+    } catch (e) { lastErr = e }
+  }
+  if (!base) throw (lastErr || new Error('直播间信息获取失败'))
+  // 主播名/头像: 失败不挡整页 (房间信息已经拿到了)
+  try {
+    const a = await getJson('https://api.live.bilibili.com/live_user/v1/UserInfo/get_anchor_in_room?roomid=' + encodeURIComponent(rid))
+    const info = (a && a.code === 0 && a.data && a.data.info) || {}
+    base.up = String(info.uname || '').trim()
+    base.face = httpsUrl(info.face)
+  } catch (e) {
+    base.up = ''
+    base.face = ''
+    try { log('直播间', '主播信息失败 (不影响房间信息): ' + (e && e.message ? e.message : e)) } catch (e2) {}
+  }
+  if (!base.roomid) base.roomid = num(rid, 0)
+  base.liveText = liveStateText(base.liveStatus)
+  base.live = base.liveStatus === 1
+  try { log('直播间', 'room=' + base.roomid + ' ' + base.liveText + ' up=' + base.up + ' online=' + base.online) } catch (e) {}
+  return base
 }
 
 /**

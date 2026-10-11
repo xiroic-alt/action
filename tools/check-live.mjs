@@ -62,17 +62,16 @@ function truthy(fn, msg) { try { ok(fn() === true, msg) } catch (e) { fails++; f
 const live = await import(SRC + 'services/live.js')
 
 // ================= 1. getRoomInfo 归一化 =================
-// 接口依据: xlive/web-room/v1/index/getInfoByRoom?room_id=<真实号或短号>
+// 接口依据 (真机 2026-10-11 实测): room/v1/Room/get_info + live_user/v1/UserInfo/get_anchor_in_room.
+// getInfoByRoom 在本机恒 -352 (接口级风控, 带 Cookie/Referer/换 UA 都一样), 服务里已弃用 —— 这里也钉住"不再打它".
 const ROOM = body({
-  room_info: {
-    room_id: 1001, short_id: 77, title: ' 测试直播间 ',
-    cover: '//i0.hdslb.com/cover.jpg', area_name: '英雄联盟', parent_area_name: '网络游戏',
-    live_status: 1, online: 23456, description: '今晚八点开黑'
-  },
-  anchor_info: { base_info: { uname: '主播甲', face: '//i0.hdslb.com/face.jpg' } },
-  watched_show: { num: 98765 }
+  room_id: 1001, short_id: 77, title: ' 测试直播间 ',
+  user_cover: '//i0.hdslb.com/cover.jpg', area_name: '英雄联盟', parent_area_name: '网络游戏',
+  live_status: 1, online: 23456, attention: 98765, description: '今晚八点开黑'
 })
-reply = () => ROOM
+const ANCHOR = body({ info: { uid: 9, uname: '主播甲', face: '//i0.hdslb.com/face.jpg' } })
+const isAnchor = (url) => String(url).indexOf('get_anchor_in_room') >= 0
+reply = (url) => (isAnchor(url) ? ANCHOR : ROOM)
 reqUrls.length = 0
 const info = await live.getRoomInfo(1001)
 eq(info, {
@@ -81,31 +80,52 @@ eq(info, {
   area: '英雄联盟', parentArea: '网络游戏', online: 23456, watched: 98765,
   liveStatus: 1, liveText: '直播中', live: true, notice: '今晚八点开黑'
 }, 'getRoomInfo 归一化 (标题去空白 / 协议相对 URL 补 https)')
-ok(/^https:\/\/api\.live\.bilibili\.com\/xlive\/web-room\/v1\/index\/getInfoByRoom\?room_id=1001$/.test(reqUrls[0] || ''),
-  '取房间信息走 getInfoByRoom?room_id= (接口依据), 实际 ' + reqUrls[0])
+ok(/^https:\/\/api\.live\.bilibili\.com\/room\/v1\/Room\/get_info\?room_id=1001$/.test(reqUrls[0] || ''),
+  '取房间信息走 room/v1/Room/get_info?room_id= (真机可用口), 实际 ' + reqUrls[0])
+ok(reqUrls.some((u) => u.indexOf('get_anchor_in_room') >= 0), '主播名/头像走 get_anchor_in_room')
+ok(!reqUrls.some((u) => u.indexOf('getInfoByRoom') >= 0), '不再请求本机恒 -352 的 getInfoByRoom')
 
-reply = () => body({ room_info: { live_status: 1 }, anchor_info: { base_info: { uname: '乙' } } })
+// 主播口失败不能挡整页: 房间信息已经拿到就该渲染 (真机上这就是 -352 会走到的分支)
+reply = (url) => (isAnchor(url) ? JSON.stringify({ code: -352, message: '-352' }) : body({ room_id: 2100, title: '只有房间', live_status: 1 }))
+const noAnchor = await live.getRoomInfo(2100)
+eq([noAnchor.title, noAnchor.up, noAnchor.face, noAnchor.live], ['只有房间', '', '', true],
+  '主播口失败时房间信息照常返回 (up/face 兜底空串)')
+
+// 房间口失败 -> 退到第二个口 (getRoomPlayInfo v2, 真机同为 code=0)
+let firstRoomUrl = null
+reply = (url) => {
+  if (isAnchor(url)) return ANCHOR
+  if (String(url).indexOf('/room/v1/Room/get_info') >= 0) return JSON.stringify({ code: -352, message: '-352' })
+  return body({ room_id: 2200, title: '备用口', live_status: 0, online: 5 })
+}
+const fallback = await live.getRoomInfo(2200)
+eq([fallback.title, fallback.liveStatus], ['备用口', 0], '房间口被风控时退到 getRoomPlayInfo v2')
+firstRoomUrl = reqUrls[0]
+ok(String(firstRoomUrl).indexOf('/room/v1/Room/get_info') >= 0, '第一优先仍是 room/v1/Room/get_info')
+
+reply = (url) => (isAnchor(url) ? ANCHOR : body({ live_status: 1 }))
 const infoByShort = await live.getRoomInfo(2002)
 eq([infoByShort.roomid, infoByShort.watched, infoByShort.online], [2002, 0, 0],
-  'room_id 缺失时 roomid 回落成入参; watched_show 缺失记 0')
+  'room_id 缺失时 roomid 回落成入参; attention 缺失记 0')
 
 // ================= 2. 字段缺失兜底 =================
-reply = () => body({})
+// 两个口都返回空壳: 纯兜底路径 (连主播口也失败, 才可能全空)
+reply = (url) => (isAnchor(url) ? JSON.stringify({ code: -101, message: '账号未登录' }) : body({}))
 eq(await live.getRoomInfo(3003), {
   roomid: 3003, shortId: 0, title: '', cover: '', up: '', face: '',
   area: '', parentArea: '', online: 0, watched: 0,
   liveStatus: -1, liveText: '状态未知', live: false, notice: ''
 }, 'data 为空对象: 全字段兜底且不抛错 (roomid 回落成入参)')
 
-reply = () => body({ room_info: { title: '只有标题' } })
+reply = (url) => (isAnchor(url) ? ANCHOR : body({ title: '只有标题' }))
 const partial = await live.getRoomInfo(3004)
-eq([partial.title, partial.up, partial.cover, partial.online, partial.live], ['只有标题', '', '', 0, false],
-  'room_info 只有 title: 其余字段各自兜底')
+eq([partial.title, partial.up, partial.cover, partial.online, partial.live], ['只有标题', '主播甲', '', 0, false],
+  '房间只有 title: 其余字段各自兜底 (主播口拿到了就照常填)')
 
 reply = () => JSON.stringify({ code: -400, message: '房间不存在' })
 let thrown = null
 try { await live.getRoomInfo(3005) } catch (e) { thrown = e }
-ok(!!(thrown && /房间不存在/.test(thrown.message)), '业务 code != 0 抛出可读原因 (不静默返回空)')
+ok(!!(thrown && /房间不存在/.test(thrown.message)), '两个口都失败时抛出可读原因 (不静默返回空)')
 thrown = null
 try { await live.getRoomInfo('') } catch (e) { thrown = e }
 ok(thrown instanceof Error, '空 roomid 直接抛错 (不发无意义请求)')
@@ -113,7 +133,7 @@ ok(thrown instanceof Error, '空 roomid 直接抛错 (不发无意义请求)')
 // 旧 .so 没有异步方法时退回同步 httpGet (与 services/bili.js 同一约定)
 const asyncGet = globalThis.__bilinet.httpGetAsync
 delete globalThis.__bilinet.httpGetAsync
-reply = () => body({ room_info: { room_id: 4004, title: '同步口', live_status: 0 } })
+reply = (url) => (isAnchor(url) ? ANCHOR : body({ room_id: 4004, title: '同步口', live_status: 0 }))
 const syncInfo = await live.getRoomInfo(4004)
 eq([syncInfo.title, syncInfo.live], ['同步口', false], '没有 httpGetAsync 时退化为同步 httpGet')
 globalThis.__bilinet.httpGetAsync = asyncGet
@@ -122,15 +142,16 @@ globalThis.__bilinet.httpGetAsync = asyncGet
 const STATUS = [0, 1, 2]
 const WANT = [['未开播', false], ['直播中', true], ['轮播中', false]]
 for (let i = 0; i < STATUS.length; i++) {
-  reply = () => body({ room_info: { room_id: 5000 + i, live_status: STATUS[i] } })
-  const r = await live.getRoomInfo(5000 + i)
-  eq([r.liveStatus, r.liveText, r.live], [STATUS[i], WANT[i][0], WANT[i][1]], 'live_status=' + STATUS[i] + ' 判定')
+  reply = (url) => (isAnchor(url) ? ANCHOR : body({ room_id: 5000 + i, live_status: STATUS[i] }))
+  const rr = await live.getRoomInfo(5000 + i)
+  eq([rr.liveStatus, rr.liveText, rr.live], [STATUS[i], WANT[i][0], WANT[i][1]], 'live_status=' + STATUS[i] + ' 判定')
 }
-reply = () => body({ room_info: { room_id: 5100, live_status: 9 } })
+reply = (url) => (isAnchor(url) ? ANCHOR : body({ room_id: 5100, live_status: 9 }))
 const weird = await live.getRoomInfo(5100)
 eq([weird.liveStatus, weird.liveText, weird.live], [9, '状态未知', false], '未知 live_status: 不当成开播')
 eq(live.liveStateText(1), '直播中', 'liveStateText 归一化可单独复用')
 eq(live.liveStateText(undefined), '状态未知', 'liveStateText 对缺失值不猜')
+
 
 // ================= 4. 弹幕去重 (8s 轮询的公共部分) =================
 const filter = live.createDanmakuFilter(2)
