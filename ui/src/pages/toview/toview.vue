@@ -9,8 +9,9 @@
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
-              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
+              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+      <div ref="returnTop0" class="return-anchor"></div>
       <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
       <div v-if="!logged && loaded" class="gate">
         <text class="gate-text" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">稍后再看需要登录后查看</text>
@@ -31,10 +32,13 @@
         <text v-if="hasMore && items.length > 0" class="loadmore" @click="loadMore">上滑加载更多…</text>
       </template>
     </scroller>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 // 稍后再看页: x/v2/history/toview/web + 无限滑动 + 下拉刷新
 import { getToViewList , parseMessage } from '../../services/bili.js'
 import { tokens } from '../../services/theme.js'
@@ -53,6 +57,8 @@ const MI_D = {
 }
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'toview',
   data() {
     return {
@@ -77,6 +83,7 @@ export default {
     MIc() { return this.T && this.T.dark ? MI : MI_D }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target); this.onListScroll(e) },
     startDots() {
       if (this._dotTimer) return
       const self = this
@@ -353,4 +360,5 @@ export default {
 /* ---------- 图标 (material) ---------- */
 .back { flex-direction: row; }
 .back-ic { margin-right: 4px; }
+.return-anchor { width: 1px; height: 1px; }
 </style>

@@ -26,7 +26,8 @@
     </scroller>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
-              :loadmoreoffset="100" @loadmore="loadMore">
+              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')">
+      <div ref="returnTop0" class="return-anchor"></div>
       <text v-if="status !== ''" class="state" @click="retry">{{ status }}</text>
       <div v-if="!logged && loaded" class="gate">
         <text class="gate-text">关注列表需要登录后查看</text>
@@ -88,10 +89,13 @@
         </div>
       </div>
     </div>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 import { getMyInfo, getTagFollowings, getRelationTags, setUserTags, modifyRelation, TAG_SPECIAL, TAG_ALL, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { afterPaint } from '../../base-page.js'
@@ -111,6 +115,8 @@ const MI_D = {
 }
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'follow',
   data() {
     return {
@@ -147,6 +153,7 @@ export default {
     }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target) },
     onShow() {
       this.logged = hasCookie()
       // 进入动画: 首帧后把 entering 翻成 false 滑入 (与 toview/up 同一套约定;
@@ -372,4 +379,5 @@ export default {
 .panel-cancel-t { font-size: 19px; color: #cfd5de; }
 /* 起始态: 页面在屏幕右侧外 (与 toview/up 一致), 去掉这个类即滑入 */
 .page-enter { transform: translateX(960px); }
+.return-anchor { width: 1px; height: 1px; }
 </style>

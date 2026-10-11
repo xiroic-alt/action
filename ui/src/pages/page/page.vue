@@ -33,7 +33,8 @@
 
       <!-- ============ 详情 tab ============ -->
       <scroller v-if="tab === 'detail'" class="detail-scroll" scroll-direction="vertical" :show-scrollbar="true"
-                @scroll="onListScroll">
+                @scroll="onReturnScroll($event, 'returnTop0')">
+      <div ref="returnTop0" class="return-anchor"></div>
         <div ref="topRef"></div>
         <!-- 标题: 默认 2 行截断 (...), 点击展开/收起. emoji 走 richtext 渲成图片
              (设备字体无 emoji 字形, 直接放 text 里会整段空白).
@@ -166,7 +167,8 @@
           </div>
         </div>
         <scroller class="clist" scroll-direction="vertical" :show-scrollbar="true"
-                  :loadmoreoffset="100" @loadmore="onCommentsLoadmore" @scroll="onListScroll">
+                  :loadmoreoffset="100" @loadmore="onCommentsLoadmore" @scroll="onReturnScroll($event, 'returnTop1')">
+      <div ref="returnTop1" class="return-anchor"></div>
           <div v-if="cStatus !== ''" class="status-row">
             <image v-if="cOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
             <text class="c-status">{{ cStatus }}</text>
@@ -327,10 +329,13 @@
         </div>
       </div>
     </div>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 // 详情页 v3: 左栏封面 (左上角返回按钮) + 右栏「详情/评论」同页 tab.
 // 0.9.5: 交互行 (赞/投币/收藏/三连/稍后再看) · 评论无限滑动 + 下拉刷新 · 左右滑动切 tab ·
 //        长文本展开 :key 重建修复 (lines 样式不随 class 更新) · 先进页面画完进入动画再发请求.
@@ -491,6 +496,8 @@ var SWIPE_DY_MAX = 50      // 超过此竖向位移视为滚动不切 tab
 var PULL_DY = 55           // 顶部下拉刷新触发阈值
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'page',
   props: {
     nextPage: { type: String, default: 'page2' }
@@ -594,6 +601,7 @@ export default {
     }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target); this.onListScroll(e) },
     // AI 总结 (官方 x/web-interface/view/conclusion/get).
     // 真机实测: 不带 wbi 签名直接 -403 访问权限不足, 未登录也会失败.
     // 拿不到就保持 aiSum = null, 模板整块不渲染 —— 不占位、不弹错.
@@ -2382,4 +2390,5 @@ export default {
 .author { margin-top: 0px; }
 .author-row { flex-direction: row; align-items: center; margin-top: 6px; }
 .author { margin-top: 0px; }
-</style>
+.return-anchor { width: 1px; height: 1px; }
+</style>

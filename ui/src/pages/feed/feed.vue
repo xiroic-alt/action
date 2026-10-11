@@ -1,7 +1,7 @@
 <template>
-  <div class="fpage" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
-    <div class="ftop" :style="{ backgroundColor: T.c.surfaceContainerLow, backgroundColor: T.c.surfaceContainerLow }">
-      <div class="fback" @click="back">
+  <div class="fpage" :style="{ backgroundColor: T.c.surface, width: paneWidth + 'px', height: paneHeight + 'px' }">
+    <div class="ftop" :style="{ backgroundColor: T.c.surfaceContainerLow, width: paneWidth + 'px' }">
+      <div v-if="!embedded" class="fback" @click="back">
         <image class="fback-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="fback-t">返回</text>
       </div>
@@ -9,29 +9,30 @@
       <!-- UP 空间动态模式 (从 UP 主页进来): 分类栏没有意义, 换成 UP 名 -->
       <div class="cats" v-if="mid === ''">
         <div v-for="(c, ci) in cats" :key="'c' + ci"
-             :class="['cat', cat === c.k ? 'cat-on' : '']" @click="setCat(c.k)" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
-          <text :class="['cat-t', cat === c.k ? 'cat-t-on' : '']" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">{{ c.n }}</text>
+             :class="['cat', cat === c.k ? 'cat-on' : '']" @click="setCat(c.k)" :style="cat === c.k ? T.accentR : T.actionR">
+          <text :class="['cat-t', cat === c.k ? 'cat-t-on' : '']" :style="cat === c.k ? T.t.onAccent : T.t.body">{{ c.n }}</text>
         </div>
       </div>
       <text v-else class="fupsub" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ upName !== '' ? upName : ('UID ' + mid) }}</text>
     </div>
 
     <!-- 诊断: 状态行放在 scroller 外面(绝对定位) —— 用来区分"整页没渲染"还是"只有 scroller 空" -->
-    <div class="fstatus" v-if="status !== ''" @click="retry">
+    <div class="fstatus" v-if="status !== ''" :style="{ width: paneWidth + 'px' }" @click="retry">
       <image class="fstatus-ic" :src="MIc.refresh" :style="{ width: '24px', height: '24px' }"></image>
       <text class="fstatus-t">{{ status }}</text>
     </div>
 
     <!-- 下拉刷新提示 -->
-    <div class="fpull" v-if="pullHint !== ''"><text class="fpull-t" :style="{ color: T.c.primary, color: T.c.primary }">{{ pullHint }}</text></div>
+    <div class="fpull" v-if="pullHint !== ''" :style="{ width: paneWidth + 'px' }"><text class="fpull-t" :style="{ color: T.c.primary, color: T.c.primary }">{{ pullHint }}</text></div>
 
-    <scroller class="fscroll" scroll-direction="vertical" :show-scrollbar="true"
+    <scroller class="fscroll" :style="{ width: paneWidth + 'px', top: status || pullHint ? '74px' : '44px', height: (paneHeight - (status || pullHint ? 74 : 44)) + 'px' }" scroll-direction="vertical" :show-scrollbar="true"
               :over-scroll="70" :loadmoreoffset="100"
               @loadmore="loadMore" @scroll="onScroll"
               @touchstart="onPullStart" @touchmove="onPullMove" @touchend="onPullEnd">
+      <div ref="feedTop" class="feed-anchor"></div>
       <div class="fwrap">
 
-        <div class="dyn" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
+        <div class="dyn" :style="{ width: (paneWidth - 40) + 'px', backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)">
           <div class="dhead" @click="openUp(d)">
             <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
             <div class="dface-wrap">
@@ -44,8 +45,8 @@
             <div v-if="d.officialType >= 0" :class="['dvbadge', badgeCls(d)]">
               <image class="dvbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
-            <text class="dtime">{{ d.pubText }}</text>
-            <text class="dbadge" :style="{ backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card, backgroundColor: T.c.primary, color: T.c.onSurface, borderRadius: T.rad.card }">{{ kindName(d.kind) }}</text>
+            <text class="dtime" :style="T.t.caption">{{ d.pubText }}</text>
+            <text class="dbadge" :style="T.accentR">{{ kindName(d.kind) }}</text>
           </div>
 
           <!-- 无正文时不要渲染空 richtext: lines:3 仍会占 3 行高度 -> 卡片里一大片空白 -->
@@ -53,7 +54,7 @@
                同一位置挂在 div 上的作者行点击生效, 挂在 richtext 上的正文点击无反应)
                -> 点正文一律进详情页 (收起 / 展开都一样) -->
           <div class="dtext-hit" @click="openDyn(d)">
-            <richtext v-if="d.segs && d.segs.length > 0" class="dtext">
+            <richtext v-if="d.segs && d.segs.length > 0" class="dtext" :style="T.t.body">
               <template v-for="(seg, si) in d.segs">
                 <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
                 <span v-else-if="seg.t === 2" :key="'h' + si" class="dhl">{{ seg.v }}</span>
@@ -62,9 +63,9 @@
             </richtext>
           </div>
           <!-- 点文字 / 点这里都进详情页 (用户要求: 收起和展开都一样进详情), 不再就地展开 -->
-          <div v-if="d.isLong || d.kind === 'opus' || d.kind === 'draw'" class="dmore" @click="openDynRow(d)">
+          <div v-if="d.isLong || d.kind === 'opus' || d.kind === 'draw'" class="dmore" :style="T.actionR" @click="openDynRow(d)">
             <text class="dmore-t">查看全文</text>
-            <image class="dmore-ic" :src="MI.expand" :style="{ width: '20px', height: '20px' }"></image>
+            <image class="dmore-ic" :src="MIc.expand" :style="{ width: '20px', height: '20px' }"></image>
           </div>
 
           <div class="pics" v-if="d.rows && d.rows.length">
@@ -77,27 +78,27 @@
             </div>
           </div>
 
-          <div class="vcard" v-if="d.archive" @click="openVideo(d.archive)">
+          <div class="vcard" :style="T.insetR" v-if="d.archive" @click="openVideo(d.archive)">
             <image class="vcover" :src="d.archive.cover" resize="cover"></image>
             <div class="vmeta">
-              <text class="vtitle">{{ d.archive.title }}</text>
+              <text class="vtitle" :style="T.t.title">{{ d.archive.title }}</text>
               <div class="vstatrow">
-                <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
-                <text class="vstat">{{ d.archive.playText + '   ' + d.archive.duration }}</text>
+                <image class="vstat-ic" :src="MIc.play" :style="{ width: '18px', height: '18px' }"></image>
+                <text class="vstat" :style="T.t.caption">{{ d.archive.playText + '   ' + d.archive.duration }}</text>
               </div>
             </div>
           </div>
 
           <!-- 专栏/图文(opus) 的标题块: summary 就是主正文, 已在上面 richtext 里渲染过, 这里不再重复 -->
-          <div class="ocard" v-if="d.opus && d.opus.title">
-            <text class="otitle">{{ d.opus.title }}</text>
+          <div class="ocard" :style="T.insetR" v-if="d.opus && d.opus.title">
+            <text class="otitle" :style="T.t.title">{{ d.opus.title }}</text>
           </div>
 
 
 
-          <div class="ostat" v-if="d.orig">
-            <text class="olabel">{{ '转发 @' + d.orig.author + '：' }}</text>
-            <richtext class="dtext">
+          <div class="ostat" :style="T.insetR" v-if="d.orig">
+            <text class="olabel" :style="T.t.accentSub">{{ '转发 @' + d.orig.author + '：' }}</text>
+            <richtext class="dtext" :style="T.t.body">
               <template v-for="(seg, si) in d.orig.segs">
                 <span v-if="seg.t === 0" :key="'os' + si">{{ seg.v }}</span>
                 <span v-else-if="seg.t === 2" :key="'oh' + si" class="dhl">{{ seg.v }}</span>
@@ -113,13 +114,13 @@
                 </div>
               </div>
             </div>
-            <div class="vcard" v-if="d.orig.archive" @click="openVideo(d.orig.archive)">
+            <div class="vcard" :style="T.insetR" v-if="d.orig.archive" @click="openVideo(d.orig.archive)">
               <image class="vcover" :src="d.orig.archive.cover" resize="cover"></image>
               <div class="vmeta">
-                <text class="vtitle">{{ d.orig.archive.title }}</text>
+                <text class="vtitle" :style="T.t.title">{{ d.orig.archive.title }}</text>
                 <div class="vstatrow">
-                  <image class="vstat-ic" :src="MI.play" :style="{ width: '18px', height: '18px' }"></image>
-                  <text class="vstat">{{ d.orig.archive.playText + '   ' + d.orig.archive.duration }}</text>
+                  <image class="vstat-ic" :src="MIc.play" :style="{ width: '18px', height: '18px' }"></image>
+                  <text class="vstat" :style="T.t.caption">{{ d.orig.archive.playText + '   ' + d.orig.archive.duration }}</text>
                 </div>
               </div>
             </div>
@@ -128,28 +129,29 @@
           <!-- 底部: 点赞(列表直接点) / 评论(一律进动态详情页) / 转发数 -->
           <div class="dfoot">
             <div :class="['dfoot-btn', d.stat.liked ? 'dfoot-on' : '']" @click="likeItem(d)">
-              <image class="dfoot-ic" :src="d.stat.liked ? MI.thumbupOn : MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
+              <image class="dfoot-ic" :src="d.stat.liked ? MIc.thumbupOn : MIc.thumbup" :style="{ width: '20px', height: '20px' }"></image>
               <text :class="['dfoot-t', d.stat.liked ? 'dfoot-t-on' : '']">{{ d.stat.likeText }}</text>
             </div>
             <div class="dfoot-btn" @click="openDynPage(d)">
-              <image class="dfoot-ic" :src="MI.comment" :style="{ width: '20px', height: '20px' }"></image>
+              <image class="dfoot-ic" :src="MIc.comment" :style="{ width: '20px', height: '20px' }"></image>
               <text class="dfoot-t">{{ d.stat.replyText }}</text>
             </div>
             <div class="dfoot-btn dfoot-static">
-              <image class="dfoot-ic" :src="MI.share" :style="{ width: '20px', height: '20px' }"></image>
+              <image class="dfoot-ic" :src="MIc.share" :style="{ width: '20px', height: '20px' }"></image>
               <text class="dfoot-t">{{ d.stat.forwardText }}</text>
             </div>
           </div>
         </div>
 
-        <div class="loadmore" v-if="hasMore" @click="loadMore">
+        <div class="loadmore" :style="T.t.accentSub" v-if="hasMore" @click="loadMore">
           <text class="loadmore-t">{{ loading ? '加载中…' : '加载更多动态' }}</text>
         </div>
-        <div class="empty" v-if="!loading && shown.length === 0">
+        <div class="empty" :style="T.t.empty" v-if="!loading && shown.length === 0">
           <text class="empty-t">{{ status !== '' ? status : '这个分类下暂时没有动态' }}</text>
         </div>
       </div>
     </scroller>
+    <BackTop :visible="topShown && !viewer.on" :T="T" @activate="goTop" />
 
     <div v-if="viewer.on" class="iview"
          @touchstart="ivStart" @touchmove="ivMove" @touchend="ivEnd">
@@ -160,7 +162,7 @@
       </div>
       <!-- 左上角返回: material 图标 + 文字 (✕ 字形本机字体没有, 会渲染成空白) -->
       <div class="iv-back" @click="ivClose">
-        <image class="iv-back-ic" :src="MI.back" :style="{ width: '24px', height: '24px' }"></image>
+        <image class="iv-back-ic" :src="MIc.back" :style="{ width: '24px', height: '24px' }"></image>
         <text class="iv-back-t">返回</text>
       </div>
       <div v-if="viewer.hint" class="iv-hint">
@@ -168,9 +170,9 @@
       </div>
       <div class="iv-bar">
         <div class="iv-panel">
-          <div class="iv-btn" @click="ivZoomOut"><image :src="MI.minus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-btn" @click="ivZoomOut"><image :src="MIc.minus" :style="{ width: '32px', height: '32px' }"></image></div>
           <div class="iv-pill"><text class="iv-pill-t">{{ viewer.text }}</text></div>
-          <div class="iv-btn" @click="ivZoomIn"><image :src="MI.plus" :style="{ width: '32px', height: '32px' }"></image></div>
+          <div class="iv-btn" @click="ivZoomIn"><image :src="MIc.plus" :style="{ width: '32px', height: '32px' }"></image></div>
           <div class="iv-sep"></div>
           <div class="iv-btn iv-btn-wide" @click="ivFit"><text class="iv-btn-t">复位</text></div>
           <text v-if="viewer.sizeText !== ''" class="iv-size">{{ viewer.sizeText }}</text>
@@ -184,6 +186,9 @@
 import { getDynamicFeed, getDynamicSpace, likeDynamic, GRID_COLS, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { log } from '../../services/log.js'
+import { prepareFeedCards } from '../../services/feed-layout.js'
+import { scrollTopMixin } from '../../services/scroll-top.js'
+import BackTop from '../../components/back-top.vue'
 import { tokens } from '../../services/theme.js'
 import { bigUrl, viewUrl, clampScale, clampPan, imgStyle as makeImgStyle, VIEW_W, VIEW_H } from '../../services/imageview.js'
 
@@ -256,6 +261,11 @@ function bumpCount(text, add) {
 
 export default {
   name: 'feed',
+  components: { BackTop },
+  mixins: [scrollTopMixin],
+  props: { spaceMid: { type: String, default: '' }, spaceName: { type: String, default: '' }, embedded: { type: Boolean, default: false }, paneWidth: { type: Number, default: 960 }, paneHeight: { type: Number, default: 266 } },
+  mounted() { if (this.embedded) this['onShow']() },
+  beforeDestroy() { this['onUnload']() },
   data() {
     return {
       // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
@@ -282,7 +292,7 @@ export default {
   computed: {
     // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
     MIc() { return this.T && this.T.dark ? MI : MI_D },
-    MI() { return MI },
+    MI() { return this.MIc },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
     // 分类筛选: 全部 / 投稿 / 番剧 / 专栏 (都走服务端 type)
@@ -298,10 +308,13 @@ export default {
   },
   methods: {
     // 生命周期: BasePage 只把 onShow/onHide/onUnload 转发给页面根组件
+    onUnload() { this.generation++; this.loading = false; this.viewer.on = false },
+    onHide() { this.generation++; this.loading = false },
     onShow() {
-      const opts = (this.$page && this.$page.options) ? this.$page.options : null
+      this.T = tokens()
+      const opts = this.embedded ? { mid: this.spaceMid, name: this.spaceName } : ((this.$page && this.$page.options) ? this.$page.options : null)
       try { log('动态页', 'onShow 到达 started=' + (this._started === true) + ' mid=' + String((opts || {}).mid || '')) } catch (e0) {}
-      if (this.$page && !this._newOptionsBound) {
+      if (!this.embedded && this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
         const self = this
         this.$page.onNewOptions = function (o) { self.begin(o) }
@@ -314,7 +327,7 @@ export default {
     },
     // 两种入口: 不带 mid = 关注动态流; 带 options.mid = 该 UP 的空间动态 (UP 主页「TA 的动态」)
     begin(options) {
-      const o = options || (this.$page ? this.$page.options : null) || {}
+      const o = options || (this.embedded ? { mid: this.spaceMid, name: this.spaceName } : (this.$page ? this.$page.options : null)) || {}
       const mid = String(o.mid || '')
       this.mid = mid
       this.upName = String(o.name || '')
@@ -327,7 +340,7 @@ export default {
       this.loading = false
       this.status = '加载中…'
       try { log('动态页', 'begin mid=' + mid + ' name=' + this.upName) } catch (e0) {}
-      this.load(true, true)
+      this.load(true, false)
     },
     // 接口偶发不返回(实测有 1 分钟不 resolve 的情况) -> 给用户一个明确的重试入口
     retry() { this.generation++; this.loading = false; this.status = '加载中…'; this.load(true, true) },
@@ -364,6 +377,7 @@ export default {
     },
     // ---------- 下拉刷新 (与首页同款: 靠滚动偏移判定, 不信被框架节流合并的 touchmove) ----------
     onScroll(e) {
+      this.trackTop(e, 'feedTop')
       try { const co = e && e.contentOffset; this._scrollY = co && typeof co.y === 'number' ? co.y : (this._scrollY || 0) } catch (err) {}
     },
     ptXY(e) {
@@ -421,15 +435,11 @@ export default {
           watchdog
         ])
         if (gen !== this.generation) return
-        const add = r.items || []
-        for (let i = 0; i < add.length; i++) {
-          // 列数取共享常量 (曾经硬编码 3, 与 GRID_CELL=200 不匹配 -> 3 列只占 618px)
-          add[i].rows = chunk(add[i].pics || [], GRID_COLS)
-          if (add[i].orig) add[i].orig.rows = chunk(add[i].orig.pics || [], GRID_COLS)
-          add[i].expanded = false
-        }
-        if (reset) this.items = []
-        for (let i = 0; i < add.length; i++) this.items.push(add[i])
+        const add = prepareFeedCards(r.items || [], this.paneWidth, GRID_COLS)
+        if (reset) { this.items = []; this.topShown = false }
+        const seen = {}
+        for (let i = 0; i < this.items.length; i++) seen[this.items[i].id] = true
+        for (let i = 0; i < add.length; i++) { if (!seen[add[i].id]) { this.items.push(add[i]); seen[add[i].id] = true } }
         this.offset = r.offset || ''
         this.hasMore = !!r.hasMore
         this._catPulls = 0
@@ -735,14 +745,14 @@ export default {
 </script>
 
 <style scoped>
-.fpage { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; }
+.fpage { position: relative; left: 0px; top: 0px; width: 960px; height: 266px; background-color: #000000; }
 .ftop { position: absolute; left: 0px; top: 0px; width: 960px; height: 44px; flex-direction: row; align-items: center; background-color: #0b0b0d; }
-.fback { padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center; }
+.fback { width: 124px; padding-left: 16px; padding-right: 14px; height: 40px; flex-direction: row; align-items: center; justify-content: center; }
 .fback-ic { margin-right: 4px; }
 .fback-t { font-size: 21px; color: #cfd5de; }
 .ftitle { font-size: 19px; color: #e6eaf0; margin-right: 16px; }
 .cats { flex-direction: row; flex: 1; }
-.cat { padding-left: 12px; padding-right: 12px; height: 28px; border-radius: 6px; margin-right: 8px; background-color: #141416; justify-content: center; }
+.cat { width: 92px; padding-left: 12px; padding-right: 12px; height: 40px; border-radius: 6px; margin-right: 8px; background-color: #141416; justify-content: center; }
 .cat-on { background-color: #fb7299; }
 .cat-t { font-size: 17px; color: #aab2bd; }
 .cat-t-on { color: #ffffff; }
@@ -753,7 +763,7 @@ export default {
 .fwrap { padding-left: 20px; padding-right: 20px; padding-bottom: 12px; }
 .status { font-size: 17px; color: #8a93a0; text-align: center; padding-top: 14px; padding-bottom: 6px; }
 .dyn { width: 920px; margin-top: 10px; padding-left: 12px; padding-right: 12px; padding-top: 10px; padding-bottom: 10px; background-color: #0b0b0d; border-radius: 12px; }
-.dhead { flex-direction: row; align-items: center; }
+.dhead { width: 100%; height: 44px; flex-direction: row; align-items: center; }
 /* 头像 + 右下角头像框: 用相对定位包一层 (Falcon 支持 position: relative/absolute) */
 .dface-wrap { position: relative; width: 40px; height: 40px; margin-right: 10px; }
 .dface { width: 40px; height: 40px; border-radius: 20px; background-color: #141416; }
@@ -768,18 +778,18 @@ export default {
 .dtime { font-size: 15px; color: #7c8592; margin-left: 10px; }
 .dbadge { font-size: 15px; color: #ffffff; background-color: #fb7299; padding-left: 8px; padding-right: 8px; padding-top: 2px; padding-bottom: 2px; border-radius: 6px; margin-left: 10px; }
 /* 正文命中区: 事件挂在这个 div 上 (richtext 上的 @click 本机不触发) */
-.dtext-hit { width: 920px; min-height: 30px; margin-top: 4px; }
+.dtext-hit { width: 100%; min-height: 30px; margin-top: 4px; }
 .dtext { font-size: 19px; color: #dfe4ea; lines: 3; }
 .dtext-open { lines: 99; }
 .dhl { color: #3ca5ec; }
-.dmore { flex-direction: row; align-items: center; padding-top: 6px; padding-bottom: 6px; }
+.dmore { width: 144px; height: 40px; flex-direction: row; align-items: center; padding-top: 6px; padding-bottom: 6px; }
 .dmore-ic { margin-left: 2px; }
 .dmore-t { font-size: 16px; color: #3ca5ec; }
 .pics { margin-top: 6px; }
 .pic-row { flex-direction: row; }
 .pic-box { margin-right: 6px; margin-bottom: 6px; border-radius: 8px; background-color: #141416; }
 .pic-img { border-radius: 8px; }
-.vcard { flex-direction: row; margin-top: 6px; padding: 8px; background-color: #141416; border-radius: 8px; }
+.vcard { width: 100%; height: 118px; flex-direction: row; margin-top: 6px; padding: 8px; background-color: #141416; border-radius: 8px; }
 .vcover { width: 160px; height: 100px; border-radius: 6px; margin-right: 10px; }
 .vmeta { flex: 1; }
 .vtitle { font-size: 18px; color: #ffffff; lines: 2; }
@@ -796,7 +806,7 @@ export default {
 .olabel { font-size: 17px; color: #3ca5ec; }
 .dfoot { flex-direction: row; align-items: center; margin-top: 8px; }
 /* 点赞/评论/转发: 有尺寸的命中区 (事件必须挂在 div 上, text 上的 @click 本机不触发) */
-.dfoot-btn { flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; border-radius: 17px; background-color: #141416; margin-right: 10px; }
+.dfoot-btn { width: 112px; flex-direction: row; align-items: center; height: 34px; padding-left: 12px; padding-right: 14px; border-radius: 17px; background-color: #141416; margin-right: 10px; }
 .dfoot-static { background-color: #1f2329; }
 .dfoot-on { background-color: #3a2733; }
 .dfoot-ic { margin-right: 6px; }
@@ -810,7 +820,7 @@ export default {
 .iview-img { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; }
 .iv-mask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; justify-content: center; align-items: center; }
 .iv-mask-t { font-size: 19px; color: #e6eaf0; background-color: rgba(0,0,0,0.62); padding-left: 20px; padding-right: 20px; padding-top: 8px; padding-bottom: 8px; border-radius: 18px; }
-.iv-back { position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 14px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
+.iv-back { width: 132px; position: absolute; left: 14px; top: 12px; height: 40px; padding-left: 14px; padding-right: 20px; border-radius: 20px; background-color: rgba(0,0,0,0.62); flex-direction: row; justify-content: center; align-items: center; }
 .iv-back-ic { margin-right: 4px; }
 .iv-back-t { font-size: 19px; color: #ffffff; }
 .iv-hint { position: absolute; left: 0px; bottom: 68px; width: 960px; flex-direction: column; align-items: center; }
@@ -826,4 +836,5 @@ export default {
 .iv-size { font-size: 16px; color: rgba(255,255,255,0.72); margin-left: 4px; }
 .fpull { position: absolute; left: 0px; top: 46px; width: 960px; height: 22px; flex-direction: row; justify-content: center; align-items: center; }
 .fpull-t { font-size: 16px; color: #fb7299; }
+.feed-anchor { width: 1px; height: 1px; }
 </style>

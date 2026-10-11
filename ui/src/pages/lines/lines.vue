@@ -13,7 +13,8 @@
       <text v-if="hint !== ''" class="hint" :style="T.t.label">{{ hint }}</text>
     </div>
 
-    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true">
+    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onReturnScroll($event, 'returnTop0')">
+      <div ref="returnTop0" class="return-anchor"></div>
       <text class="sec" :style="T.t.label">取流口</text>
       <div class="chips">
         <div v-for="s in sources" :key="s[0]" class="chip"
@@ -45,10 +46,13 @@
 
       <text class="foot" :style="T.t.tiny">{{ footNote }}</text>
     </scroller>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 // 播放线路页 —— 参考 Starfallan/PiliNara 的「CDN 设置」重做, 按本机约束落地:
 //
 //   它的做法是"候选 CDN host 单选 + 对真实视频流做限时下载取吞吐". 我们这边:
@@ -87,6 +91,8 @@ const MI_D = {
 const SAMPLE_BVID = 'BV1fK4y1t7hj'
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'lines',
   data() {
     return {
@@ -110,6 +116,7 @@ export default {
     }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target) },
     onShow() { this.cfg = loadConfig(); this.T = tokens() },
     onUnload() { this.runId++ },   // 停掉在途测速的回写
 
@@ -247,4 +254,5 @@ export default {
          flex-direction: row; align-items: center; }
 .cbt { }
 .foot { width: 100%; text-align: center; margin-top: 10px; margin-bottom: 20px; }
+.return-anchor { width: 1px; height: 1px; }
 </style>

@@ -29,6 +29,7 @@
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreRecommend"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
+        <div ref="top_recommend" class="top-anchor"></div>
         <div v-for="item in recResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
@@ -54,6 +55,7 @@
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreHot"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
+        <div ref="top_hot" class="top-anchor"></div>
         <div v-for="item in hotResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
@@ -92,6 +94,7 @@
       <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreSearch"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
+        <div ref="top_search" class="top-anchor"></div>
         <!-- 搜索历史: 未出结果时显示, 点词直接搜 -->
         <div v-if="!searched" class="his-wrap">
           <div class="his-head">
@@ -144,59 +147,26 @@
       </scroller>
     </div>
 
-    <!-- 动态 (视频 + 图文) -->
+    <!-- The complete feed is shared with UP-space and the standalone route. -->
     <div v-else-if="activeTab === 'dynamic'" class="tabbody">
-      <text v-if="pullHint !== ''" class="status status-pull status-center" :style="T.t.accentSm">{{ pullHint }}</text>
-
-      <text v-else-if="dynLoading" class="status status-center" :style="T.t.titleVar">{{ '加载中' + dots }}</text>
-      <text v-else-if="dynStatus !== ''" class="status status-center" :style="T.t.titleVar">{{ dynStatus }}</text>
-      <div v-if="dynStatus !== '' && dynStatus.indexOf('未登录') >= 0" class="login-cta" :style="T.accentR" @click="openLogin">
-        <text class="login-cta-text" :style="T.t.onAccentTitle">去登录</text>
-      </div>
-      <!-- 分类筛选 (M3 filter chip): 全类型动态就在这里看 —— 「动态」tab 与独立动态页合并,
-           不再有"分类浏览"这一跳. feed 页只留给 UP 空间动态 (mid 模式) 用. -->
-      <div class="dyncats">
-        <div v-for="(c, ci) in DY_CATS" :key="'dc' + ci" class="dcat"
-             :style="{ backgroundColor: dynCat === c.k ? T.c.primaryContainer : T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"
-             @click="setDynCat(c.k)">
-          <text class="dcat-t"
-                :style="{ color: dynCat === c.k ? T.c.onPrimaryContainer : T.c.onSurfaceVariant, fontSize: T.fs.label }">{{ c.n }}</text>
-        </div>
-      </div>
-      <scroller v-if="dynStatus === '' || dynItems.length > 0" class="list"
-                scroll-direction="vertical" :show-scrollbar="true"
-                :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreDynamic"
-                @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
-        <div v-for="(item, i) in dynItems" :key="item.bvid || ('draw' + i)" class="item" :style="T.cardR"
-             @click="openDynItem(item)">
-          <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
-          <div class="meta">
-            <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-            <div class="uphit" @click="openUpItem(item)">
-              <text class="up" :style="T.t.accentSub">{{ item.author }} · {{ item.pubText }}</text>
-            </div>
-            <div class="statrow">
-              <image v-if="item.type !== 'draw'" class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
-              <text v-if="showStat || item.type === 'draw'" class="stat" :style="T.t.subtitleVar">{{ item.type === 'draw' ? ('图文 · ' + item.duration) : (item.playText + '  ' + item.duration) }}</text>
-            </div>
-          </div>
-        </div>
-        <text v-if="dynHasMore" class="loadmore" :style="T.t.accentSub" @click="loadMoreDynamic">上滑加载更多…</text>
-        <text v-if="dynLoaded && dynItems.length === 0" class="empty" :style="T.t.empty">关注的 UP 主暂无动态</text>
-      </scroller>
+      <DynamicFeed ref="dynamicFeed" :embedded="true" :pane-width="T.navPos === 'left' ? 872 : 960" :pane-height="T.navPos === 'left' ? 266 : 222" />
     </div>
 
     <!-- 我的 (内容高于可视区, 必须用 scroller 才能上下滑动) -->
     <div v-else-if="activeTab === 'mine'" class="tabbody">
       <scroller class="mine-scroll" scroll-direction="vertical" :show-scrollbar="true"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
+        <div ref="top_mine" class="top-anchor"></div>
         <div class="mine-inner">
-          <image v-if="myInfo.isLogin && myInfo.face" class="myface" :src="myInfo.face" resize="cover"></image>
-          <div v-else-if="myInfo.isLogin" class="myface-ph" :style="T.accentBg">
-            <text class="myface-txt" :style="{ color: T.c.onPrimary }">{{ myInfo.uname ? myInfo.uname.charAt(0) : '?' }}</text>
+          <div class="mine-head" :style="T.cardR">
+            <image v-if="myInfo.isLogin && myInfo.face" class="myface" :src="myInfo.face" resize="cover"></image>
+            <div v-else class="myface-ph" :style="T.accentR"><text class="myface-txt" :style="T.t.onAccent">{{ myInfo.uname ? myInfo.uname.charAt(0) : '访' }}</text></div>
+            <div class="mine-identity">
+              <text class="mine-name" :style="T.t.title">{{ myInfo.isLogin ? myInfo.uname : '访客' }}</text>
+              <text :style="T.t.caption">{{ myInfo.isLogin ? ('UID ' + myInfo.mid) : '登录后同步关注、收藏与消息' }}</text>
+            </div>
+            <div class="mine-settings" :style="T.actionR" @click="openSettings"><text :style="T.t.body">设置</text></div>
           </div>
-          <text v-if="myInfo.isLogin" class="ph-title" :style="T.t.title">{{ myInfo.uname }}</text>
-          <text v-if="myInfo.isLogin" class="ph-desc" :style="T.t.titleVar">UID {{ myInfo.mid }}</text>
           <!-- 等级 / 硬币 / B币: 三列统计, 数值在上标签在下 -->
           <div v-if="myInfo.isLogin" class="stat-row">
             <div class="stat-cell">
@@ -231,9 +201,10 @@
           <div v-if="!myInfo.isLogin && myLoaded" class="login-cta" :style="T.accentR" @click="openLogin">
             <text class="login-cta-text" :style="T.t.onAccentTitle">扫码登录 / Cookie 导入</text>
           </div>
-          <!-- 设置入口 -->
-          <div class="login-cta" :style="T.accentR" @click="openSettings">
-            <text class="login-cta-text" :style="T.t.onAccentTitle">设置</text>
+          <div class="entry-row">
+            <div class="entry-btn" :style="T.actionR" @click="openListPage('live')"><text :style="T.t.body">直播</text></div>
+            <div class="entry-btn" :style="T.actionR" @click="openListPage('msg')"><text :style="T.t.body">消息中心</text></div>
+            <div class="entry-btn" :style="T.actionR" @click="openListPage('lines')"><text :style="T.t.body">播放线路</text></div>
           </div>
           <!-- 「动态」入口已移除 (用户要求): 全类型动态统一在底部「动态」tab 里看,
                这里再放一个入口既重复又占位置.
@@ -247,22 +218,17 @@
       </scroller>
     </div>
     </div>
+    <BackTop :visible="topShown && activeTab !== 'dynamic'" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import DynamicFeed from '../feed/feed.vue'
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 import { createIME } from '../../services/ime.js'
-import { searchVideos, getPopular, getRecommend, getDynamicFeed, getMyInfo , parseMessage, getHotSearch, getSearchTrending } from '../../services/bili.js'
+import { searchVideos, getPopular, getRecommend, getMyInfo , parseMessage, getHotSearch, getSearchTrending } from '../../services/bili.js'
 
-// 动态分类 (与 feed 页共用同一套接口语义): 键 -> 接口的 type 参数.
-// 原样搬过来, 合并后只有一个真源 —— 两边各写一份必然漂移.
-const DY_CATS = [
-  { k: 'all', n: '全部' },
-  { k: 'av', n: '投稿' },
-  { k: 'pgc', n: '番剧' },
-  { k: 'opus', n: '专栏' }
-]
-const DY_CAT_TYPE = { all: 'all', av: 'video', pgc: 'pgc', opus: 'article' }
 import { afterPaint } from '../../base-page.js'
 import { hasCookie, saveProfile } from '../../services/auth.js'
 import { log, logStatus } from '../../services/log.js'
@@ -298,9 +264,11 @@ const MI_D = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P37-native-context'
+const BUILD_TAG = 'P38-five-features'
 export default {
   name: 'index',
+  components: { DynamicFeed, BackTop },
+  mixins: [scrollTopMixin],
   data() {
     return {
       // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
@@ -354,7 +322,7 @@ export default {
       // 动态
       dynItems: [],
       dynCat: 'all',       // 当前动态分类
-      DY_CATS: DY_CATS,    // 模板要用, 挂到实例上
+      DY_CATS: [],    // 模板要用, 挂到实例上
       dynStatus: '',
       dynOffset: '',
       dynHasMore: false,
@@ -440,6 +408,8 @@ export default {
     },
 
     switchTab(key) {
+      this.topShown = false
+      this._scrollY = 0
       this.activeTab = key
       if (key === 'recommend' && !this.recLoaded && !this.recLoading) {
         this.loadRecommend()
@@ -452,9 +422,7 @@ export default {
         try { this.history = getSearchHistory(12) } catch (e) { this.history = [] }
         this.loadDiscover()
       }
-      if (key === 'dynamic' && !this.dynLoaded && !this.dynLoading) {
-        this.loadDynamic('')
-      }
+
       if (key === 'mine' && !this.myLoaded && !this.myLoading) {
         this.loadMine()
       }
@@ -473,6 +441,7 @@ export default {
     // 超过 50px 松手触发刷新. 滚动位置经 @scroll 记入非响应式实例字段,
     // 避免 mvvm 重绘 (scrollEventInterval 提醒).
     onListScroll(e) {
+      this.trackTop(e, 'top_' + this.activeTab)
       try {
         const co = e && e.contentOffset
         const y = co && typeof co.y === 'number' ? co.y : (this._scrollY || 0)
@@ -649,60 +618,10 @@ export default {
       this.loadHot(true)
     },
 
-    // ================= 动态 (视频 + 图文, 需登录) =================
-    async loadDynamic(offset) {
-      const gen = ++this.dynGeneration
-      if (this.dynLoading) return
-      this.dynLoading = true
-      this.dynStatus = '加载中…'
-      afterPaint(async () => {
-        try {
-          const r = await getDynamicFeed(offset, DY_CAT_TYPE[this.dynCat] || 'all')
-          if (gen !== this.dynGeneration) return
-          if (offset) {
-            for (let i = 0; i < r.items.length; i++) this.dynItems.push(r.items[i])
-          } else {
-            this.dynItems = r.items
-          }
-          this.dynOffset = r.offset
-          this.dynHasMore = r.hasMore
-          this._scrollY = 0   // 刷新/重载后列表回到顶部, 下拉刷新才能再次触发
-          this.dynLoaded = true
-          this.dynStatus = r.items.length === 0 && !offset
-            ? (this.dynCat === 'all' ? '暂无动态, 去关注一些 UP 主吧' : '这个分类下暂时没有内容')
-            : ''
-        } catch (err) {
-          if (gen !== this.dynGeneration) return
-          const msg = err && err.message ? err.message : String(err)
-          console.log('[bili] dynamic error: ' + msg)
-          if (msg.indexOf('未登录') >= 0) {
-            this.dynStatus = '未登录, 登录后可查看关注 UP 主的动态'
-          } else {
-            this.dynStatus = msg
-          }
-          if (!offset) this.dynItems = []
-          this.dynLoaded = true
-        } finally {
-          if (gen === this.dynGeneration) this.dynLoading = false
-        }
-      })
+    loadDynamic() {
+      const feed = this.$refs && this.$refs.dynamicFeed
+      if (feed) feed.load(true, true)
     },
-    // 切换动态分类: 清 offset 重新拉, 列表回到顶部
-    setDynCat(k) {
-      if (this.dynCat === k) return
-      this.dynCat = k
-      this.dynOffset = ''
-      this.dynHasMore = false
-      this.dynItems = []
-      this._scrollY = 0
-      try { log('动态', '分类 -> ' + k) } catch (e) {}
-      this.loadDynamic('')
-    },
-    loadMoreDynamic() {
-      if (this.dynLoading || !this.dynHasMore) return
-      this.loadDynamic(this.dynOffset)
-    },
-
     // ================= 我的: 登录态 + 账号信息 =================
     async loadMine() {
       const gen = ++this.myGeneration
@@ -878,6 +797,8 @@ export default {
 
     // 页面生命周期 (由 base-page.js 代理调用)
     onShow() {
+      const feed = this.$refs && this.$refs.dynamicFeed
+      if (feed) feed.onShow()
       // 主题相关设置可能在设置页被改过: 比对版本号, 变了才重算 (tokens() 只是查表)
       const rev = themeRev()
       if (this._themeRev !== rev) { this._themeRev = rev; this.T = tokens() }
@@ -894,9 +815,13 @@ export default {
     },
 
     onHide() {
+      const feed = this.$refs && this.$refs.dynamicFeed
+      if (feed) feed.onHide()
       // 输入法弹出可能触发 onHide, 不能在这里销毁 IME 会话
     },
     onUnload() {
+      const feed = this.$refs && this.$refs.dynamicFeed
+      if (feed) feed.onUnload()
       this.generation++
       this.recGeneration++
       this.hotGeneration++
@@ -915,6 +840,7 @@ export default {
    ★ 根容器与导航栏的类名必须分开 (pg-* / nav-*): 同名的话后一条规则会同时命中两个元素,
      实测会把页面本身压成 88px 宽. */
 .page {
+  position: relative;
   width: 960px;
   height: 266px;
   display: flex;
@@ -1274,4 +1200,9 @@ export default {
 .dynbar-ic { margin-left: 6px; }
 .search-clear { width: 56px; flex-direction: row; justify-content: center; align-items: center; }
 .search-clear-t { font-size: 17px; color: #9aa0a6; }
+.top-anchor { width: 1px; height: 1px; }
+.mine-head { width: 100%; height: 96px; flex-direction: row; align-items: center; padding-left: 20px; padding-right: 20px; }
+.mine-identity { flex: 1; flex-direction: column; margin-left: 18px; }
+.mine-name { font-size: 26px; margin-bottom: 8px; }
+.mine-settings { width: 100px; height: 44px; justify-content: center; align-items: center; }
 </style>

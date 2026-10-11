@@ -5,16 +5,19 @@
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
-      <text class="header-title" :style="{ color: T.c.onSurface, color: T.c.onSurface }">UP主主页</text>
+      <text class="header-title" :style="T.t.title">{{ name || 'UP主主页' }}</text>
+      <div class="up-nav" :style="upTab === 'videos' ? T.accentR : T.actionR" @click="setUpTab('videos')"><text :style="upTab === 'videos' ? T.t.onAccent : T.t.body">投稿</text></div>
+      <div class="up-nav" :style="upTab === 'dynamic' ? T.accentR : T.actionR" @click="setUpTab('dynamic')"><text :style="upTab === 'dynamic' ? T.t.onAccent : T.t.body">动态</text></div>
     </div>
 
     <!-- UP 信息栏内嵌为列表首项: 往上滑自然滚出, 滑回顶部自然恢复, 无事件依赖 -->
-    <scroller class="results" scroll-direction="vertical" :show-scrollbar="true"
-              :loadmoreoffset="100" @loadmore="loadMoreVideos" @scroll="onListScroll"
+    <scroller v-if="upTab === 'videos'" class="results" scroll-direction="vertical" :show-scrollbar="true"
+              :loadmoreoffset="100" @loadmore="loadMoreVideos" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+      <div ref="returnTop0" class="return-anchor"></div>
       <text v-if="upStatus !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ upStatus }}{{ dots }}</text>
 
-      <div class="info-row" v-if="info">
+      <div class="info-row" v-if="info" :style="T.cardR">
         <!-- 头像框: 官方 App 在头像右下角挂装饰 (acc/info 的 pendant) -->
         <div class="face-wrap">
           <image class="face" :src="info.face" resize="cover"></image>
@@ -43,7 +46,7 @@
         <div class="meta2">
           <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
           <div class="statrow">
-            <image class="stat-ic" :src="MI.play" :style="{ width: '16px', height: '16px' }"></image>
+            <image class="stat-ic" :src="MIc.play" :style="{ width: '16px', height: '16px' }"></image>
             <text class="stat">{{ item.playText }}  {{ item.duration }}</text>
           </div>
         </div>
@@ -51,13 +54,18 @@
       <text v-if="videos.length > 0 && videosHasMore" class="empty" @click="loadMoreVideos">上滑加载更多…</text>
       <text v-if="videosStatus !== ''" class="empty">{{ videosStatus }}</text>
     </scroller>
+    <DynamicFeed v-if="upTab === 'dynamic' && mid" ref="upFeed" :embedded="true" :space-mid="String(mid)" :space-name="name" :pane-width="960" :pane-height="218" class="up-dynamic" />
+    <BackTop :visible="topShown && upTab === 'videos'" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 import { getUpInfo, getUpFans, getUpVideos , parseMessage, badgeKind, badgeLabel } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
+import DynamicFeed from '../feed/feed.vue'
 import { tokens } from '../../services/theme.js'
 
 // 进入动画 340ms 画完再发首条请求 (同步 http 阻塞 JS 会卡进入动画)
@@ -77,6 +85,8 @@ const MI_D = {
 }
 
 export default {
+  components: { BackTop, DynamicFeed },
+  mixins: [scrollTopMixin],
   name: 'up',
   data() {
     return {
@@ -94,6 +104,8 @@ export default {
       dots: '',        // 「加载中…」后面的动画点 (与 fav/history/toview 同款; 之前漏声明, startDots 一跑就踩空)
       videosStatus: '',
       generation: 0,
+      upTab: 'videos',
+      videosLoading: false,
       entering: true   // 页面进入动画
     }
   },
@@ -108,6 +120,7 @@ export default {
     },
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target); this.onListScroll(e) },
     startDots() {
       if (this._dotTimer) return
       const self = this
@@ -147,7 +160,11 @@ export default {
       this.load()
     },
 
+    setUpTab(tab) { this.upTab = tab; this.topShown = false },
+    onHide() { const f = this.$refs && this.$refs.upFeed; if (f) f.onHide() },
     onShow() {
+      this.T = tokens()
+      const f = this.$refs && this.$refs.upFeed; if (f) f.onShow()
       // 同页 navTo 的 onNewOptions 只发到 Page 实例, 需显式挂钩
       if (this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
@@ -220,21 +237,23 @@ export default {
 
     // 投稿列表无限滑动
     loadMoreVideos() {
-      if (!this.videosHasMore || this.videos.length === 0) return
+      if (this.videosLoading || !this.videosHasMore || this.videos.length === 0) return
+      this.videosLoading = true
       const gen = this.generation
-      this.videosPage++
-      getUpVideos(this.mid, this.videosPage).then((videos) => {
+      const nextPage = this.videosPage + 1
+      getUpVideos(this.mid, nextPage).then((videos) => {
         if (gen !== this.generation) return
         const seen = {}
         for (let i = 0; i < this.videos.length; i++) seen[this.videos[i].bvid] = true
         for (let i = 0; i < videos.length; i++) {
           if (!seen[videos[i].bvid]) this.videos.push(videos[i])
         }
+        this.videosPage = nextPage
         this.videosHasMore = videos.length >= 20
       }).catch(() => {
         if (gen !== this.generation) return
-        this.videosHasMore = false
-      })
+        this.videosStatus = '加载失败，下次滑动重试'
+      }).finally(() => { if (gen === this.generation) this.videosLoading = false })
     },
 
     // ---------- 下拉刷新 (与 index 同款 touch 方案) ----------
@@ -286,13 +305,14 @@ export default {
     badgeCls() { const i = this.info || {}; return badgeKind(i.officialType, i.officialRole) === 'org' ? 'verify-org' : 'verify-per' },
     openDynFeed() {
       if (!this.mid) return
-      try { $falcon.navTo('feed', { mid: String(this.mid), name: this.name }) } catch (e) { this.upStatus = '打开动态失败' }
+      this.setUpTab('dynamic')
     },
     goBack() {
       this.$page.finish()
     },
 
     onUnload() {
+      const f = this.$refs && this.$refs.upFeed; if (f) f.onUnload()
       this.generation++
       this.stopDots()   // 加载中点动画用全局 setInterval, 页面销毁必须自己清
     }
@@ -335,7 +355,7 @@ export default {
   font-size: 22px;
   color: #ffffff;
 }
-.header-title {
+.header-title { flex: 1;
   font-size: 24px;
   color: #ffffff;
   margin-left: 24px;
@@ -449,4 +469,7 @@ export default {
 .statrow { flex-direction: row; align-items: center; margin-left: 28px; margin-top: 8px; }
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; }
+.return-anchor { width: 1px; height: 1px; }
+.up-nav { width: 108px; height: 40px; margin-right: 12px; justify-content: center; align-items: center; }
+.up-dynamic { position: absolute; left: 0px; top: 48px; }
 </style>

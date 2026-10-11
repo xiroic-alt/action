@@ -65,6 +65,10 @@ jobs:
           node tools/validate.mjs
           node tools/check-ui.mjs
           node tools/check-native-lifecycle.mjs
+          node tools/check-request-gate.mjs
+          node tools/check-feed-scroll.mjs
+          node tools/check-live.mjs
+          node tools/check-messages.mjs
 
       - name: Install aarch64 cross toolchain
         run: |

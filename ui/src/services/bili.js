@@ -12,6 +12,7 @@ import * as auth from './auth.js'
 import { log, logError, logDebug } from './log.js'
 import { getCfg } from './config.js'
 import { applyHost, currentHost } from './lines.js'
+import { createRequestGate, createResultCache } from './request-gate.js'
 
 // 网络默认超时来自设置 (设置页「请求超时」), 显式传 timeoutSec 的调用不受影响
 function defTimeout() {
@@ -25,8 +26,7 @@ function hasHttp() {
 
 // 同步原生 GET -> JSON body; 服务器返回什么就透传什么, 业务 code 由调用方判断.
 // 登录态存在时自动携带 Cookie 头 (动态/评论/用户信息等登录接口依赖).
-function getJson(url, timeoutSec) {
-  const headers = auth.hasCookie() ? [auth.cookieHeader()] : undefined
+function getJson(url, timeoutSec, headers) {
   const s = headers
     ? bilinet.httpGet(url, timeoutSec || 15, headers)
     : bilinet.httpGet(url, timeoutSec || 15)
@@ -67,10 +67,18 @@ function hasHttpAsync() {
   return !!(bilinet && typeof bilinet.httpGetAsync === 'function')
 }
 
-async function getJsonAsync(url, timeoutSec) {
-  if (!hasHttpAsync()) return getJson(url, timeoutSec)
-  const headers = auth.hasCookie() ? [auth.cookieHeader()] : undefined
+function getJsonAsync(url, timeoutSec, fresh) {
+  const cookie = auth.hasCookie() ? auth.cookieHeader() : ''
+  const headers = cookie ? [cookie] : undefined
   const to = timeoutSec || defTimeout()
+  const scope = requestScope(cookie)
+  return requestGate.run({ method: 'GET', url: url, scope: scope, timeoutSec: to, fresh: fresh }, function () {
+    if (!hasHttpAsync()) return getJson(url, to, headers)
+    return readJsonAsync(url, to, headers)
+  })
+}
+
+async function readJsonAsync(url, to, headers) {
   const s = headers
     ? await bilinet.httpGetAsync(url, to, headers)
     : await bilinet.httpGetAsync(url, to)
@@ -103,14 +111,38 @@ async function postJsonAsync(url, data, timeoutSec) {
 
 
 // 结果缓存 (减少重复请求 = 直接降低风控触发率)
-const resultCache = {} // key -> { at, data }
-function cacheGet(key, ttlMs) {
-  const c = resultCache[key]
-  if (c && Date.now() - c.at < ttlMs) return c.data
-  return null
+const requestGate = createRequestGate()
+const wbiGate = createRequestGate()
+const resultCache = createResultCache(64)
+let scopeCookie = ''
+let scopeId = 0
+let cacheOrder = 0
+
+function requestScope(cookie) {
+  if (cookie !== scopeCookie) {
+    scopeCookie = cookie
+    scopeId++
+    resultCache.clear()
+  }
+  return scopeId
 }
-function cacheSet(key, data) {
-  resultCache[key] = { at: Date.now(), data: data }
+
+function currentScope() {
+  return requestScope(auth.hasCookie() ? auth.cookieHeader() : '')
+}
+
+// Capture before awaiting: late responses retain their original account scope.
+function cacheKey(key) {
+  return { key: key, scope: currentScope(), order: ++cacheOrder }
+}
+
+function cacheGet(ticket, ttlMs) {
+  if (ticket.scope !== currentScope()) return null
+  return resultCache.get(ticket.key, ttlMs)
+}
+function cacheSet(ticket, data) {
+  if (ticket.scope !== currentScope()) return
+  resultCache.set(ticket.key, data, ticket.order)
 }
 
 // ================= wbi 签名 (与官方文档 misc/sign/wbi.md 一致) =================
@@ -120,6 +152,7 @@ const WBI_MIXIN_TAB = [46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 
   36, 20, 34, 44, 52]
 let wbiKeys = null
 let wbiKeysAt = 0
+let wbiKeysScope = -1
 
 // ---- 纯 JS MD5 (QuickJS 20200705 无字符串 hash; 固件 crypto 只有 hashFile) ----
 function md5Utf8(str) {
@@ -146,71 +179,71 @@ function md5Utf8(str) {
     w.push(bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16) | (bytes[i + 3] << 24))
   }
 
-  function add(x, y) {
-    const l = (x & 0xffff) + (y & 0xffff)
-    return (((x >> 16) + (y >> 16) + (l >> 16)) << 16) | (l & 0xffff)
-  }
-  function rol(n, s) { return (n << s) | (n >>> (32 - s)) }
-  function F(x, y, z) { return (x & y) | (~x & z) }
-  function G(x, y, z) { return (x & z) | (y & ~z) }
-  function H(x, y, z) { return x ^ y ^ z }
-  function I(x, y, z) { return y ^ (x | ~z) }
-  function step(fn, a, b, c, d, x, s, t) { return add(rol(add(add(a, fn(b, c, d)), add(x, t)), s), b) }
-
-  const T = []
-  for (let i = 1; i <= 64; i++) T.push(Math.floor(Math.abs(Math.sin(i)) * 4294967296))
-  const S = [7, 12, 17, 22, 5, 9, 14, 20, 4, 11, 16, 23, 6, 10, 15, 21]
-  const FN = [F, G, H, I]
+  // 标准 MD5 轮函数 (RFC 1321). 旧实现用的紧凑变体在本机产出的 digest 与参考实现不一致
+  // (wbi 签名是拿 md5 结果做校验的, 差一位就被服务端判签名错误), 这里回到逐轮 A/B/C/D 轮转写法.
+  const S = [7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+    5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+    4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+    6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21]
+  const K = []
+  for (let i = 0; i < 64; i++) K.push(Math.floor(Math.abs(Math.sin(i + 1)) * 4294967296))
+  function rotl(x, c) { return (x << c) | (x >>> (32 - c)) }
 
   let a = 0x67452301, b = 0xefcdab89, c = 0x98badcfe, d = 0x10325476
   for (let k = 0; k < w.length; k += 16) {
     const aa = a, bb = b, cc = c, dd = d
-    for (let round = 0; round < 4; round++) {
-      const f = FN[round]
-      const s = [S[round * 4], S[round * 4 + 1], S[round * 4 + 2], S[round * 4 + 3]]
-      for (let j = 0; j < 16; j++) {
-        let idx
-        if (round === 0) idx = j
-        else if (round === 1) idx = (5 * j + 1) % 16
-        else if (round === 2) idx = (3 * j + 5) % 16
-        else idx = (7 * j) % 16
-        const x = w[k + idx]
-        const t = T[round * 16 + j]
-        if (j % 4 === 0) a = step(f, a, b, c, d, x, s[0], t)
-        else if (j % 4 === 1) d = step(f, d, a, b, c, x, s[1], t)
-        else if (j % 4 === 2) c = step(f, c, d, a, x, s[2], t)
-        else b = step(f, b, c, d, a, x, s[3], t)
-      }
+    for (let i = 0; i < 64; i++) {
+      let f, g
+      if (i < 16) { f = (b & c) | (~b & d); g = i }
+      else if (i < 32) { f = (d & b) | (~d & c); g = (5 * i + 1) % 16 }
+      else if (i < 48) { f = b ^ c ^ d; g = (3 * i + 5) % 16 }
+      else { f = c ^ (b | ~d); g = (7 * i) % 16 }
+      const tmp = d
+      d = c
+      c = b
+      b = (b + rotl((a + f + K[i] + w[k + g]) | 0, S[i])) | 0
+      a = tmp
     }
-    a = add(a, aa); b = add(b, bb); c = add(c, cc); d = add(d, dd)
+    a = (a + aa) | 0
+    b = (b + bb) | 0
+    c = (c + cc) | 0
+    d = (d + dd) | 0
   }
   function hexWord(n) {
     let s = ''
-    for (let i = 0; i < 4; i++) s += ('0' + ((n >> (i * 8)) & 0xff).toString(16)).slice(-2)
+    for (let i = 0; i < 4; i++) s += ('0' + ((n >>> (i * 8)) & 0xff).toString(16)).slice(-2)
     return s
   }
   return hexWord(a) + hexWord(b) + hexWord(c) + hexWord(d)
 }
 
-async function getWbiKeys() {
+function getWbiKeys() {
   // nav 匿名可访问, 返回 wbi_img 图片地址, key 缓存 12h (随官方前端节奏)
-  if (wbiKeys && Date.now() - wbiKeysAt < 12 * 3600 * 1000) return wbiKeys
-  const body = await getJsonAsync('https://api.bilibili.com/x/web-interface/nav', 10)
-  // 匿名 nav 返回 code=-101(账号未登录), 但 data.wbi_img 仍然有效
-  if (!body || !body.data || !body.data.wbi_img) {
-    throw new Error('wbi key 获取失败 (code=' + (body && body.code) + ')')
-  }
-  const imgUrl = body.data.wbi_img.img_url
-  const subUrl = body.data.wbi_img.sub_url
-  const imgKey = imgUrl.substring(imgUrl.lastIndexOf('/') + 1).split('.')[0]
-  const subKey = subUrl.substring(subUrl.lastIndexOf('/') + 1).split('.')[0]
-  const orig = imgKey + subKey
-  let mixin = ''
-  for (let i = 0; i < 32; i++) mixin += orig.charAt(WBI_MIXIN_TAB[i])
-  wbiKeys = mixin
-  wbiKeysAt = Date.now()
-  logDebug('网络', 'wbi key 获取成功')
-  return wbiKeys
+  const scope = currentScope()
+  const age = Date.now() - wbiKeysAt
+  if (wbiKeys && wbiKeysScope === scope && age >= 0 && age < 12 * 3600 * 1000) return Promise.resolve(wbiKeys)
+  return wbiGate.run({ method: 'GET', url: 'wbi-keys', scope: scope, timeoutSec: 10 }, async function () {
+    const body = await getJsonAsync('https://api.bilibili.com/x/web-interface/nav', 10)
+    // Anonymous nav returns -101 with valid keys; other failures stay retryable.
+    if (!body || (body.code !== 0 && body.code !== -101) || !body.data || !body.data.wbi_img) {
+      throw new Error('wbi key 获取失败 (code=' + (body && body.code) + ')')
+    }
+    const imgUrl = body.data.wbi_img.img_url
+    const subUrl = body.data.wbi_img.sub_url
+    const img = typeof imgUrl === 'string' && /\/([a-fA-F0-9]{32})\.[^/?]+(?:\?.*)?$/.exec(imgUrl)
+    const sub = typeof subUrl === 'string' && /\/([a-fA-F0-9]{32})\.[^/?]+(?:\?.*)?$/.exec(subUrl)
+    if (!img || !sub) throw new Error('wbi key 格式无效')
+    const orig = img[1] + sub[1]
+    let mixin = ''
+    for (let i = 0; i < 32; i++) mixin += orig.charAt(WBI_MIXIN_TAB[i])
+    if (scope === currentScope()) {
+      wbiKeys = mixin
+      wbiKeysAt = Date.now()
+      wbiKeysScope = scope
+    }
+    logDebug('网络', 'wbi key 获取成功')
+    return mixin
+  })
 }
 
 function encodeURIComponentRFC3986(s) {
@@ -287,14 +320,14 @@ export async function getPlayUrlRaw(bvid, cid, opts) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   const o = opts || {}
   const src = SOURCE_QUERY[o.source] ? o.source : 'html5'
-  const ckey = 'playurl:' + bvid + ':' + cid + ':' + src
+  const ckey = cacheKey('playurl:' + bvid + ':' + cid + ':' + src)
   if (!o.noCache) {
     const cached = cacheGet(ckey, 600000)
     if (cached) return cached
   }
   const url = 'https://api.bilibili.com/x/player/playurl?bvid=' + encodeURIComponent(bvid)
     + '&cid=' + encodeURIComponent(cid) + SOURCE_QUERY[src]
-  const body = await getJsonAsync(url, defTimeout())
+  const body = await getJsonAsync(url, defTimeout(), o.noCache)
   if (body.code !== 0 || !body.data) {
     if (body.code === -412) throw new Error('请求被风控拦截, 请稍后再试')
     throw new Error(body.message || ('播放地址接口错误 code=' + body.code))
@@ -712,7 +745,7 @@ function mapFeedItem(v) {
 export async function searchVideos(keyword, page) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   // 同词同页缓存 2 分钟
-  const ckey = 'search:' + keyword + ':' + (page || 1)
+  const ckey = cacheKey('search:' + keyword + ':' + (page || 1))
   const cached = cacheGet(ckey, 120000)
   if (cached) { console.log('[bili] 搜索命中缓存, 不发请求'); return cached }
   // wbi 签名 + dm_* 反爬参数 (官方前端同款)
@@ -814,7 +847,7 @@ export async function getAiConclusion(bvid, cid, upMid) {
 export async function getVideoDetail(bvid, noCache) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   // 详情缓存 5 分钟 (noCache: 交互操作后强拉最新状态)
-  const ckey = 'view:' + bvid
+  const ckey = cacheKey('view:' + bvid)
   if (!noCache) {
     const cached = cacheGet(ckey, 300000)
     if (cached) { console.log('[bili] 详情命中缓存, 不发请求'); return cached }
@@ -823,7 +856,7 @@ export async function getVideoDetail(bvid, noCache) {
   const url = 'https://api.bilibili.com/x/web-interface/wbi/view?'
     + (await wbiQuery({ bvid: bvid }))
 
-  const body = await getJsonAsync(url, 15)
+  const body = await getJsonAsync(url, 15, noCache)
   if (body.code !== 0 || !body.data) {
     if (body.code === -412) throw new Error('请求被风控拦截, 请稍后再试')
     if (body.code === -404) throw new Error('视频不存在或已删除')
@@ -884,7 +917,7 @@ export async function getVideoDetail(bvid, noCache) {
       })
     } : null
   }
-  cacheSet('view:' + bvid, out)
+  cacheSet(ckey, out)
   return out
 }
 
@@ -893,7 +926,7 @@ export async function getVideoDetail(bvid, noCache) {
  */
 export async function getRelatedVideos(bvid) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  const ckey = 'related:' + bvid
+  const ckey = cacheKey('related:' + bvid)
   const cached = cacheGet(ckey, 300000)
   if (cached) return cached
   const url = 'https://api.bilibili.com/x/web-interface/archive/related?bvid=' + encodeURIComponent(bvid)
@@ -910,14 +943,14 @@ export async function getRelatedVideos(bvid) {
  */
 export async function getPopular(page, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  const ckey = 'popular:' + (page || 1)
+  const ckey = cacheKey('popular:' + (page || 1))
   if (!fresh) {
     const cached = cacheGet(ckey, 60000)
     if (cached) return cached
   }
   const url = 'https://api.bilibili.com/x/web-interface/popular?pn=' + (page || 1) + '&ps=20'
     + (fresh ? ('&_=' + Date.now()) : '')
-  const body = await getJsonAsync(url, 15)
+  const body = await getJsonAsync(url, 15, fresh)
   if (body.code !== 0) {
     if (body.code === -412) throw new Error('请求被风控拦截, 请稍后再试')
     throw new Error(body.message || ('接口错误 code=' + body.code))
@@ -936,7 +969,7 @@ export async function getPopular(page, fresh) {
  */
 export async function getRecommend(page, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  const ckey = 'rcmd:' + (page || 1)
+  const ckey = cacheKey('rcmd:' + (page || 1))
   // fresh=true: 绕过 60s 结果缓存 (下拉刷新必须拿新内容, 否则「刷新成功但没变」)
   if (!fresh) {
     const cached = cacheGet(ckey, 60000)
@@ -945,7 +978,7 @@ export async function getRecommend(page, fresh) {
   const url = 'https://api.bilibili.com/x/web-interface/index/top/feed/rcmd?ps=12'
     + '&fresh_idx=' + (page || 1) + '&fresh_idx_1h=' + (page || 1) + '&fresh_type=4&version=1'
     + (fresh ? ('&_=' + Date.now()) : '')
-  const body = await getJsonAsync(url, 15)
+  const body = await getJsonAsync(url, 15, fresh)
   if (body.code !== 0 || !body.data) {
     if (body.code === -412) throw new Error('请求被风控拦截, 请稍后再试')
     throw new Error(body.message || ('接口错误 code=' + body.code))
@@ -977,7 +1010,7 @@ export async function getRecommend(page, fresh) {
  */
 export async function getUpInfo(mid) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  const ckey = 'upinfo:' + mid
+  const ckey = cacheKey('upinfo:' + mid)
   const cached = cacheGet(ckey, 600000)
   if (cached) return cached
   // 先走 acc/info (字段全)
@@ -1005,7 +1038,7 @@ export async function getUpInfo(mid) {
       pendant: (d.pendant && Number(d.pendant.pid) > 0) ? dynHttps(d.pendant.image_enhance || d.pendant.image || '') : '',
       vipText: (d.vip && d.vip.label && d.vip.label.text) || ''
     }
-    cacheSet('upinfo:' + mid, out)
+    cacheSet(ckey, out)
     return out
   } catch (accErr) {
     console.log('[bili] acc/info 失败, 降级 x/web-interface/card: ' + (accErr && accErr.message))
@@ -1032,7 +1065,7 @@ export async function getUpInfo(mid) {
     pendant: (cd.pendant && Number(cd.pendant.pid) > 0) ? dynHttps(cd.pendant.image_enhance || cd.pendant.image || '') : '',
     vipText: ''
   }
-  cacheSet('upinfo:' + mid, cardOut)
+  cacheSet(ckey, cardOut)
   return cardOut
 }
 
@@ -1051,7 +1084,7 @@ export async function getUpFans(mid) {
  */
 export async function getUpVideos(mid, page) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
-  const ckey = 'upvideos:' + mid + ':' + (page || 1)
+  const ckey = cacheKey('upvideos:' + mid + ':' + (page || 1))
   const cached = cacheGet(ckey, 120000)
   if (cached) return cached
   // 主路径: 空间投稿接口 (wbi 签名)
@@ -1560,7 +1593,7 @@ export async function getDynamicFeed(offset, type, fresh) {
   //   all(默认) / video(投稿) / pgc(追番) / article(专栏)
   // 客户端过滤做不到「这个分类首页一条都没有时继续往后翻」, 所以专栏/投稿走服务端 type.
   const t = type || 'all'
-  const key = 'dyn2:' + t + ':' + (offset || '')   // v2: 带 features 后字段结构变了, 旧缓存不复用
+  const key = cacheKey('dyn2:' + t + ':' + (offset || ''))   // v2: 带 features 后字段结构变了, 旧缓存不复用
   if (!fresh) {
     const hit = cacheGet(key, DYN_TTL)
     if (hit) { log('动态', '命中缓存 type=' + t + ' 条数=' + ((hit.items || []).length)); return hit }
@@ -1573,7 +1606,7 @@ export async function getDynamicFeed(offset, type, fresh) {
   const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/all?timezone_offset=-480&platform=web&page=1&type=' + encodeURIComponent(t)
     + '&features=' + DYN_FEATURES
     + (offset ? '&offset=' + encodeURIComponent(offset) : '')
-  const body = await getJsonAsync(url, 15)
+  const body = await getJsonAsync(url, 15, fresh)
   if (body.code === -101) throw new Error('未登录或登录已过期')
   if (body.code !== 0 || !body.data) {
     throw new Error(body.message || ('动态接口错误 code=' + body.code))
@@ -1937,7 +1970,7 @@ export async function getDynamicSpace(mid, offset, fresh) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   const m = String(mid == null ? '' : mid)
   if (!m) throw new Error('缺少 UP 主 UID')
-  const key = 'dynspace:' + m + ':' + (offset || '')
+  const key = cacheKey('dynspace:' + m + ':' + (offset || ''))
   if (!fresh) {
     const hit = cacheGet(key, DYN_TTL)
     if (hit) { log('UP动态', '命中缓存 mid=' + m + ' 条数=' + ((hit.items || []).length)); return hit }
@@ -1945,7 +1978,7 @@ export async function getDynamicSpace(mid, offset, fresh) {
   const url = 'https://api.bilibili.com/x/polymer/web-dynamic/v1/feed/space?host_mid=' + encodeURIComponent(m)
     + '&timezone_offset=-480&platform=web&features=' + DYN_FEATURES
     + (offset ? '&offset=' + encodeURIComponent(offset) : '')
-  const body = await getJsonAsync(url, 15)
+  const body = await getJsonAsync(url, 15, fresh)
   if (body.code === -101) throw new Error('未登录或登录已过期')
   if (body.code !== 0 || !body.data) {
     if (body.code === -352) throw new Error('接口风控, 稍后再试')
@@ -2380,9 +2413,14 @@ export async function getReplies(aid, pn, builtinEmoji, sort, fresh, type) {
   // 评论区类型由来源决定: 1=视频(默认) / 11=动态 / 12=专栏 —— 用 basic.comment_type,
   // oid 必须是 basic.comment_id_str, 不是动态 id (实测 type=11 + 动态 id 回 -404)
   const oidType = Number(type) || 1
+  const ckey = cacheKey('replies_' + oidType + '_' + aid + '_' + sortParam)
+  if ((pn || 1) === 1 && !fresh) {
+    const c = cacheGet(ckey, 180000)
+    if (c) return c
+  }
   const url = 'https://api.bilibili.com/x/v2/reply?type=' + oidType + '&oid=' + encodeURIComponent(aid)
     + '&pn=' + (pn || 1) + '&ps=20&sort=' + sortParam + '&jsonp=json'
-  const body = await getJsonAsync(url, 15)
+  const body = await getJsonAsync(url, 15, fresh)
   if (body.code !== 0 || !body.data) {
     if (body.code === 12009) throw new Error('评论区已关闭')
     throw new Error(body.message || ('评论接口错误 code=' + body.code))
@@ -2390,11 +2428,6 @@ export async function getReplies(aid, pn, builtinEmoji, sort, fresh, type) {
   const page = body.data.page || {}
   const list = body.data.replies || []
   // 首页缓存 3 分钟: 进详情预取 + 再进同一视频都走缓存, 秒开 (手动刷新传 fresh 绕过)
-  const ckey = 'replies_' + oidType + '_' + aid + '_' + sortParam
-  if ((pn || 1) === 1 && !fresh) {
-    const c = cacheGet(ckey, 180000)
-    if (c) return c
-  }
   const upperMid = (body.data.upper && body.data.upper.mid) || 0
   const replies = []
   for (let i = 0; i < list.length; i++) {

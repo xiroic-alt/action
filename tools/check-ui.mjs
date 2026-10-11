@@ -382,7 +382,7 @@ const { fileURLToPath } = await import('node:url')
 const PAGES = fileURLToPath(SRC + 'pages')
 const appJson = JSON.parse(fs.readFileSync(fileURLToPath(SRC + 'app.json'), 'utf8'))
 const pageNames = Object.keys(appJson.pages)
-eq(pageNames.length, 27, 'app.json 注册页面数 (25 - vprobe + lines/live/msg)')
+eq(pageNames.length, 29, 'app.json 注册页面数 (25 - vprobe + lines/live/msg/room/chat)')
 let linked = 0
 for (const name of pageNames) {
   const rel = appJson.pages[name]

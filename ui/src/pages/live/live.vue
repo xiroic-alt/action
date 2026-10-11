@@ -5,45 +5,24 @@
         <image class="bac" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="bat" :style="T.t.body">返回</text>
       </div>
-      <text class="ttl" :style="T.t.title">{{ playing ? ('直播 · ' + room.title) : '直播' }}</text>
+      <text class="ttl" :style="T.t.title">直播</text>
       <text v-if="status !== ''" class="st" :style="T.t.accentSm">{{ status }}</text>
     </div>
 
-    <!-- 播放态: 框架内置 <video> 把 waylandsink 做成宿主主 surface 的 subsurface,
-         <hole> 在同一矩形挖洞 (与 pages/player 同一套做法, HANDOVER §27) -->
-    <div v-if="playing" class="stage">
-      <video ref="vv" class="vsurf" :style="vrectStyle" :src="src"
-             @state="onState" @error="onError"></video>
-      <hole class="hole" :style="vrectStyle"></hole>
-      <div class="bar" :style="T.bar">
-        <text class="barl" :style="T.t.labelOn">{{ room.up }} · {{ room.area }}</text>
-        <text class="barr" :style="T.t.accentSm">{{ onlineText }}</text>
-      </div>
-      <div class="dms">
-        <div v-for="(d, i) in danmus" :key="d.id + '_' + i" class="dm" :style="T.cardR">
-          <text class="dmt" :style="T.t.caption"><text :style="T.t.accentSm">{{ d.nick }}</text> {{ d.text }}</text>
-        </div>
-      </div>
-      <div class="pctl">
-        <div class="pbtn" :style="T.accentR" @click="stopPlay"><text class="pbt" :style="T.t.onAccent">停止</text></div>
-        <div class="pbtn" :style="T.actionR" @click="reloadRoom"><text class="pbt" :style="T.t.labelOn">重连</text></div>
-      </div>
-    </div>
-
-    <!-- 列表态: 关键词搜索直播间 (WBI 签名口, 见 services/bili.js 的实测说明) -->
-    <div v-else class="listwrap">
+    <div class="listwrap">
       <div class="searchbar">
         <div class="sinput" :style="T.insetR" @click="openKeyboard">
           <text class="stext" :style="T.t.body">{{ keyword || '搜索直播间' }}</text>
         </div>
-        <div class="sbtn" :style="T.accentPill" @click="doSearch"><text class="sbt" :style="T.t.onAccent">搜索</text></div>
+        <div class="sbtn" :style="T.accentPill" @click="doSearch"><text :style="T.t.onAccent">搜索</text></div>
       </div>
       <text v-if="loading" class="st2" :style="T.t.titleVar">加载中…</text>
-      <scroller v-else class="list" scroll-direction="vertical" :show-scrollbar="true">
+      <scroller v-else class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onReturnScroll($event, 'liveTop')">
+        <div ref="liveTop" class="list-anchor"></div>
         <text class="sec" :style="T.t.label">热门分区</text>
         <div class="chips">
           <div v-for="a in hotAreas" :key="'a' + a" class="chip" :style="T.insetR" @click="quickSearch(a)">
-            <text class="chipt" :style="T.t.label">{{ a }}</text>
+            <text :style="T.t.label">{{ a }}</text>
           </div>
         </div>
         <text class="sec" :style="T.t.label">{{ rooms.length > 0 ? '搜索结果 (' + rooms.length + ')' : '点上面的分区或搜索' }}</text>
@@ -51,90 +30,71 @@
           <image class="rcov" :src="r.cover" resize="cover" :style="{ width: '128px', height: '80px' }"></image>
           <div class="rmain">
             <text class="rtitle" :style="T.t.title">{{ r.title }}</text>
-            <text class="rup" :style="T.t.accentSm">{{ r.up }} · {{ r.area }}</text>
+            <text class="rup" :style="T.t.accentSub">{{ r.up }} · {{ r.area }}</text>
             <text class="ron" :style="T.t.label">{{ onlineFmt(r.online) }} 人气</text>
           </div>
         </div>
+        <text v-if="searched && rooms.length === 0 && !loading" class="dm-empty" :style="T.t.empty">没有找到正在直播的房间</text>
       </scroller>
     </div>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
-// 直播页 —— 参考 56dz/PenBili 的直播模块, 但接口按本机实测重选 (见 services/bili.js):
-//   - 搜索走 WBI 签名的 wbi/search/type?search_type=live (不带签名会被风控挡成 HTML,
-//     second/getList 直接 -352);
-//   - 取流走 getRoomPlayInfo (匿名可用, 只需 UA), 优先 HLS/avc, 退回 FLV/avc;
-//   - 弹幕只能做降级版: WebSocket 全量方案在 QuickJS 上不可行 (无 ws + zlib/brotli 解包),
-//     用 /dM/gethistory 每 8s 拉最近 10 条去重滚动 —— 密集房间会丢弹幕, 这是已知上限.
-import { bilinet } from '../../services/native.js'
-import { searchLive, getLiveRoomPlayUrl, getLiveDanmaku } from '../../services/bili.js'
+// 直播列表页 —— 只负责「搜索 + 选房」. 播放本身一律交给 pages/player 的直播分支,
+// 独立直播间信息交给 pages/room: 之前这里是自播 (内嵌 video 元素 + 挖洞), 与播放页
+// 各自维护一套管线/重连, 行为必然漂移 —— 现在三页职责单一.
+//   - 搜索走 WBI 签名的 wbi/search/type?search_type=live (见 services/bili.js);
+//   - 点房间 -> navTo('room'), 由 room 页「用播放器观看」再进播放页.
+import { searchLive } from '../../services/bili.js'
+import { onlineText } from '../../services/live.js'
 import { tokens } from '../../services/theme.js'
 import { createIME } from '../../services/ime.js'
 import { afterPaint } from '../../base-page.js'
-import { log, logError } from '../../services/log.js'
+import { scrollTopMixin } from '../../services/scroll-top.js'
+import BackTop from '../../components/back-top.vue'
+import { logError } from '../../services/log.js'
 
 const MI = { back: require('../../assets/mi/back_26_w.png') }
 const MI_D = { back: require('../../assets/mi/back_26_d.png') }
 
-const DM_KEEP = 6
-
 export default {
   name: 'live',
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   data() {
     return {
       T: tokens(),
       keyword: '',
       rooms: [],
+      searched: false,
       hotAreas: ['英雄联盟', '王者荣耀', '原神', '明日方舟', 'CS2', 'DOTA2'],
       loading: false,
       status: '',
-      gen: 0,
-      // 播放态
-      playing: false,
-      room: { roomid: 0, title: '', up: '', area: '' },
-      src: '',
-      vrect: { x: 0, y: 0, w: 960, h: 222 },   // 相对 .stage (见样式注释)
-      online: 0,
-      danmus: [],
-      dmTimer: null,
-      reconnectAt: 0
+      gen: 0
     }
   },
   computed: {
-    MIc() { return this.T.dark ? MI : MI_D },
-    vrectStyle() {
-      const r = this.vrect
-      return { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' }
-    },
-    onlineText() { return this.onlineFmt(this.online) + ' 人气' }
+    MIc() { return this.T.dark ? MI : MI_D }
   },
   mounted() { this.ime = createIME() },
   methods: {
     onShow() { this.T = tokens() },
-    onHide() { this.pause() },
+    onReturnScroll(e, target) { this.trackTop(e, target) },
     onUnload() {
       this.gen++
-      this.stopDanmaku()
-      this.playing = false
       if (this.ime) { this.ime.destroy(); this.ime = null }
     },
 
-    goBack() {
-      if (this.playing) { this.stopPlay(); return }
-      try { this.$page.finish() } catch (e) { try { $falcon.navTo('settings') } catch (e2) {} }
-    },
+    goBack() { try { this.$page.finish() } catch (e) { try { $falcon.navTo('settings') } catch (e2) {} } },
     tip(m) {
       const self = this
       this.status = m
       if (this.statusTimer) clearTimeout(this.statusTimer)
       this.statusTimer = setTimeout(function () { self.status = '' }, 3000)
     },
-    onlineFmt(n) {
-      const v = Number(n) || 0
-      if (v >= 10000) return (v / 10000).toFixed(1) + '万'
-      return String(v)
-    },
+    onlineFmt(n) { return onlineText(n) },
 
     async openKeyboard() {
       try {
@@ -159,122 +119,35 @@ export default {
         searchLive(kw, 1).then(function (list) {
           if (g !== self.gen) return
           self.rooms = list
+          self.searched = true
           self.loading = false
+          self.topTarget = 'liveTop'
+          self.goTop()
           self.tip(list.length ? ('找到 ' + list.length + ' 个直播间') : '没有正在直播的房间')
         }).catch(function (e) {
           if (g !== self.gen) return
           self.loading = false
+          self.searched = true
           self.rooms = []
           self.tip((e && e.message ? e.message : String(e)).substring(0, 60))
         })
       })
     },
 
-    // ---------- 播放 ----------
     openRoom(r) {
-      const self = this
-      const g = ++this.gen
-      this.room = r
-      this.danmus = []
-      this.status = '连接中…'
-      this.playing = true
-      afterPaint(function () {
-        getLiveRoomPlayUrl(r.roomid).then(function (p) {
-          if (g !== self.gen) return
-          self.src = p.url
-          self.status = ''
-          self.startDanmaku(r.roomid)
-          setTimeout(function () { if (g === self.gen) self.elem('play', 0) }, 400)
-        }).catch(function (e) {
-          if (g !== self.gen) return
-          logError('直播', '取流失败: ' + (e && e.message ? e.message : e))
-          self.status = (e && e.message ? e.message : String(e)).substring(0, 40)
-        })
-      })
-    },
-    elem(name) {
-      const v = this.$refs.vv
-      if (!v || typeof v[name] !== 'function') return undefined
-      try { return v[name].apply(v, Array.prototype.slice.call(arguments, 1)) } catch (e) { return undefined }
-    },
-    pause() { this.elem('pause') },
-    stopPlay() {
-      this.gen++
-      this.stopDanmaku()
-      this.elem('stop')
-      this.playing = false
-      this.src = ''
-      this.status = ''
-    },
-    reloadRoom() {
-      if (!this.room.roomid) return
-      const r = this.room
-      this.stopPlay()
-      this.openRoom(r)
-    },
-
-    // ---------- 事件 ----------
-    onState(e) {
-      const s = e && typeof e.state !== 'undefined' ? e.state : -1
-      // 只认 4 = PLAYING: 直播没有暂停语义, 停住就是断流, 直接重连 (10s 节流)
-      if (s === 4) {
-        this.status = ''
-        if (this.infoGot !== true) this.elem('resume')
-        return
+      if (!r || !r.roomid) return
+      try {
+        $falcon.navTo('room', { roomid: String(r.roomid), title: r.title })
+      } catch (e) {
+        this.tip('打开直播间失败')
+        logError('直播', 'navTo room 失败: ' + e)
       }
-      if (s === 1 || s === 2) {
-        const now = Date.now()
-        if (this.playing && now - this.reconnectAt > 10000) {
-          this.reconnectAt = now
-          log('直播', '管线回落 state=' + s + ', 尝试重连')
-          this.reloadRoom()
-        }
-      }
-    },
-    onError(e) {
-      let t = ''
-      try { t = JSON.stringify(e) } catch (err) { t = String(e) }
-      logError('直播', '元素错误 ' + t)
-      this.status = ('播放错误: ' + t).substring(0, 44)
-    },
-
-    // ---------- 弹幕 (降级: 8s 轮询最近 10 条) ----------
-    startDanmaku(roomid) {
-      this.stopDanmaku()
-      const self = this
-      const seen = {}
-      let first = true
-      function tick() {
-        if (!self.playing) return
-        getLiveDanmaku(roomid).then(function (list) {
-          if (!self.playing) return
-          const add = []
-          for (let i = 0; i < list.length; i++) {
-            const d = list[i]
-            if (seen[d.id]) continue
-            seen[d.id] = 1
-            add.push(d)
-          }
-          if (first) { first = false; add.length = 0 }   // 首轮只建索引, 不刷屏
-          if (add.length) {
-            const next = self.danmus.concat(add)
-            self.danmus = next.length > DM_KEEP ? next.slice(next.length - DM_KEEP) : next
-          }
-        }).catch(function () {})
-      }
-      tick()
-      this.dmTimer = setInterval(tick, 8000)
-    },
-    stopDanmaku() {
-      if (this.dmTimer) { clearInterval(this.dmTimer); this.dmTimer = null }
     }
   }
 }
 </script>
 
 <style scoped>
-/* position: absolute 与 player.vue 一致 —— <video>/<hole> 都按 absolute 定位,
-   需要一个已定位的祖先当坐标系; 不写的话会落到框架根上, 洞和画面就对不齐. */
 .page { width: 960px; height: 266px; position: absolute; left: 0; top: 0; flex-direction: column; }
 .topbar { width: 960px; height: 44px; flex-direction: row; align-items: center; }
 .back { flex-direction: row; align-items: center; height: 40px; width: 132px; margin-left: 12px; justify-content: center; }
@@ -286,13 +159,11 @@ export default {
 .sinput { flex: 1; height: 38px; margin-left: 16px; justify-content: center; }
 .stext { margin-left: 16px; }
 .sbtn { width: 96px; height: 38px; margin-left: 10px; margin-right: 16px; justify-content: center; align-items: center; }
-.pbt { }
 .st2 { width: 100%; text-align: center; margin-top: 20px; }
 .list { width: 100%; flex: 1; }
 .sec { margin-left: 20px; margin-top: 8px; margin-bottom: 4px; }
 .chips { flex-direction: row; margin-left: 20px; flex-wrap: wrap; }
-/* ★ 可点元素必须有显式尺寸: 本机只挂 padding 的 div 命中区是 0 (HANDOVER §14.3 /
-   记忆条目「点击只能挂有尺寸的 div」) —— 真机实测热门分区点不动就是这个原因. */
+/* ★ 可点元素必须有显式尺寸: 本机只挂 padding 的 div 命中区是 0 */
 .chip { height: 32px; padding-left: 12px; padding-right: 12px; margin-right: 8px; margin-bottom: 6px;
         flex-direction: row; align-items: center; }
 .row { width: 100%; flex-direction: row; margin-left: 20px; margin-right: 20px; margin-top: 8px; padding-left: 8px; padding-top: 8px; padding-bottom: 8px; }
@@ -300,16 +171,6 @@ export default {
 .rmain { flex: 1; flex-direction: column; }
 .rup { margin-top: 4px; }
 .ron { margin-top: 6px; }
-/* 播放舞台: 让开 44px 应用顶栏, 洞/画面的坐标以它为原点 (vrect 用 0,0,960,222) */
-.stage { position: absolute; left: 0; top: 44px; width: 960px; height: 222px; }
-.vsurf { position: absolute; }
-.hole { position: absolute; }
-.bar { position: absolute; left: 0; top: 0; width: 960px; height: 34px; flex-direction: row; align-items: center; padding-left: 16px; padding-right: 16px; }
-.barl { flex: 1; }
-.dms { position: absolute; left: 12px; top: 40px; width: 520px; flex-direction: column; }
-.dm { padding-left: 10px; padding-right: 10px; padding-top: 3px; padding-bottom: 3px; margin-bottom: 4px; }
-.dmt { }
-.pctl { position: absolute; left: 812px; top: 40px; flex-direction: column; }
-.pbtn { padding-left: 18px; padding-right: 18px; padding-top: 6px; padding-bottom: 6px; margin-bottom: 8px; justify-content: center; align-items: center; }
-.pbt { }
+.dm-empty { width: 100%; text-align: center; margin-top: 20px; }
+.list-anchor { width: 1px; height: 1px; }
 </style>

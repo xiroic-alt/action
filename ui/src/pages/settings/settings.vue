@@ -10,7 +10,8 @@
            再弹一个提示是噪音. status 只在失败时用. -->
     </div>
 
-    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true">
+    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onReturnScroll($event, 'returnTop0')">
+      <div ref="returnTop0" class="return-anchor"></div>
       <div v-for="g in groups" :key="g.id" class="grp">
         <div class="sechead">
           <image class="secic" :src="ic(g.icon)" :style="{ width: '18px', height: '18px' }"></image>
@@ -78,10 +79,13 @@
 
       <text class="foot" :style="T.t.tiny">bilibilipan · 有道词典笔 mini-app · 设置保存在 {{ cfgPath }}</text>
     </scroller>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 // 设置页 (M3 settings): 分组列表 + 逐行控件.
 //
 // 结构: SCHEMA 描述"有哪些组/哪些行/什么控件", 值是运行时从 services/config.js 读的
@@ -204,6 +208,8 @@ const SCHEMA = [
 ]
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'settings',
   data() {
     return {
@@ -233,6 +239,7 @@ export default {
     this.reload()
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target) },
     // 组件里只有 onShow 会被框架转发 (HANDOVER §14.1)
     onShow() { this.reload() },
     onUnload() {
@@ -388,4 +395,5 @@ export default {
 .got { margin-right: 2px; }
 .goic { }
 .foot { width: 100%; text-align: center; margin-top: 8px; margin-bottom: 20px; }
+.return-anchor { width: 1px; height: 1px; }
 </style>

@@ -21,7 +21,8 @@
           <text class="nav-t" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
         </div>
         <richtext class="nav-title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in titleSegs"><span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span><image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
-        <text v-if="rateText !== ''" class="nav-tag">{{ rateText }}</text>
+        <text v-if="isLive" class="nav-tag">直播</text>
+        <text v-else-if="rateText !== ''" class="nav-tag">{{ rateText }}</text>
       </div>
 
       <!-- 中央状态 -->
@@ -31,13 +32,13 @@
 
       <!-- 底部悬浮控制条 -->
       <div v-if="barVisible" class="ctrl">
-        <div class="cbtn cbtn-mini" @click="seekBack">
+        <div v-if="!isLive" class="cbtn cbtn-mini" @click="seekBack">
           <image class="cbtn-ic" :src="MI.back10"></image>
         </div>
         <div class="cbtn cbtn-main" @click="togglePlay">
           <image class="cbtn-ic" :src="playing ? MI.pause : MI.play"></image>
         </div>
-        <div class="cbtn cbtn-mini cbtn-mini-last" @click="seekForward">
+        <div v-if="!isLive" class="cbtn cbtn-mini cbtn-mini-last" @click="seekForward">
           <image class="cbtn-ic" :src="MI.fwd10"></image>
         </div>
         <!-- 进度条: 原生 <seekbar> (JQuick::WXExternalSlider, 与 hole / video 同批注册的框架组件).
@@ -49,14 +50,15 @@
                JS 侧: { detail: { lvalue: 0, value: 24 }, type: "changing" }  <- detail.value 就是秒
              值域取 min=0 / max=时长(秒) / step=1, 于是 detail.value 直接就是秒.
              手柄位置由 :value 绑定驱动: 平时跟播放位置, 拖动期间跟拖动目标 (不被 position 抢). -->
-        <div class="seek">
+        <div v-if="!isLive" class="seek">
           <seekbar class="sbar"
                    min="0" :max="seekMax" step="1" :value="seekBarValue"
                    backgroundColor="rgba(255,255,255,0.18)" activeColor="#fb7299"
                    handleColor="#ffffff" trackSize="6" handleSize="14" borderRadius="3"
                    @changing="onSeekChanging" @change="onSeekChange"></seekbar>
         </div>
-        <text class="time">{{ curText }} / {{ durText }}</text>
+        <text v-if="isLive" class="time">已播 {{ liveElapsedText }}</text>
+        <text v-else class="time">{{ curText }} / {{ durText }}</text>
       </div>
     </div>
   </div>
@@ -76,7 +78,7 @@
 // 元素方法: play pause resume stop seekto setSrc setRate getRate
 //           setAudioDeviceType setVideoSurface
 import * as screenon from '../../services/screenon.js'
-import { getVideoDetail, getPlayUrl, parseMessage } from '../../services/bili.js'
+import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl } from '../../services/bili.js'
 import { getCfg } from '../../services/config.js'
 import { getProgress, setProgress, clearProgress, flushProgress } from '../../services/progress.js'
 import { afterPaint } from '../../base-page.js'
@@ -160,6 +162,13 @@ export default {
       // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
       T: tokens(),
       bvid: '',
+      // 直播态: mode='live' 时走直播分支 (无进度条/无续播/有限重连); 点播分支行为不变
+      mode: '',
+      roomid: 0,
+      liveStartedAt: 0,
+      liveElapsedSec: 0,
+      reconnectCount: 0,
+      lastReconnectAt: 0,
       pageNo: 1,
       directUrl: '',       // 调试直链, 由 options.url 传入
       src: '',
@@ -206,6 +215,8 @@ export default {
     // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
     MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
+    isLive() { return this.mode === 'live' },
+    liveElapsedText() { return fmtMs(this.liveElapsedSec * 1000) },
     vrectStyle() {
       var r = this.vrect
       return { left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px' }
@@ -317,6 +328,8 @@ export default {
 
     // ---------------- 打开与换源 ----------------
     applyOptions: function (options) {
+      this.mode = options.mode === 'live' ? 'live' : ''
+      this.roomid = parseInt(options.roomid || '0', 10) || 0
       this.bvid = options.bvid || ''
       this.pageNo = parseInt(options.page || '1', 10) || 1
       this.titleText = options.title || ''
@@ -340,6 +353,20 @@ export default {
       if (this.directUrl !== '') {
         this.statusText = '缓冲中…'
         this.playStream(this.directUrl, gen)
+        return
+      }
+      // 直播: 取流走 getRoomPlayInfo, 不查详情/cid/续播
+      if (this.isLive) {
+        if (!this.roomid) { this.statusText = '缺少直播间号'; return }
+        this.statusText = '连接直播中…'
+        getLiveRoomPlayUrl(this.roomid).then(function (p) {
+          if (gen !== self.generation || !p) return
+          self.playStream(p.url, gen)
+        }).catch(function (err) {
+          if (gen !== self.generation) return
+          self.statusText = (err && err.message ? err.message : String(err)).substring(0, 44)
+          self.showBar()
+        })
         return
       }
       if (!this.bvid) {
@@ -412,6 +439,7 @@ export default {
         this.started = true
         this.applyOnce()
         if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
+        if (this.isLive && !this.liveStartedAt) { this.liveStartedAt = Date.now(); this.reconnectCount = 0 }
         this.posAt = Date.now()
         this.startPolling()
         this.startKeepAwake()
@@ -437,6 +465,8 @@ export default {
       if (s <= 1) {
         this.playing = false
         this.stopPolling()
+        // 直播: 停住就是断流, 有限次重连而不是留着黑屏
+        if (this.isLive && this.wantPlay) { this.liveReconnect('state=' + s); return }
         this.showBar()
       }
     },
@@ -482,6 +512,8 @@ export default {
 
     // 首次进入 PLAYING 时把设置里的播放行为落到元素上 (只做一次)
     applyOnce: function () {
+      // 直播没有倍速/续播/跳片头语义
+      if (this.isLive) { this.appliedOnce = true; return }
       if (this.appliedOnce || this.directUrl !== '') { this.appliedOnce = true; return }
       this.appliedOnce = true
       var rate = Number(this.startRate) || 1
@@ -500,6 +532,8 @@ export default {
     },
 
     onEvtComplete: function () {
+      // 直播不该有「播放结束」: 收到就当成断流处理
+      if (this.isLive) { this.liveReconnect('complete'); return }
       this.statusText = '播放结束'
       this.playing = false
       this.stopPolling()
@@ -507,7 +541,30 @@ export default {
       this.showBar()
     },
 
+    // 直播重连: 最多 3 次, 3s 节流; 每次都换 generation, 卸载/换房后旧回调不再生效
+    liveReconnect: function (reason) {
+      if (!this.isLive) return
+      if (this.reconnectCount >= 3) {
+        this.statusText = '直播已断开, 请返回重进'
+        this.wantPlay = false
+        this.showBar()
+        return
+      }
+      var now = Date.now()
+      if (now - this.lastReconnectAt < 3000) return
+      this.lastReconnectAt = now
+      this.reconnectCount++
+      var self = this
+      var gen = ++this.generation
+      try { log('播放器', '直播重连 #' + this.reconnectCount + ' (' + reason + ')') } catch (e) {}
+      this.stopStream()
+      this.playing = false
+      this.statusText = '重连中 (第 ' + this.reconnectCount + ' 次)…'
+      setTimer(this, 1500, function () { if (gen === self.generation) self.fetchAndOpen(gen) })
+    },
+
     onEvtError: function (e) {
+      if (this.isLive) { this.liveReconnect('error'); return }
       var t = ''
       try { t = JSON.stringify(e) } catch (err) { t = String(e) }
       console.log('[player] error ' + t)
@@ -617,6 +674,10 @@ export default {
         if (self.seekDragging) return
         if (self.seekHoldMs !== null && self.seekHoldMs !== undefined) return
         if (!self.playing) return
+        if (self.isLive) {
+          self.liveElapsedSec = self.liveStartedAt ? Math.floor((Date.now() - self.liveStartedAt) / 1000) : 0
+          return
+        }
         var ms = self.posMs + (Date.now() - self.posAt)
         if (self.durMs > 0 && ms > self.durMs) ms = self.durMs
         self.curMs = ms

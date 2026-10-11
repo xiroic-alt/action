@@ -27,6 +27,8 @@
     "follow": "pages/follow/follow.vue",
     "lines": "pages/lines/lines.vue",
     "live": "pages/live/live.vue",
+    "room": "pages/room/room.vue",
+    "chat": "pages/chat/chat.vue",
     "msg": "pages/msg/msg.vue"
   },
   "options": {

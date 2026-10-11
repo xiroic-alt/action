@@ -34,7 +34,8 @@
         <text class="dstatus-t">{{ status }}</text>
       </div>
 
-      <scroller v-else class="dscroll" scroll-direction="vertical" :show-scrollbar="true">
+      <scroller v-else class="dscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onReturnScroll($event, 'returnTop0')">
+      <div ref="returnTop0" class="return-anchor"></div>
         <div class="dwrap">
           <div class="ahead" @click="openUp">
             <div class="aface-wrap">
@@ -166,7 +167,8 @@
         <text class="sort-count">{{ total > 0 ? ('共 ' + total) : '' }}</text>
       </div>
       <scroller class="clist" scroll-direction="vertical" :show-scrollbar="true"
-                :loadmoreoffset="100" @loadmore="loadMoreComments">
+                :loadmoreoffset="100" @loadmore="loadMoreComments" @scroll="onReturnScroll($event, 'returnTop1')">
+      <div ref="returnTop1" class="return-anchor"></div>
         <text v-if="cStatus !== ''" class="c-status">{{ cStatus }}</text>
         <div v-for="r in replies" :key="r.rpid" class="reply">
           <image class="face" :src="r.face" :lazy-load="true" resize="cover"></image>
@@ -240,9 +242,12 @@
         </div>
       </div>
     </div>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply, GRID_COLS, badgeKind, badgeLabel } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { createIME } from '../../services/ime.js'
@@ -377,6 +382,8 @@ const BUILTIN_EMOJI = {
   '2764': require('../../assets/emoji/2764.png'),
 }
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'dyn',
   data() {
     return {
@@ -445,6 +452,7 @@ export default {
     }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target) },
     onShow() {
       this.logged = hasCookie()
       try { log('动态详情', 'onShow 到达 started=' + (this._started === true)) } catch (e0) {}
@@ -1017,4 +1025,5 @@ export default {
 .iv-pill-t { font-size: 20px; color: #ffffff; }
 .iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.30); margin-right: 8px; }
 .iv-size { font-size: 16px; color: rgba(255,255,255,0.72); margin-left: 4px; }
+.return-anchor { width: 1px; height: 1px; }
 </style>

@@ -9,8 +9,9 @@
     </div>
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
-              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
+              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+      <div ref="returnTop0" class="return-anchor"></div>
       <text v-if="status !== ''" class="state" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">{{ loading ? ('加载中' + dots) : status }}</text>
       <div v-if="!logged && loaded" class="gate">
         <text class="gate-text" :style="{ color: T.c.onSurfaceVariant, color: T.c.onSurfaceVariant }">收藏夹需要登录后查看</text>
@@ -42,10 +43,13 @@
         <text v-if="hasMore && items.length > 0" class="loadmore" @click="loadMore">上滑加载更多…</text>
       </template>
     </scroller>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 // 收藏页: 两级 (收藏夹列表 x/v3/fav/folder/created/list-all → 收藏夹内容 x/v3/fav/resource/list)
 // + 无限滑动 + 下拉刷新. mode: 'folders' | 'list'
 import { getFavFolders, getFavList , parseMessage } from '../../services/bili.js'
@@ -69,6 +73,8 @@ const MI_D = {
 }
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'fav',
   data() {
     return {
@@ -95,6 +101,7 @@ export default {
     MIc() { return this.T && this.T.dark ? MI : MI_D }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target); this.onListScroll(e) },
     startDots() {
       if (this._dotTimer) return
       const self = this
@@ -438,4 +445,5 @@ export default {
 .statrow { flex-direction: row; align-items: center; margin-left: 16px; margin-top: 4px; margin-bottom: 8px; }
 .stat-ic { margin-right: 6px; }
 .stat { margin-left: 0px; margin-top: 0px; margin-bottom: 0px; }
+.return-anchor { width: 1px; height: 1px; }
 </style>

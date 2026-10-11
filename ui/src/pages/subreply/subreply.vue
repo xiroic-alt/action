@@ -18,8 +18,9 @@
          要回复主楼直接点底部输入栏(默认目标就是主评论) -->
 
     <scroller class="list" scroll-direction="vertical" :show-scrollbar="true"
-              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onListScroll"
+              :loadmoreoffset="100" @loadmore="loadMore" @scroll="onReturnScroll($event, 'returnTop0')"
               @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+      <div ref="returnTop0" class="return-anchor"></div>
       <text v-if="status !== ''" class="status" :style="T.t.titleVar" :style="{ color: T.c.primary }">{{ status }}</text>
       <div v-for="r in replies" :key="r.rpid" class="reply">
         <image class="face" :src="r.face" resize="cover" @click="openUser(r)"></image>
@@ -101,10 +102,13 @@
         </div>
       </div>
     </div>
+    <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
 <script>
+import BackTop from '../../components/back-top.vue'
+import { scrollTopMixin } from '../../services/scroll-top.js'
 // 楼中页: 某条主评论的子回复列表 (x/v2/reply/reply) + 回复子评论 (addReply root/parent).
 // 由评论页「回复 N」navTo 传入: aid(oid), root(顶层 rpid), msg/author/face(父评论展示).
 // 点某条回复的「回复」= 设置目标 (发评时 parent=该条 rpid); 点父评论 = 回复主楼 (parent=root).
@@ -227,6 +231,8 @@ const MI_D = {
 }
 
 export default {
+  components: { BackTop },
+  mixins: [scrollTopMixin],
   name: 'subreply',
   data() {
     return {
@@ -265,6 +271,7 @@ export default {
     }
   },
   methods: {
+    onReturnScroll(e, target) { this.trackTop(e, target); this.onListScroll(e) },
     onShow() {
       if (this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
@@ -989,4 +996,5 @@ function parseParentSegs(msg) {
 .iv-pill { height: 40px; padding-left: 18px; padding-right: 18px; margin-right: 8px; border-radius: 12px; background-color: #fb7299; flex-direction: row; justify-content: center; align-items: center; }
 .iv-pill-t { font-size: 20px; color: #ffffff; }
 .iv-sep { width: 1px; height: 26px; background-color: rgba(255,255,255,0.30); margin-right: 8px; }
+.return-anchor { width: 1px; height: 1px; }
 </style>
