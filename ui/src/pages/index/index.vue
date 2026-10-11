@@ -74,7 +74,7 @@
 
     <!-- 搜索 -->
     <div v-else-if="activeTab === 'search'" class="tabbody">
-      <div class="search-bar">
+      <div class="search-bar" :style="T.bar">
         <div class="search-input" :style="T.insetR" @click="openKeyboard">
           <text class="search-text" :style="T.t.body">{{ keyword ? keyword : placeholder }}</text>
         </div>

@@ -32,7 +32,7 @@
       <div ref="feedTop" class="feed-anchor"></div>
       <div class="fwrap">
 
-        <div class="dyn" :style="{ width: (paneWidth - 40) + 'px', backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDyn(d)">
+        <div class="dyn" :style="{ width: (paneWidth - 40) + 'px', backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }" v-for="(d, di) in shown" :key="d.id || ('d' + di)" @click="openDynPage(d)">
           <div class="dhead" @click="openUp(d)">
             <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
             <div class="dface-wrap">
@@ -49,11 +49,14 @@
             <text class="dbadge" :style="T.accentR">{{ kindName(d.kind) }}</text>
           </div>
 
+          <!-- 点击分区 (用户要求): 只有"视频卡片"进视频详情页; 正文/空白/其它一律进动态详情页.
+               旧行为是"卡片带 bvid 就进视频页", 于是点正文也跳视频 —— 现在根容器固定走 openDynPage,
+               视频仍由 .vcard 上的 openVideo(archive) 负责 (内部点击靠 innerTap 时间窗让路). -->
           <!-- 无正文时不要渲染空 richtext: lines:3 仍会占 3 行高度 -> 卡片里一大片空白 -->
           <!-- 命中区必须是 div: 本机 richtext/text 上的 @click 不触发 (真机实测:
                同一位置挂在 div 上的作者行点击生效, 挂在 richtext 上的正文点击无反应)
                -> 点正文一律进详情页 (收起 / 展开都一样) -->
-          <div class="dtext-hit" @click="openDyn(d)">
+          <div class="dtext-hit" @click="openDynPage(d)">
             <richtext v-if="d.segs && d.segs.length > 0" class="dtext" :style="T.t.body">
               <template v-for="(seg, si) in d.segs">
                 <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>

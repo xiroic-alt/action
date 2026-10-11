@@ -18,12 +18,12 @@
     <!-- 右栏: 详情 / 评论 同页 tab 切换; 左右滑动切换 (touch 事件冒泡自内部 scroller) -->
     <div class="right" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" :style="{ backgroundColor: T.c.surface, backgroundColor: T.c.surface }">
       <div class="tabbar" :style="{ backgroundColor: T.c.surfaceContainerHighest, backgroundColor: T.c.surfaceContainerHighest }">
-        <div :class="['tab', tab === 'detail' ? 'tab-on' : '']" @click="switchTab('detail')">
-          <text @click="switchTab('detail')" :class="['tab-text', tab === 'detail' ? 'tab-text-on' : '']">详情</text>
+        <div :class="['tab', tab === 'detail' ? 'tab-on' : '']" :style="tab === 'detail' ? T.accentSoft : {}" @click="switchTab('detail')">
+          <text @click="switchTab('detail')" :class="['tab-text', tab === 'detail' ? 'tab-text-on' : '']" :style="tab === 'detail' ? T.t.onAccentC : T.t.label">详情</text>
         </div>
         <!-- 评论 tab: 同页切换 (两边评论区已合并, 不再跳独立评论页) -->
-        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" :style="{ width: commentTabW + 'px' }" @click="switchTab('comment')">
-          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']">评论{{ total > 0 ? ' ' + total : '' }}</text>
+        <div :class="['tab', tab === 'comment' ? 'tab-on' : '']" :style="tab === 'comment' ? Object.assign({ width: commentTabW + 'px' }, T.accentSoft) : { width: commentTabW + 'px' }" @click="switchTab('comment')">
+          <text @click="switchTab('comment')" :class="['tab-text', tab === 'comment' ? 'tab-text-on' : '']" :style="tab === 'comment' ? T.t.onAccentC : T.t.label">评论{{ total > 0 ? ' ' + total : '' }}</text>
         </div>
         <div class="tab-spacer"></div>
         <div class="mini-btn" @click="goHome" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }">
@@ -49,71 +49,79 @@
         </richtext>
         <!-- 作者行: 事件挂在有尺寸的 div 上 (text @click 在本机固件不触发); 顺带去掉缺字形的右尖括号 -->
         <div class="author-row" @click="openUp">
-          <text class="author">{{ detail ? (detail.author + ' · ') : '' }}{{ detail ? detail.pubdateText : '' }}</text>
+          <text class="author" :style="T.t.accentSub">{{ detail ? (detail.author + ' · ') : '' }}{{ detail ? detail.pubdateText : '' }}</text>
         </div>
-        <text v-if="detail" class="stat">播放 {{ detail.playText }} · 弹幕 {{ detail.danmakuText }} · {{ detail.duration }}</text>
-        <text v-if="detail" class="stat">赞 {{ detail.likeText }} · 币 {{ detail.coinText }} · 藏 {{ detail.favText }} · 转 {{ detail.shareText }}</text>
+        <text v-if="detail" class="stat" :style="T.t.caption">播放 {{ detail.playText }} · 弹幕 {{ detail.danmakuText }} · {{ detail.duration }}</text>
+        <text v-if="detail" class="stat" :style="T.t.caption">赞 {{ detail.likeText }} · 币 {{ detail.coinText }} · 藏 {{ detail.favText }} · 转 {{ detail.shareText }}</text>
         <div v-if="detail" class="btnrow">
-          <div class="playbtn" @click="openPlayer">
+          <div class="playbtn" :style="T.accentR" @click="openPlayer">
             <image class="play-ic" :src="MI.play28" :style="{ width: '28px', height: '28px' }"></image>
-            <text class="play-text">播放</text>
+            <text class="play-text" :style="T.t.onAccentTitle">播放</text>
           </div>
           <div v-if="actStatus !== ''" class="status-row">
             <image v-if="actOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="act-status">{{ actStatus }}</text>
+            <text class="act-status" :style="T.t.accent">{{ actStatus }}</text>
           </div>
         </div>
         <!-- 交互行: 点赞/投币/收藏/三连/稍后再看 (状态高亮; 均可再点取消, 投币除外) -->
         <div v-if="detail" class="actrow">
-          <div :class="['act-btn', detail.reqLike ? 'act-on' : '']" @click="doLike">
-            <text :class="['act-text', detail.reqLike ? 'act-text-on' : '']">{{ detail.reqLike ? '已赞' : '点赞' }}</text>
+          <div :class="['act-btn', detail.reqLike ? 'act-on' : '']" :style="detail.reqLike ? T.accentR : T.actionR" @click="doLike">
+            <text :class="['act-text', detail.reqLike ? 'act-text-on' : '']" :style="detail.reqLike ? T.t.onAccent : T.t.body">{{ detail.reqLike ? '已赞' : '点赞' }}</text>
           </div>
-          <div :class="['act-btn', detail.reqCoin ? 'act-on' : '']" @click="openCoinPicker">
-            <text :class="['act-text', detail.reqCoin ? 'act-text-on' : '']">{{ detail.reqCoin ? '已币' : '投币' }}</text>
+          <div :class="['act-btn', detail.reqCoin ? 'act-on' : '']" :style="detail.reqCoin ? T.accentR : T.actionR" @click="openCoinPicker">
+            <text :class="['act-text', detail.reqCoin ? 'act-text-on' : '']" :style="detail.reqCoin ? T.t.onAccent : T.t.body">{{ detail.reqCoin ? '已币' : '投币' }}</text>
           </div>
-          <div :class="['act-btn', detail.reqFav ? 'act-on' : '']" @click="onFavTap">
-            <text :class="['act-text', detail.reqFav ? 'act-text-on' : '']">{{ detail.reqFav ? '已藏' : '收藏' }}</text>
+          <div :class="['act-btn', detail.reqFav ? 'act-on' : '']" :style="detail.reqFav ? T.accentR : T.actionR" @click="onFavTap">
+            <text :class="['act-text', detail.reqFav ? 'act-text-on' : '']" :style="detail.reqFav ? T.t.onAccent : T.t.body">{{ detail.reqFav ? '已藏' : '收藏' }}</text>
           </div>
-          <div class="act-btn act-triple" @click="doTriple">
-            <text class="act-text">三连</text>
+          <div class="act-btn act-triple" :style="T.actionR" @click="doTriple">
+            <text class="act-text" :style="T.t.body">三连</text>
           </div>
-          <div :class="['act-btn', detail.reqToview ? 'act-on' : '']" @click="doToview">
-            <text :class="['act-text', detail.reqToview ? 'act-text-on' : '']">{{ detail.reqToview ? '已加' : '稍后看' }}</text>
+          <div :class="['act-btn', detail.reqToview ? 'act-on' : '']" :style="detail.reqToview ? T.accentR : T.actionR" @click="doToview">
+            <text :class="['act-text', detail.reqToview ? 'act-text-on' : '']" :style="detail.reqToview ? T.t.onAccent : T.t.body">{{ detail.reqToview ? '已加' : '稍后看' }}</text>
           </div>
           <!-- 关注: 未关注点一下就关注; 已关注点开菜单 (特别关注 / 设置分组 / 取消关注) -->
-          <div :class="['act-btn', rel.following ? 'act-on' : '']" @click="onFollowTap">
-            <text :class="['act-text', rel.following ? 'act-text-on' : '']">{{ rel.following ? '已关注' : '关注' }}</text>
+          <div :class="['act-btn', rel.following ? 'act-on' : '']" :style="rel.following ? T.accentR : T.actionR" @click="onFollowTap">
+            <text :class="['act-text', rel.following ? 'act-text-on' : '']" :style="rel.following ? T.t.onAccent : T.t.body">{{ rel.following ? '已关注' : '关注' }}</text>
           </div>
         </div>
 
-        <text v-if="error !== ''" class="state-inline">{{ error }}</text>
-        <text v-if="loading" class="state-inline">加载中…</text>
+        <text v-if="error !== ''" class="state-inline" :style="T.t.err">{{ error }}</text>
+        <text v-if="loading" class="state-inline" :style="T.t.err">加载中…</text>
 
         <!-- 警示标识 (官方 App 的「个人观点，仅供参考」): view 接口的 argue_info.argue_msg -->
         <div v-if="detail && detail.argue" class="argue">
           <image class="argue-ic" :src="MI.alert" :style="{ width: '20px', height: '20px' }"></image>
-          <text class="argue-t">{{ detail.argue }}</text>
+          <text class="argue-t" :style="T.t.caption">{{ detail.argue }}</text>
         </div>
 
         <!-- AI 总结: 官方「AI 视频总结」. 有就显示摘要 + 带时间戳的大纲, 点大纲跳时间点. -->
         <div v-if="aiSum" class="section">
-          <text class="sec-title">AI 总结</text>
-          <text v-if="aiSum.summary" class="ai-sum">{{ aiSum.summary }}</text>
+          <text class="sec-title" :style="T.t.title">AI 总结</text>
+          <text v-if="aiSum.summary" class="ai-sum" :style="T.t.body">{{ aiSum.summary }}</text>
           <div v-for="(o, oi) in aiSum.outline" :key="'ao' + oi" class="ai-out">
-            <text class="ai-out-t">{{ o.title }}</text>
+            <text class="ai-out-t" :style="T.t.labelOn">{{ o.title }}</text>
             <div v-for="(p, pi) in o.parts" :key="'ap' + pi" class="ai-part" @click="seekTo(p.ts)">
-              <text class="ai-ts">{{ p.tsText }}</text>
-              <text class="ai-tx">{{ p.text }}</text>
+              <text class="ai-ts" :style="T.t.accentSm">{{ p.tsText }}</text>
+              <text class="ai-tx" :style="T.t.bodyVar">{{ p.text }}</text>
             </div>
           </div>
         </div>
 
+        <!-- AI 总结入口: 旧实现只在"拉取成功"时渲染这块, 真机上接口常返回非 0 ->
+              ​用户既看不到内容也没有任何触发方式 (用户反馈: 没看到任何关于 AI 总结的按钮).
+             现在入口常驻, 未取过/失败/为空都能点, 并在按钮上回显状态. -->
+        <div v-else class="section">
+          <div class="ai-entry" :style="aiLoading ? T.actionR : T.accentR" @click="onAiTap">
+            <text class="ai-entry-t" :style="aiLoading ? T.t.body : T.t.onAccent">{{ aiLabel }}</text>
+          </div>
+        </div>
         <div v-if="detail" class="section">
-          <text class="sec-title">简介</text>
+          <text class="sec-title" :style="T.t.title">简介</text>
           <!-- 简介: 超 3 行收起 (...), 点击展开 (:key 重建生效, 同上) -->
           <!-- 简介: emoji 走 richtext 渲成图片 (设备字体无 emoji 字形); 超 3 行收起, 点击展开 -->
           <richtext :key="'d' + (descExpanded ? 1 : 0)"
-                    :class="['desc', descExpanded ? 'desc-open' : '']" @click="toggleDesc">
+                    :class="['desc', descExpanded ? 'desc-open' : '']" :style="T.t.bodyVar" @click="toggleDesc">
             <template v-for="(seg, si) in descSegs">
               <span v-if="seg.t === 0" :key="'ds' + si">{{ seg.v }}</span>
               <image v-else :key="'de' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
@@ -122,7 +130,7 @@
         </div>
 
         <div v-if="detail && detail.pages.length > 1" class="section">
-          <text class="sec-title">分 P ({{ detail.pages.length }})</text>
+          <text class="sec-title" :style="T.t.title">分 P ({{ detail.pages.length }})</text>
           <scroller class="plist" scroll-direction="horizontal" :show-scrollbar="true">
             <text v-for="p in detail.pages" :key="p.page"
                   :class="['pitem', currentPage === p.page ? 'pitem-active' : '']"
@@ -130,7 +138,7 @@
           </scroller>
         </div>
         <div v-else-if="detail && detail.season && detail.season.episodes.length > 1" class="section">
-          <text class="sec-title">合集 · {{ detail.season.title }}</text>
+          <text class="sec-title" :style="T.t.title">合集 · {{ detail.season.title }}</text>
           <scroller class="plist" scroll-direction="horizontal" :show-scrollbar="true">
             <text v-for="e in detail.season.episodes" :key="e.bvid"
                   :class="['pitem', e.bvid === detail.bvid ? 'pitem-active' : '']"
@@ -139,31 +147,31 @@
         </div>
 
         <div v-if="related.length > 0" class="section">
-          <text class="sec-title">推荐</text>
+          <text class="sec-title" :style="T.t.title">推荐</text>
           <div v-for="item in related" :key="item.bvid" class="ritem" @click="openVideo(item)">
             <image class="rcover" :src="item.pic" resize="cover" :lazy-load="true"></image>
             <div class="rmeta">
-              <text class="rtitle">{{ item.title }}</text>
+              <text class="rtitle" :style="T.t.title">{{ item.title }}</text>
               <div class="rstatrow">
-                <text class="rstat">{{ item.author }} ·</text>
+                <text class="rstat" :style="T.t.caption">{{ item.author }} ·</text>
                 <image class="rstat-ic" :src="MI.play18" :style="{ width: '16px', height: '16px' }"></image>
-                <text class="rstat">{{ item.playText }} {{ item.duration }}</text>
+                <text class="rstat" :style="T.t.caption">{{ item.playText }} {{ item.duration }}</text>
               </div>
             </div>
           </div>
         </div>
-        <text class="pull-hint">↓ 下拉刷新 · 左右滑动切「详情/评论」</text>
+        <text class="pull-hint" :style="T.t.weak">↓ 下拉刷新 · 左右滑动切「详情/评论」</text>
       </scroller>
 
       <!-- ============ 评论 tab ============ -->
       <div v-else class="cwrap">
         <!-- 排序切换: 热度 / 最新 -->
         <div class="sortbar">
-          <div :class="['sort-item', sortMode === 'hot' ? 'sort-on' : '']" @click="switchSort('hot')">
-            <text :class="['sort-text', sortMode === 'hot' ? 'sort-text-on' : '']">热度</text>
+          <div :class="['sort-item', sortMode === 'hot' ? 'sort-on' : '']" :style="sortMode === 'hot' ? T.accentR : T.actionR" @click="switchSort('hot')">
+            <text :class="['sort-text', sortMode === 'hot' ? 'sort-text-on' : '']" :style="sortMode === 'hot' ? T.t.onAccent : T.t.body">热度</text>
           </div>
-          <div :class="['sort-item', sortMode === 'time' ? 'sort-on' : '']" @click="switchSort('time')">
-            <text :class="['sort-text', sortMode === 'time' ? 'sort-text-on' : '']">最新</text>
+          <div :class="['sort-item', sortMode === 'time' ? 'sort-on' : '']" :style="sortMode === 'time' ? T.accentR : T.actionR" @click="switchSort('time')">
+            <text :class="['sort-text', sortMode === 'time' ? 'sort-text-on' : '']" :style="sortMode === 'time' ? T.t.onAccent : T.t.body">最新</text>
           </div>
         </div>
         <scroller class="clist" scroll-direction="vertical" :show-scrollbar="true"
@@ -171,7 +179,7 @@
       <div ref="returnTop1" class="return-anchor"></div>
           <div v-if="cStatus !== ''" class="status-row">
             <image v-if="cOk" class="status-ic" :src="MI.check" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="c-status">{{ cStatus }}</text>
+            <text class="c-status" :style="T.t.err">{{ cStatus }}</text>
           </div>
           <!-- 未登录: 登录引导 -->
           <div v-if="!logged && !cLoading" class="gate">
@@ -185,16 +193,16 @@
               <image class="face" :src="r.face" resize="cover" @click="openUser(r)"></image>
               <div class="reply-main">
                 <div class="reply-head">
-                  <text class="reply-author" @click="openUser(r)">{{ r.author }}</text>
+                  <text class="reply-author" :style="T.t.accentSub" @click="openUser(r)">{{ r.author }}</text>
                   <text v-if="r.pinned" class="tag tag-pin">置顶</text>
                   <text v-if="r.isUp" class="tag tag-up">UP主</text>
-                  <text class="reply-time">{{ r.timeText }}</text>
+                  <text class="reply-time" :style="T.t.caption">{{ r.timeText }}</text>
                 </div>
                 <!-- 图文混排: B 站表情 + emoji 转图片 (设备字体无 emoji 字形); 超 3 行收起, 点击展开.
                      :key 重建生效 (lines 不随 class 更新) -->
                 <div class="reply-wrap">
                   <richtext :key="'r' + r.rpid + (r.expanded ? 1 : 0)"
-                            :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" @click="toggleReply(r)">
+                            :class="['reply-msg', r.expanded ? 'reply-msg-open' : '']" :style="T.t.body" @click="toggleReply(r)">
                     <template v-for="(seg, si) in r.segs">
                       <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
                       <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
@@ -216,30 +224,30 @@
                 <div class="reply-meta">
                   <div class="meta-btn" @click="toggleReplyLike(r)">
                     <image :src="r.liked ? MI.thumbupOn : MI.thumbup" :style="{ width: '20px', height: '20px' }"></image>
-                    <text :class="['meta-text', r.liked ? 'meta-liked' : '']">{{ r.likeText }}</text>
+                    <text :class="['meta-text', r.liked ? 'meta-liked' : '']" :style="T.t.caption">{{ r.likeText }}</text>
                   </div>
                   <div class="meta-btn" @click="openSubReply(r)">
                     <image :src="MI.reply" :style="{ width: '20px', height: '20px' }"></image>
-                    <text class="meta-reply">{{ r.replyCount }}</text>
+                    <text class="meta-reply" :style="T.t.caption">{{ r.replyCount }}</text>
                   </div>
                   <div v-if="r.pics && r.pics.length > 0" class="meta-btn meta-btn-pic" @click="ivOpen(r.pics[0].src)">
                     <image :src="MI.img" :style="{ width: '20px', height: '20px' }"></image>
-                    <text class="meta-pic">{{ r.pics.length }}</text>
+                    <text class="meta-pic" :style="T.t.caption">{{ r.pics.length }}</text>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-          <text v-if="logged && replies.length > 0 && hasMore" class="load-more" @click="loadMore">加载更多评论…</text>
-          <text v-if="logged && !cLoading && replies.length === 0 && cStatus === ''" class="empty">还没有评论, 抢首评</text>
+          <text v-if="logged && replies.length > 0 && hasMore" class="load-more" :style="T.t.accentSub" @click="loadMore">加载更多评论…</text>
+          <text v-if="logged && !cLoading && replies.length === 0 && cStatus === ''" class="empty" :style="T.t.empty">还没有评论, 抢首评</text>
         </scroller>
         <!-- 底部发评栏 -->
         <div class="postbar">
           <div class="post-input" @click="openPostInput">
-            <text class="post-input-text">{{ logged ? '说点什么…' : '登录后参与评论' }}</text>
+            <text class="post-input-text" :style="T.t.label">{{ logged ? '说点什么…' : '登录后参与评论' }}</text>
           </div>
           <div class="post-btn" @click="openPostInput">
-            <text class="post-btn-text">发送</text>
+            <text class="post-btn-text" :style="T.t.onAccent">发送</text>
           </div>
         </div>
       </div>
@@ -271,7 +279,7 @@
           <text v-else-if="tags.length === 0" class="picker-state">还没有分组 (可在官方 App 里创建)</text>
           <div v-for="t in tags" :key="t.tagid" class="picker-item" @click="toggleTag(t)">
             <text class="picker-item-title">{{ (tagSel.indexOf(t.tagid) >= 0 ? '☑ ' : '☐ ') + t.name }}</text>
-            <text class="picker-item-sub">{{ t.count }} 人</text>
+            <text class="picker-item-sub" :style="T.t.caption">{{ t.count }} 人</text>
           </div>
         </scroller>
         <div v-if="pickerMode === 'tags'" class="picker-row">
@@ -292,7 +300,7 @@
           <text v-else-if="favFolders.length === 0" class="picker-state">没有可用收藏夹 (可在网页端创建)</text>
           <div v-for="f in favFolders" :key="f.id" class="picker-item" @click="pickFolder(f)">
             <text class="picker-item-title">{{ f.title }}</text>
-            <text class="picker-item-sub">{{ f.mediaCount }} 个</text>
+            <text class="picker-item-sub" :style="T.t.caption">{{ f.mediaCount }} 个</text>
           </div>
         </scroller>
         <div class="picker-cancel" @click="closePicker">
@@ -545,9 +553,10 @@ export default {
       cStatus: '',
       // 图片查看器 (transform 版: 只把大图 URL 交给 <image resize=contain>, 缩放/平移全用 CSS transform)
       // AI 总结 (官方 x/web-interface/view/conclusion/get)
-  aiSum: null,        // { summary, outline:[{title, parts:[{ts, tsText, text}]}] }
-  aiTried: false,     // 每条稿件只试一次, 失败就不再重试
-  aiLoading: false,
+      aiSum: null,        // { summary, outline:[{title, parts:[{ts, tsText, text}]}] }
+      aiTried: false,     // 自动拉取只试一次 (手动入口不受它限制)
+      aiLoading: false,
+      aiErr: '',          // 失败/为空的原因, 入口按钮上回显
   viewer: { on: false, url: '', full: '', scale: 1, tx: 0, ty: 0, text: '100%', sizeText: '', err: '', loading: false, hint: false },
       posting: false,
       ime: null,
@@ -555,6 +564,13 @@ export default {
     }
   },
   computed: {
+    // AI 按钮三态文案: 入口常驻, 状态必须写清, 否则用户不知道是"没反应"还是"不能用"
+    aiLabel() {
+      if (this.aiSum) return 'AI 总结'
+      if (this.aiLoading) return 'AI 总结生成中…'
+      if (this.aiErr !== '') return 'AI 总结不可用，点这里重试'
+      return 'AI 总结'
+    },
     // 图标集: 浅色主题用 _d 版 (白图标在浅底上看不见)
     MIc() { return this.T && this.T.dark ? MI : MI_D },
     MI() { return MI },
@@ -606,8 +622,18 @@ export default {
     // 真机实测: 不带 wbi 签名直接 -403 访问权限不足, 未登录也会失败.
     // 拿不到就保持 aiSum = null, 模板整块不渲染 —— 不占位、不弹错.
     // 单独异步拉, 不挂在详情主链路上, 免得拖慢首屏.
-    loadAiSummary(d, gen) {
-      if (!d || this.aiTried) return
+    // 入口按钮: 允许重试 (旧实现 aiTried 是一次性守卫, 失败后永远没机会再取)
+    onAiTap() {
+      if (this.aiLoading) return
+      this.aiErr = ''
+      this.aiTried = false
+      this.aiSum = null
+      const d = this.detail || {}
+      this.loadAiSummary({ cid: d.cid, pages: d.pages || [], mid: d.mid || 0 }, this.generation, true)
+    },
+    loadAiSummary(d, gen, force) {
+      if (!d) return
+      if (this.aiTried && !force) return
       this.aiTried = true
       const pgs = d.pages || []
       const pg = pgs[Math.max(0, this.currentPage - 1)] || pgs[0] || {}
@@ -620,9 +646,14 @@ export default {
           if (gen !== this.generation) return
           if (s) {
             this.aiSum = s
+            this.aiErr = ''
             try { log('详情', 'AI 总结可用, 大纲 ' + s.outline.length + ' 段') } catch (e0) {}
+          } else if (gen === this.generation) {
+            this.aiErr = '这条稿件没有可用的 AI 总结'
+            try { log('详情', 'AI 总结为空 (接口判定不可用)') } catch (e2) {}
           }
         } catch (e) {
+          if (gen === this.generation) this.aiErr = (e && e.message ? e.message : String(e)).substring(0, 40)
           try { log('详情', 'AI 总结不可用: ' + (e && e.message ? e.message : e)) } catch (e1) {}
         } finally {
           if (gen === this.generation) this.aiLoading = false
@@ -2391,4 +2422,6 @@ export default {
 .author-row { flex-direction: row; align-items: center; margin-top: 6px; }
 .author { margin-top: 0px; }
 .return-anchor { width: 1px; height: 1px; }
+.ai-entry { width: 100%; height: 44px; justify-content: center; align-items: center; }
+.ai-entry-t { font-size: 19px; }
 </style>
