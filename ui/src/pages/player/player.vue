@@ -84,7 +84,6 @@ import { getCfg } from '../../services/config.js'
 import { getProgress, setProgress, clearProgress, flushProgress } from '../../services/progress.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
-import { tokens } from '../../services/theme.js'
 
 var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中间用本地时钟插值)
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
@@ -98,6 +97,30 @@ var SEEK_STEP_SEC = 10   // 快退/快进步长 (秒)
 // ★ 未在真机确认: type 的枚举值. 文档只给出二进制里的日志串
 //   "onVideoPlayerAudioTypeChanged type:%d macAddress %s", 没有常量表.
 //   这里按 0=本机 / 1=蓝牙 实现, 并把实际 type/mac 写日志 —— 真机若仍无声, 这一个常量是唯一要改处.
+// ---------- 视频页固定深色 ----------
+// 视频画面本身是任意亮度的内容, 控件必须恒定"深色底 + 浅色字"才压得住画面;
+// 浅色主题下沿用全局 token 会让控制条变白底压画面 (用户要求: 视频页不要浅色模式, 统一深色).
+// 因此这里**刻意不复用** tokens(): 那套是跟随用户设置的语义色, 视频页不跟随.
+function playerTokens() {
+  return {
+    dark: true,                                    // 图标选深底版 (MIc)
+    page: { backgroundColor: '#000000' },
+    bar: { backgroundColor: 'rgba(0, 0, 0, 0.62)' },
+    actionR: { backgroundColor: 'rgba(255, 255, 255, 0.12)', borderRadius: '20px' },
+    c: {
+      surface: '#000000',
+      onSurface: '#ffffff',
+      primary: '#fb7299',
+      onPrimary: '#ffffff',
+      surfaceContainerHighest: 'rgba(255, 255, 255, 0.12)'
+    },
+    t: {
+      body: { color: '#ffffff', fontSize: '19px' },
+      title: { color: '#ffffff', fontSize: '22px' }
+    }
+  }
+}
+
 var AUDIO_TYPE_SPEAKER = 0
 var AUDIO_TYPE_BLUETOOTH = 1
 
@@ -172,7 +195,7 @@ export default {
   data: function () {
     return {
       // M3 语义 token (颜色/形状/密度/字级), 见 services/theme.js
-      T: tokens(),
+      T: playerTokens(),
       bvid: '',
       // 直播态: mode='live' 时走直播分支 (无进度条/无续播/有限重连); 点播分支行为不变
       mode: '',
@@ -1028,26 +1051,28 @@ export default {
 /* 进度条: 绝对定位(左 256 / 宽 520), 原生 <seekbar> 铺满它 */
 .seek {
   position: absolute;
-  left: 256px;
+  left: 248px;
   top: 0px;
-  width: 520px;
+  width: 566px;
   height: 44px;
 }
 .sbar {
   position: absolute;
   left: 0px;
   top: 0px;
-  width: 520px;
+  width: 566px;
   height: 44px;
 }
+/* 时间紧贴滑块右端: 原来 seek 到 776 而 time 从 790 起又右对齐, 中间空出 ~170px
+   (用户反馈"时间和滑块中间距太大"). 现在 seek 到 814, time 从 820 起, 中间只留 6px. */
 .time {
   position: absolute;
-  left: 790px;
+  left: 820px;
   top: 0px;
-  width: 156px;
+  width: 126px;
   height: 44px;
-  font-size: 16px;
-  color: #a8a8b0;
-  text-align: right;
+  font-size: 15px;
+  color: #d8d8dd;
+  text-align: left;
 }
 </style>

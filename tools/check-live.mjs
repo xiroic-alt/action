@@ -188,6 +188,13 @@ ok(liveBranchAt > 0 && player.indexOf('getProgress(self.bvid)') > liveBranchAt,
 ok(/if \(this\.resumeOn && this\.bvid && this\.started\)/.test(player), 'player: 续播写回仍限点播 (有 bvid 才写)')
 
 // ---- 音频输出路由 (蓝牙): 不调用 setAudioDeviceType 就永远只有扬声器 ----
+// ---- 视频页固定深色 + 控制条间距 ----
+ok(/function playerTokens/.test(player), 'player: 视频页用固定深色 token (不跟随浅色主题)')
+ok(/T: playerTokens\(\)/.test(player), 'player: data 用 playerTokens()')
+ok(!/T: tokens\(\)/.test(player), 'player: 不得再用跟随主题的 tokens()')
+ok(/left: 820px/.test(player), 'player: 时间紧贴滑块 (left 820)')
+ok(/width: 566px/.test(player), 'player: 滑块加宽到 566')
+
 ok(/setAudioDeviceType/.test(player), 'player: 起播后要切音频输出 (setAudioDeviceType)')
 ok(/applyAudioRoute/.test(player), 'player: 存在音频输出判定')
 ok(/AUDIO_TYPE_BLUETOOTH/.test(player) && /AUDIO_TYPE_SPEAKER/.test(player), 'player: 扬声器/蓝牙两种输出都有分支')
