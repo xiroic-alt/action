@@ -79,6 +79,7 @@
 //           setAudioDeviceType setVideoSurface
 import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl } from '../../services/bili.js'
+import { bilinet } from '../../services/native.js'
 import { getCfg } from '../../services/config.js'
 import { getProgress, setProgress, clearProgress, flushProgress } from '../../services/progress.js'
 import { afterPaint } from '../../base-page.js'
@@ -88,6 +89,17 @@ import { tokens } from '../../services/theme.js'
 var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中间用本地时钟插值)
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
 var SEEK_STEP_SEC = 10   // 快退/快进步长 (秒)
+
+// ---------- 音频输出路由 (蓝牙) ----------
+// 官方播放器证据 (x6pro RE-miniapp-player.md §6.1 / §7.3): 视频音轨由 GStreamer alsasink 出,
+// 热切蓝牙靠 setAudioDeviceType(int type, mac) + 内部 _blueMac; 不调用它, 音轨就留在
+// 默认 ALSA 设备 (扬声器) —— 蓝牙耳机上表现为"没有声音".
+// 设备侧旁证: bluealsa 以 --profile=a2dp-source 常驻; /usr/bin/bluetoothctl 可列配对设备.
+// ★ 未在真机确认: type 的枚举值. 文档只给出二进制里的日志串
+//   "onVideoPlayerAudioTypeChanged type:%d macAddress %s", 没有常量表.
+//   这里按 0=本机 / 1=蓝牙 实现, 并把实际 type/mac 写日志 —— 真机若仍无声, 这一个常量是唯一要改处.
+var AUDIO_TYPE_SPEAKER = 0
+var AUDIO_TYPE_BLUETOOTH = 1
 
 function pad2(n) { return n < 10 ? '0' + n : '' + n }
 
@@ -207,6 +219,8 @@ export default {
       fallbackTried: false,  // autoFallback: 只在首个错误时换一次线
       srcIndex: 0,           // 当前是第几个候选源 (取流口链)
       pollTimer: null,
+      audioRoute: '',        // 当前输出 (仅用于日志/回显)
+      audioProbed: false,    // 每次起播只判定一次输出设备
       hideTimer: null,
       keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
@@ -413,6 +427,7 @@ export default {
     playStream: function (url, gen) {
       if (gen !== this.generation) return
       var self = this
+      this.audioProbed = false   // 换源/换页后重新判定输出设备
       this.started = false
       this.appliedOnce = false
       this.autoStarted = false
@@ -437,6 +452,41 @@ export default {
       })
     },
 
+    // ---------------- 音频输出 (蓝牙) ----------------
+    // 判定当前有无已连接的蓝牙音频设备, 有就切过去. 命令一律 execAsync
+    // (同步 exec 会冻死 QuickJS 主线程, 见 HANDOVER §10).
+    applyAudioRoute: function () {
+      var self = this
+      if (!this.opened || this.audioProbed) return
+      this.audioProbed = true
+      var bt = (typeof $falcon !== 'undefined' && $falcon.jsapi && $falcon.jsapi.bluetooth) ? $falcon.jsapi.bluetooth : null
+      if (bt && typeof bt.getCurrentDevices === 'function') {
+        try {
+          var r = bt.getCurrentDevices()
+          if (r && typeof r.length === 'number' && r.length > 0) {
+            var mac = String((r[0] && (r[0].macAddress || r[0].mac || r[0].address)) || '')
+            if (mac) { this.setAudioOut(AUDIO_TYPE_BLUETOOTH, mac); return }
+          }
+          if (!r) return   // 回调式固件: 等 signal, 不在这里退到 shell (避免重复切)
+        } catch (e) { /* 落到 shell 探测 */ }
+      }
+      try {
+        bilinet.execAsync('bluetoothctl info 2>/dev/null | grep -E "Device|Connected" | head -4').then(function (out) {
+          var txt = String(out || '')
+          var m = /Device\s+([0-9A-Fa-f:]{17})/.exec(txt)
+          if (m && /Connected:\s*yes/.test(txt)) self.setAudioOut(AUDIO_TYPE_BLUETOOTH, m[1])
+          else self.setAudioOut(AUDIO_TYPE_SPEAKER, '')
+        }).catch(function () { self.setAudioOut(AUDIO_TYPE_SPEAKER, '') })
+      } catch (e2) {
+        this.setAudioOut(AUDIO_TYPE_SPEAKER, '')
+      }
+    },
+    setAudioOut: function (type, mac) {
+      var r = this.elem('setAudioDeviceType', type, mac)
+      this.audioRoute = (type === AUDIO_TYPE_BLUETOOTH ? 'bluetooth ' + mac : 'speaker')
+      try { log('播放器', '音频输出 -> ' + this.audioRoute + ' (type=' + type + ' elem=' + (r === undefined ? 'n/a' : 'ok') + ')') } catch (e) {}
+    },
+
     // ---------------- 元素事件 ----------------
     // GstState: 1 NULL / 2 READY / 3 PAUSED / 4 PLAYING
     onEvtState: function (e) {
@@ -450,6 +500,7 @@ export default {
         this.applyOnce()
         if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
         if (this.isLive && !this.liveStartedAt) { this.liveStartedAt = Date.now(); this.reconnectCount = 0 }
+        this.applyAudioRoute()
         this.posAt = Date.now()
         this.startPolling()
         this.startKeepAwake()

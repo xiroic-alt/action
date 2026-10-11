@@ -187,6 +187,14 @@ ok(liveBranchAt > 0 && player.indexOf('getProgress(self.bvid)') > liveBranchAt,
   'player: 直播分支在读续播进度之前 return')
 ok(/if \(this\.resumeOn && this\.bvid && this\.started\)/.test(player), 'player: 续播写回仍限点播 (有 bvid 才写)')
 
+// ---- 音频输出路由 (蓝牙): 不调用 setAudioDeviceType 就永远只有扬声器 ----
+ok(/setAudioDeviceType/.test(player), 'player: 起播后要切音频输出 (setAudioDeviceType)')
+ok(/applyAudioRoute/.test(player), 'player: 存在音频输出判定')
+ok(/AUDIO_TYPE_BLUETOOTH/.test(player) && /AUDIO_TYPE_SPEAKER/.test(player), 'player: 扬声器/蓝牙两种输出都有分支')
+ok(/execAsync\(/.test(player.split('applyAudioRoute')[1] || ''), 'player: 蓝牙探测必须用 execAsync (同步 exec 冻主线程)')
+ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
+ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')
+
 ok(/liveReconnect: function/.test(player) && /reconnectCount >= 3/.test(player), 'player: 断流重连有次数上限 (有限次)')
 ok(/liveReconnect: function[\s\S]{0,400}var gen = \+\+this\.generation/.test(player), 'player: 每次重连换 generation')
 ok(/setTimer\(this, 1500, function \(\) \{ if \(gen === self\.generation\) self\.fetchAndOpen\(gen\) \}\)/.test(player),
