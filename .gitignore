@@ -9,3 +9,4 @@ tools/bilibili-cookie.json
 .local/
 .ghtok
 .falcon_/
+ci-out/
