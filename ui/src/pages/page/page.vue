@@ -41,7 +41,7 @@
              :key 强制换元素重建 —— Falcon text 的 lines 样式创建后不随 class 更新
              (0.9.4 简介点了要切 tab 再回来才展开的根因), 只能重建生效 -->
         <richtext :key="'t' + (titleExpanded ? 1 : 0)"
-                  :class="['title', titleExpanded ? 'title-open' : '']" @click="toggleTitle">
+                  :class="['title', titleExpanded ? 'title-open' : '']" :style="T.t.title" @click="toggleTitle">
           <template v-for="(seg, si) in titleSegs">
             <span v-if="seg.t === 0" :key="'ts' + si">{{ seg.v }}</span>
             <image v-else :key="'te' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
@@ -133,7 +133,7 @@
           <text class="sec-title" :style="T.t.title">分 P ({{ detail.pages.length }})</text>
           <scroller class="plist" scroll-direction="horizontal" :show-scrollbar="true">
             <text v-for="p in detail.pages" :key="p.page"
-                  :class="['pitem', currentPage === p.page ? 'pitem-active' : '']"
+                  :class="['pitem', currentPage === p.page ? 'pitem-active' : '']" :style="T.t.body"
                   @click="switchPage(p)">P{{ p.page }} {{ p.part }}</text>
           </scroller>
         </div>
@@ -141,7 +141,7 @@
           <text class="sec-title" :style="T.t.title">合集 · {{ detail.season.title }}</text>
           <scroller class="plist" scroll-direction="horizontal" :show-scrollbar="true">
             <text v-for="e in detail.season.episodes" :key="e.bvid"
-                  :class="['pitem', e.bvid === detail.bvid ? 'pitem-active' : '']"
+                  :class="['pitem', e.bvid === detail.bvid ? 'pitem-active' : '']" :style="T.t.body"
                   @click="switchEpisode(e)">{{ e.title }}</text>
           </scroller>
         </div>
@@ -149,10 +149,10 @@
         <div v-if="related.length > 0" class="section">
           <text class="sec-title" :style="T.t.title">推荐</text>
           <div v-for="item in related" :key="item.bvid" class="ritem" @click="openVideo(item)">
-            <image class="rcover" :src="item.pic" resize="cover" :lazy-load="true"></image>
+            <image class="rcover" :style="T.t.title" :src="item.pic" resize="cover" :lazy-load="true"></image>
             <div class="rmeta">
               <text class="rtitle" :style="T.t.title">{{ item.title }}</text>
-              <div class="rstatrow">
+              <div class="rstatrow" :style="T.t.caption">
                 <text class="rstat" :style="T.t.caption">{{ item.author }} ·</text>
                 <image class="rstat-ic" :src="MI.play18" :style="{ width: '16px', height: '16px' }"></image>
                 <text class="rstat" :style="T.t.caption">{{ item.playText }} {{ item.duration }}</text>
@@ -183,9 +183,9 @@
           </div>
           <!-- 未登录: 登录引导 -->
           <div v-if="!logged && !cLoading" class="gate">
-            <text class="gate-text">评论需要登录后查看</text>
+            <text class="gate-text" :style="T.t.bodyVar">评论需要登录后查看</text>
             <div class="gate-btn" @click="goLogin">
-              <text class="gate-btn-text">去登录 (扫码 / 电脑同步)</text>
+              <text class="gate-btn-text" :style="T.t.onAccent">去登录 (扫码 / 电脑同步)</text>
             </div>
           </div>
           <div v-else>
@@ -194,8 +194,8 @@
               <div class="reply-main">
                 <div class="reply-head">
                   <text class="reply-author" :style="T.t.accentSub" @click="openUser(r)">{{ r.author }}</text>
-                  <text v-if="r.pinned" class="tag tag-pin">置顶</text>
-                  <text v-if="r.isUp" class="tag tag-up">UP主</text>
+                  <text v-if="r.pinned" class="tag tag-pin" :style="T.t.onAccent">置顶</text>
+                  <text v-if="r.isUp" class="tag tag-up" :style="T.t.onAccent">UP主</text>
                   <text class="reply-time" :style="T.t.caption">{{ r.timeText }}</text>
                 </div>
                 <!-- 图文混排: B 站表情 + emoji 转图片 (设备字体无 emoji 字形); 超 3 行收起, 点击展开.
@@ -209,7 +209,7 @@
                     </template>
                   </richtext>
                   <!-- 折叠态右下角省略号 (richtext 被 lines 截断时不会自己带 ...) -->
-                  <text v-if="!r.expanded && r.long" class="reply-more" @click="toggleReply(r)">…</text>
+                  <text v-if="!r.expanded && r.long" class="reply-more" :style="T.t.accentSub" @click="toggleReply(r)">…</text>
                 </div>
                 <!-- 每张图一个独立命中区: 原来所有图挤在一个命中 div 里, 而那个 div 的 :style 引用了
                      内层 v-for 的 pic (作用域外 -> undefined) => 尺寸 0 => 图也点不开 -->
@@ -256,55 +256,55 @@
     <!-- 选择器浮层: 收藏夹 / 投币数量 (遮罩不绑点击, 只能点「取消」关闭, 防误触) -->
     <div v-if="pickerMode !== ''" class="picker-mask">
       <div class="picker">
-        <text class="picker-title">{{ pickerTitle }}</text>
+        <text class="picker-title" :style="T.t.title">{{ pickerTitle }}</text>
         <!-- 关注菜单 (图4) -->
         <div v-if="pickerMode === 'follow'" class="picker-row">
           <div class="picker-coin" @click="toggleSpecial">
             <image class="picker-ico" :src="rel.special ? MI.starOn : MI.star" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="picker-coin-text">{{ rel.special ? '取消特别关注' : '加入特别关注' }}</text>
+            <text class="picker-coin-text" :style="T.t.onAccent">{{ rel.special ? '取消特别关注' : '加入特别关注' }}</text>
           </div>
           <div class="picker-coin" @click="openTagPicker">
             <image class="picker-ico" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
-            <text class="picker-coin-text">设置分组</text>
+            <text class="picker-coin-text" :style="T.t.onAccent">设置分组</text>
           </div>
         </div>
         <div v-if="pickerMode === 'follow'" class="picker-row">
           <div class="picker-coin picker-danger" @click="doUnfollow">
-            <text class="picker-coin-text">取消关注</text>
+            <text class="picker-coin-text" :style="T.t.onAccent">取消关注</text>
           </div>
         </div>
         <!-- 分组多选 (保存后走 tags/moveUsers) -->
         <scroller v-if="pickerMode === 'tags'" class="picker-list" scroll-direction="vertical" :show-scrollbar="true">
-          <text v-if="tagsLoading" class="picker-state">加载分组…</text>
-          <text v-else-if="tags.length === 0" class="picker-state">还没有分组 (可在官方 App 里创建)</text>
+          <text v-if="tagsLoading" class="picker-state" :style="T.t.caption">加载分组…</text>
+          <text v-else-if="tags.length === 0" class="picker-state" :style="T.t.caption">还没有分组 (可在官方 App 里创建)</text>
           <div v-for="t in tags" :key="t.tagid" class="picker-item" @click="toggleTag(t)">
-            <text class="picker-item-title">{{ (tagSel.indexOf(t.tagid) >= 0 ? '☑ ' : '☐ ') + t.name }}</text>
+            <text class="picker-item-title" :style="T.t.body">{{ (tagSel.indexOf(t.tagid) >= 0 ? '☑ ' : '☐ ') + t.name }}</text>
             <text class="picker-item-sub" :style="T.t.caption">{{ t.count }} 人</text>
           </div>
         </scroller>
         <div v-if="pickerMode === 'tags'" class="picker-row">
           <div class="picker-coin" @click="saveTags">
-            <text class="picker-coin-text">保存分组</text>
+            <text class="picker-coin-text" :style="T.t.onAccent">保存分组</text>
           </div>
         </div>
         <div v-if="pickerMode === 'coin'" class="picker-row">
           <div class="picker-coin" @click="pickCoin(1)">
-            <text class="picker-coin-text">投 1 币</text>
+            <text class="picker-coin-text" :style="T.t.onAccent">投 1 币</text>
           </div>
           <div class="picker-coin" @click="pickCoin(2)">
-            <text class="picker-coin-text">投 2 币</text>
+            <text class="picker-coin-text" :style="T.t.onAccent">投 2 币</text>
           </div>
         </div>
         <scroller v-if="pickerMode === 'fav'" class="picker-list" scroll-direction="vertical" :show-scrollbar="true">
-          <text v-if="favLoading" class="picker-state">加载收藏夹…</text>
-          <text v-else-if="favFolders.length === 0" class="picker-state">没有可用收藏夹 (可在网页端创建)</text>
+          <text v-if="favLoading" class="picker-state" :style="T.t.caption">加载收藏夹…</text>
+          <text v-else-if="favFolders.length === 0" class="picker-state" :style="T.t.caption">没有可用收藏夹 (可在网页端创建)</text>
           <div v-for="f in favFolders" :key="f.id" class="picker-item" @click="pickFolder(f)">
-            <text class="picker-item-title">{{ f.title }}</text>
+            <text class="picker-item-title" :style="T.t.body">{{ f.title }}</text>
             <text class="picker-item-sub" :style="T.t.caption">{{ f.mediaCount }} 个</text>
           </div>
         </scroller>
         <div class="picker-cancel" @click="closePicker">
-          <text class="picker-cancel-text">取消</text>
+          <text class="picker-cancel-text" :style="T.t.body">取消</text>
         </div>
       </div>
     </div>
