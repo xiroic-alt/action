@@ -301,10 +301,11 @@ export default {
     MI() { return this.MIc },
     // 缩放/平移交给 CSS transform (本机固件实测 <image> 支持 scale/translate)
     viewerStyle() { return makeImgStyle(this.viewer.scale, this.viewer.tx, this.viewer.ty) },
-    // 图片查看器必须是**整屏**浮层. 嵌入态 (首页动态 tab / UP 空间) 里本组件挂在窗格里,
-    // 窗格本身带偏移 (左导轨 88px / 顶部导航 44px), 而 .iview 是 absolute left:0/top:0 ——
-    // 于是查看器会从窗格左缘起铺满 960px, 右边被裁掉、左边压在导航栏下面.
-    // 用窗格尺寸反推偏移, 把浮层挪回"屏幕原点": 872 -> left:-88 / 222 -> top:-44.
+    // 图片查看器必须是**整屏**浮层. 嵌入态 (首页动态 tab) 里本组件挂在窗格里, 窗格本身带偏移
+    // (左导轨 88px / 顶部导航 44px), 而 .iview 是 absolute left:0/top:0.
+    // 真机实测 (2026-10-11 14:46): 往 .iview 上写 left:-88px **不生效** —— 渲染器不吃负偏移,
+    // 查看器仍然只铺满窗格 (左导轨还露着, 返回按钮被裁). 所以改为: 查看器打开时由宿主
+    // 把窗格放大到整屏 (藏导航 + pane 960x266), 这里只做兜底算术 (放大后恒为 0).
     viewerBox() {
       var dx = this.embedded ? Math.min(0, this.paneWidth - 960) : 0
       var dy = this.embedded ? Math.min(0, this.paneHeight - 266) : 0
@@ -323,7 +324,7 @@ export default {
   },
   methods: {
     // 生命周期: BasePage 只把 onShow/onHide/onUnload 转发给页面根组件
-    onUnload() { this.generation++; this.loading = false; this.viewer.on = false },
+    onUnload() { this.generation++; this.loading = false; this.viewer.on = false; this.$emit('viewer', false) },
     onHide() { this.generation++; this.loading = false },
     onShow() {
       this.T = tokens()
@@ -545,6 +546,7 @@ export default {
       this.viewer.loading = true
       this.viewer.hint = true
       this.viewer.on = true
+      this.$emit('viewer', true)   // 宿主据此把窗格放大到整屏 (负偏移渲染器不支持)
       try { log('动态图', '打开 ' + this.viewer.url) } catch (e) {}
       setTimer(this, 4000, function () { self.viewer.hint = false })
       setTimer(this, 8000, function () { self.viewer.loading = false })
@@ -618,7 +620,7 @@ export default {
         try { log('图片查看器', '切图 ' + (want === self.viewer.full ? '原图2040' : '轻量1080') + ' scale=' + (Math.round(self.viewer.scale * 100) / 100)) } catch (e0) {}
       })
     },
-    ivClose() { this.viewer.on = false },
+    ivClose() { this.viewer.on = false; this.$emit('viewer', false) },
     txy(e) {
       try {
         const t = (e && e.changedTouches && e.changedTouches[0]) || (e && e.touches && e.touches[0])

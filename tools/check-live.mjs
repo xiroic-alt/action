@@ -359,9 +359,16 @@ ok(/loaded: \{ rec: false, follow: false, search: false \}/.test(livePage), 'liv
 
 // player: 直播起播看门狗 (真机现象: 取流成功但元素从不进 PLAYING, 界面永久停在"缓冲中")
 ok(/armLiveWatchdog/.test(player) && /disarmLiveWatchdog/.test(player), 'player: 直播起播看门狗与解除')
+// 真机实测起播要 ~60s: 看门狗必须是"静默 N 秒才换线", 不能用固定超时打断能起播的流
+ok(/liveProgressAt = Date.now\(\)[\s\S]{0,200}setTicker\(this, 6000/.test(player)
+  || /setTicker\(this, 6000[\s\S]{0,400}liveProgressAt/.test(player), 'player: 看门狗周期检查 + 进度时间戳')
+ok(/idle < 25000/.test(player), 'player: 只有连续静默 25s 才换线路 (不是固定超时)')
+ok(!/setTimer\(this, 12000, function \(\) \{\s*\n\s*self\.liveWatchdog = null/.test(player), 'player: 已去掉 12s 固定超时看门狗')
 ok(/getLiveRoomPlayUrl\(this\.roomid, this\.liveSrcTry\)/.test(player), 'player: 换线路靠线路序号')
-ok(/if \(this\.isLive\) \{ if \(!this\.started\) this\.statusText = '缓冲中…'; return \}/.test(player),
-  'player: 直播不显示缓冲百分比 (HLS 滑动窗口会长期停在 99%)')
+const bufFn = (player.match(/onEvtBuffer: function \(e\) \{[\s\S]*?\n    \},/) || [''])[0]
+ok(/if \(this\.isLive\) \{/.test(bufFn) && /缓冲中…/.test(bufFn), 'player: 直播只报"缓冲中…", 不报数字')
+ok(bufFn.indexOf("'缓冲中 ' + p + '%'") > bufFn.indexOf('this.isLive'),
+  'player: 数字百分比在直播早返回之后才可能执行 (HLS 滑动窗口会长期停在 99%)')
 ok(/liveLastState/.test(player), 'player: 直播 state 变化写进设备日志 (便于真机定位)')
 
 console.log = realLog

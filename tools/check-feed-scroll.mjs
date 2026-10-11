@@ -28,4 +28,16 @@ assert.equal(vm.topShown, false)
 const src = fs.readFileSync(new URL('../ui/src/pages/index/index.vue',import.meta.url),'utf8')
 assert.match(src, /<DynamicFeed/)
 assert.doesNotMatch(src, /v-for="(item, i) in dynItems"/)
-console.log('PASS feed layout, cache isolation, scroll target, complete feed integration')
+// ---- 照片查看器整屏: 宿主把窗格放大, 因为渲染器不吃负偏移 ----
+// 真机实测 (2026-10-11 14:46): 往 .iview 写 left:-88px 无效, 查看器只铺满窗格,
+// 左导轨露着且返回按钮被裁 -> 改成"打开时藏导航 + 窗格 960x266".
+const feedSrc = fs.readFileSync(new URL('../ui/src/pages/feed/feed.vue', import.meta.url), 'utf8')
+assert.match(feedSrc, /this\.\$emit\('viewer', true\)/, 'feed: 打开查看器要通知宿主')
+assert.match(feedSrc, /this\.\$emit\('viewer', false\)/, 'feed: 关闭查看器要通知宿主')
+assert.match(feedSrc, /onUnload\(\) \{[^}]*\$emit\('viewer', false\)/, 'feed: 卸载时也要复位 (切 tab 不会留全屏态)')
+assert.match(src, /@viewer="onFeedViewer"/, 'index: 接住查看器开关')
+assert.match(src, /:pane-width="feedViewer \? 960 :/, 'index: 查看器打开时窗格放大到 960')
+assert.match(src, /:pane-height="feedViewer \? 266 :/, 'index: 查看器打开时窗格放大到 266')
+assert.match(src, /<div v-if="!feedViewer" class="nav"/, 'index: 查看器打开时隐藏导航栏')
+assert.match(src, /feedViewer: false/, 'index: feedViewer 声明在 data 里')
+console.log('PASS feed layout, cache isolation, scroll target, complete feed integration, fullscreen viewer')

@@ -246,7 +246,8 @@ export default {
       audioProbed: false,    // 每次起播只判定一次输出设备
       liveSrcTry: 0,         // 直播第几条候选线路 (起播失败时轮换)
       liveLastState: -1,     // 直播最近一次元素状态 (看门狗日志用)
-      liveWatchdog: null,    // 直播"12s 未出画面"看门狗定时器
+      liveWatchdog: null,    // 直播起播看门狗 (周期检查, 不是一次性超时)
+      liveProgressAt: 0,     // 最近一次"还在动"的时间 (bufferPercent/position 事件)
       hideTimer: null,
       keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
@@ -611,6 +612,7 @@ export default {
       if (!e) return
       var sec = Number(e.position)
       if (!(sec >= 0)) return
+      if (this.isLive) this.liveProgressAt = Date.now()
       var ms = Math.round(sec * 1000)
       this.posMs = ms
       this.posAt = Date.now()
@@ -723,45 +725,53 @@ export default {
       var p = e && typeof e.bufferPercent !== 'undefined' ? e.bufferPercent : -1
       // 直播的 HLS 是"滑动窗口", bufferPercent 会长期停在 99/100 不动 ——
       // 数字对直播没有意义, 而且会给用户"卡在 99% 起不来"的错觉. 直播只说"缓冲中…".
-      if (this.isLive) { if (!this.started) this.statusText = '缓冲中…'; return }
+      if (this.isLive) {
+        this.liveProgressAt = Date.now()      // 还在收缓冲事件 = 管线在动, 看门狗继续等
+        if (!this.started) this.statusText = '缓冲中…'
+        return
+      }
       if (p >= 0 && p < 100 && !this.started) this.statusText = '缓冲中 ' + p + '%'
     },
 
-    // ---------------- 直播起播看门狗 ----------------
-    // 真机现象 (2026-10-11 12:51): 直播取流成功 (日志有 线路=http_hls/ts), 但元素**从未**进
-    // PLAYING —— 没有 state=4 也就没有「音频输出」日志, 界面永久停在「缓冲中 N%」.
-    // 这里给直播加一个 12s 看门狗: 到点还没出画面就换下一条候选线路 (hls/ts -> hls/fmp4 -> flv),
-    // 每条线各试一次, 全失败才报错. 同时把 state 与线路序号写进日志, 便于下次真机定位.
+    // ---------------- 直播起播看门狗 (进度感知, 不是固定超时) ----------------
+    // ★ 真机实测 (2026-10-11 13:57:15 -> 13:58:15, 序列号 9E11700007500215):
+    //   同一个直播源, 元素进 PLAYING 花了一整分钟 —— 判据是 startKeepAwake 只在 state=4 调用,
+    //   而它的日志 ([screenon] 防息屏 ...) 出现在进页 60s 之后.
+    //   于是这里**不能**用"10s 没画面就换线"的固定超时: 那会把本来能起播的流打断.
+    //   改成周期检查 + 进度判据: 只要还有 bufferPercent/position 事件, 就说明管线在动,
+    //   一直等; 只有**连续 25s 完全没有动静**才判定这条线路不通, 换下一条候选协议.
+    //   state 变化与换线都写进设备日志 (console.warn 不进 bilibili.log, 已核对).
     armLiveWatchdog: function (gen) {
       this.disarmLiveWatchdog()
       if (!this.isLive) return
       var self = this
-      this.liveWatchdog = setTimer(this, 12000, function () {
-        self.liveWatchdog = null
-        if (gen !== self.generation || !self.$page) return
-        if (self.started || !self.wantPlay) return
+      var began = Date.now()
+      this.liveProgressAt = began
+      this.liveWatchdog = setTicker(this, 6000, function () {
+        if (gen !== self.generation || !self.$page) { self.disarmLiveWatchdog(); return }
+        if (self.started) { self.disarmLiveWatchdog(); return }
+        if (!self.wantPlay) return
+        var idle = Date.now() - (self.liveProgressAt || began)
+        if (idle < 25000) return
         var tried = self.liveSrcTry + 1
         if (tried >= 3) {
-          try { log('直播', '三条线路都没起播 (last state=' + self.liveLastState + ')') } catch (e0) {}
+          try { log('直播', '三条线路都没起播 (静默 ' + Math.round(idle / 1000) + 's, last state=' + self.liveLastState + ')') } catch (e0) {}
           self.statusText = '直播未能起播, 请返回重进'
+          self.disarmLiveWatchdog()
           self.showBar()
           return
         }
         self.liveSrcTry = tried
-        try { log('直播', '12s 未出画面 (last state=' + self.liveLastState + ') -> 换线路 #' + tried) } catch (e0) {}
+        try { log('直播', '静默 ' + Math.round(idle / 1000) + 's (last state=' + self.liveLastState + ') -> 换线路 #' + tried) } catch (e0) {}
         self.statusText = '换线路重试…'
         var g2 = ++self.generation
+        self.disarmLiveWatchdog()
         self.stopStream()
-        self.playStreamGuard(g2, 1500)
+        setTimer(self, 1500, function () { if (g2 === self.generation) self.fetchAndOpen(g2) })
       })
     },
     disarmLiveWatchdog: function () {
-      if (this.liveWatchdog != null) { clearTimer(this, this.liveWatchdog); this.liveWatchdog = null }
-    },
-    // 换线路: 走一次 fetchAndOpen (直播分支会按 liveSrcTry 取另一条协议)
-    playStreamGuard: function (gen, delayMs) {
-      var self = this
-      setTimer(this, delayMs, function () { if (gen === self.generation) self.fetchAndOpen(gen) })
+      if (this.liveWatchdog != null) { clearTicker(this, this.liveWatchdog); this.liveWatchdog = null }
     },
 
     onEvtRateFailed: function (e) { console.log('[player] setRateFailed ' + JSON.stringify(e || {})) },

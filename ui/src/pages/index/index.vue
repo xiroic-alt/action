@@ -4,7 +4,8 @@
          NavigationBar(底部条), 中等以上宽窗口用 NavigationRail(左侧竖排).
          竖排还实打实省下 44px 纵向空间: 内容区 222px -> 266px (+20%).
          navPos=top 保留旧的顶部横排, 既是设置选项, 也是导轨出问题时的退路. -->
-    <div class="nav" :class="'nav-' + T.navPos" :style="T.bar">
+    <!-- 动态页看大图时隐藏导航: 查看器要占满 960x266, 而导轨恒 88px 会给它留一条缝 -->
+    <div v-if="!feedViewer" class="nav" :class="'nav-' + T.navPos" :style="T.bar">
       <div v-for="t in navItems" :key="t.key"
            :class="['nitem', 'nitem-' + T.navPos, activeTab === t.key ? 'nitem-on' : '']"
            @click="switchTab(t.key)">
@@ -148,8 +149,14 @@
     </div>
 
     <!-- The complete feed is shared with UP-space and the standalone route. -->
+    <!-- 动态整页复用 (与 UP 空间/独立路由同一份组件).
+         照片查看器打开时把窗格放大到整屏 (见 @viewer) —— 渲染器不支持负偏移,
+         只能让窗格自己铺满, 否则查看器会被左导轨压掉一块. -->
     <div v-else-if="activeTab === 'dynamic'" class="tabbody">
-      <DynamicFeed ref="dynamicFeed" :embedded="true" :pane-width="T.navPos === 'left' ? 872 : 960" :pane-height="T.navPos === 'left' ? 266 : 222" />
+      <DynamicFeed ref="dynamicFeed" :embedded="true"
+                   :pane-width="feedViewer ? 960 : (T.navPos === 'left' ? 872 : 960)"
+                   :pane-height="feedViewer ? 266 : (T.navPos === 'left' ? 266 : 222)"
+                   @viewer="onFeedViewer" />
     </div>
 
     <!-- 我的 (内容高于可视区, 必须用 scroller 才能上下滑动) -->
@@ -291,6 +298,8 @@ export default {
       keyword: '',
       placeholder: '点击输入搜索内容',
       status: '',
+      // 动态 tab 里的照片查看器是否打开 (子组件 emit): 打开时藏导航 + 窗格放大到整屏
+      feedViewer: false,
       results: [],
       searched: false,
       loading: false,
@@ -434,6 +443,13 @@ export default {
 
     openListPage(name) {
       $falcon.navTo(name, {})
+    },
+
+    // 动态 tab 的照片查看器开关: 打开时藏导航栏 + 把窗格放到 960x266,
+    // 这样查看器 (absolute left:0 铺满窗格) 就是真正的整屏.
+    onFeedViewer(on) {
+      const v = on === true
+      if (this.feedViewer !== v) this.feedViewer = v
     },
 
     // ================= 下拉刷新 (所有 tab 共用) =================
