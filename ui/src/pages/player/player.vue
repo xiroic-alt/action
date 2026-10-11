@@ -482,6 +482,7 @@ export default {
       var self = this
       if (!this.opened || this.audioProbed) return
       this.audioProbed = true
+      if (!this._elProbed) { this._elProbed = true; this.probeVideoElement() }
       var bt = (typeof $falcon !== 'undefined' && $falcon.jsapi && $falcon.jsapi.bluetooth) ? $falcon.jsapi.bluetooth : null
       if (bt && typeof bt.getCurrentDevices === 'function') {
         try {
@@ -502,6 +503,25 @@ export default {
         }).catch(function () { self.setAudioOut(AUDIO_TYPE_SPEAKER, '') })
       } catch (e2) {
         this.setAudioOut(AUDIO_TYPE_SPEAKER, '')
+      }
+    },
+    // 元素可用方法清单 (一次性诊断): 内置 <video> 的原生方法如何暴露在 JS 侧没有文档,
+    // 只能把真实名字打出来 —— 之前按 setAudioDeviceType 猜, 日志是 elem=n/a.
+    probeVideoElement: function () {
+      var v = this.$refs.vv
+      if (!v) { try { log('播放器', 'video 元素未挂载 (refs.vv 为空)') } catch (e) {} ; return }
+      try {
+        var keys = []
+        for (var k in v) keys.push(k)
+        var fns = []
+        for (var i = 0; i < keys.length; i++) { try { if (typeof v[keys[i]] === 'function') fns.push(keys[i]) } catch (e2) {} }
+        log('播放器', 'video 元素方法(' + fns.length + '): ' + fns.join(',').substring(0, 500))
+        var probes = ['setAudioDeviceType', 'setAudioType', 'setAudioSink', 'setBluetooth', 'installAlsasink', 'setSrc', 'play', 'seekto']
+        var hit = []
+        for (var j = 0; j < probes.length; j++) hit.push(probes[j] + '=' + (typeof v[probes[j]]))
+        log('播放器', '音频相关方法探测: ' + hit.join(' '))
+      } catch (e3) {
+        try { log('播放器', '元素方法枚举失败: ' + (e3 && e3.message ? e3.message : e3)) } catch (e4) {}
       }
     },
     setAudioOut: function (type, mac) {
