@@ -414,10 +414,11 @@ export async function searchLive(keyword, page) {
     out.push({
       roomid: rid,
       title: stripTags(it.title || ''),
-      up: it.uname || '',
+      // 搜索接口的 uname 也带 <em class="keyword"> 高亮 (真机 09:42 实测: 列表里漏出标签)
+      up: stripTags(it.uname || ''),
       online: Number(it.online) || 0,
       cover: thumb(cover, 360, 224),
-      area: it.cate_name || it.area_name || ''
+      area: stripTags(it.cate_name || it.area_name || '')
     })
   }
   return out
