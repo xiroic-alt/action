@@ -19,7 +19,7 @@
         </div>
         <div class="up-row">
           <image v-if="info.face !== ''" class="up-face" :src="info.face" resize="cover"></image>
-          <div v-else class="up-face-ph" :style="T.accentR">
+          <div v-else class="up-face-ph" :style="T.accentBg">
             <text class="up-face-t" :style="T.t.onAccent">{{ info.up !== '' ? info.up.charAt(0) : '直' }}</text>
           </div>
           <text class="up-name" :style="T.t.accentSub">{{ info.up !== '' ? info.up : '未知主播' }}</text>

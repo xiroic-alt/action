@@ -1,7 +1,7 @@
 <template>
   <div class="page" :style="T.page" :style="{ backgroundColor: T.c.surface }">
     <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
-      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+      <div class="back" @click="goBack" :style="T.inset" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
@@ -69,10 +69,10 @@
 
     <!-- 底部发评栏: 回复目标提示 + IME 输入 -->
     <div class="postbar" :style="T.actionR">
-      <div class="post-input" :style="T.insetR" @click="openPostInput">
+      <div class="post-input" :style="T.inset" @click="openPostInput">
         <text class="post-input-text" :style="T.t.caption">{{ logged ? inputHint : '登录后参与评论' }}</text>
       </div>
-      <div class="post-btn" :style="T.accentR" @click="openPostInput">
+      <div class="post-btn" :style="T.accentBg" @click="openPostInput">
         <text class="post-btn-text" :style="T.t.body">发送</text>
       </div>
     </div>

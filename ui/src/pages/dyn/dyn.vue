@@ -13,7 +13,7 @@
 
     <!-- ============ 左栏: 内容 (580px) ============ -->
     <div class="dleft">
-      <div class="actrow">
+      <div class="actrow" :style="T.bar">
         <div :class="['act-btn', liked ? 'act-on' : '']" @click="doLike">
           <text :class="['act-text', liked ? 'act-text-on' : '']" :style="liked ? T.t.accent : T.t.label">{{ liked ? '已赞' : '点赞' }}</text>
           <text :class="['act-num', liked ? 'act-num-on' : '']" :style="liked ? T.t.accent : T.t.label">{{ likeText }}</text>
@@ -39,7 +39,7 @@
         <div class="dwrap">
           <div class="ahead" @click="openUp">
             <div class="aface-wrap">
-              <image v-if="face !== ''" class="aface" :style="T.actionR" :src="face" resize="cover"></image>
+              <image v-if="face !== ''" class="aface" :style="T.inset" :src="face" resize="cover"></image>
               <div v-else class="aface aface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.card }"><text class="aface-t" :style="T.t.caption">{{ author ? author.charAt(0) : '?' }}</text></div>
               <image v-if="pendant !== ''" class="apendant" :src="pendant" resize="contain"></image>
             </div>
@@ -86,7 +86,7 @@
               </div>
               <text v-else-if="b.k === 'code'" class="pcode" :style="T.t.body">{{ b.text }}</text>
               <div v-else-if="b.k === 'line'" class="pline" :style="T.actionR"></div>
-              <div v-else-if="b.k === 'card'" class="pcard" :style="T.cardR"><text class="pcard-t" :style="T.t.caption">{{ b.title }}</text></div>
+              <div v-else-if="b.k === 'card'" class="pcard" :style="T.card"><text class="pcard-t" :style="T.t.caption">{{ b.title }}</text></div>
             </div>
           </template>
 
@@ -118,7 +118,7 @@
                 </div>
               </div>
             </div>
-            <div class="ostat" :style="T.actionR" v-if="orig">
+            <div class="ostat" :style="T.inset" v-if="orig">
               <text class="olabel" :style="T.t.caption" @click="openOrigUp">{{ '转发 @' + orig.author }}</text>
               <richtext v-if="orig.segs.length > 0" class="ptext">
                 <template v-for="(seg, si) in orig.segs">
@@ -207,10 +207,10 @@
       </scroller>
       <!-- 发评论: 走系统输入法 (services/ime.js), 与视频详情页同一套 -->
       <div class="postbar" :style="T.actionR">
-        <div class="post-input" :style="T.insetR" @click="openPostInput">
+        <div class="post-input" :style="T.inset" @click="openPostInput">
           <text class="post-input-text" :style="T.t.caption">{{ logged ? (posting ? '发送中…' : '说点什么…') : '登录后参与评论' }}</text>
         </div>
-        <div class="post-btn" :style="T.accentR" @click="openPostInput">
+        <div class="post-btn" :style="T.accentBg" @click="openPostInput">
           <text class="post-btn-text" :style="T.t.body">发送</text>
         </div>
       </div>

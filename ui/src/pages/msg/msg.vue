@@ -44,7 +44,7 @@
         <template v-if="tab === 'im'">
           <div v-for="c in sessions" :key="'s' + c.talkerId" class="row" :style="T.cardR" @click="openChat(c)">
             <image v-if="c.face !== ''" class="face" :src="c.face" resize="cover"></image>
-            <div v-else class="face-ph" :style="T.accentR"><text :style="T.t.onAccent">{{ c.name !== '' ? c.name.charAt(0) : '私' }}</text></div>
+            <div v-else class="face-ph" :style="T.accentBg"><text :style="T.t.onAccent">{{ c.name !== '' ? c.name.charAt(0) : '私' }}</text></div>
             <div class="rmain">
               <text class="rwho" :style="T.t.accentSm">{{ c.name !== '' ? c.name : ('UID ' + c.talkerId) }}{{ c.unread > 0 ? (' (' + c.unread + ')') : '' }}</text>
               <text class="rcont" :style="T.t.caption">{{ c.content }}</text>

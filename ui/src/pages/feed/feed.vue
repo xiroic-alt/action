@@ -36,7 +36,7 @@
           <div class="dhead" @click="openUp(d)">
             <!-- 头像框: 官方 App 里挂在头像右下角的小挂件 (动态流 module_author.pendant) -->
             <div class="dface-wrap">
-              <image v-if="d.face" class="dface" :style="T.actionR" :src="d.face" resize="cover"></image>
+              <image v-if="d.face" class="dface" :style="T.inset" :src="d.face" resize="cover"></image>
               <div v-else class="dface dface-ph" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip, backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }"><text class="dface-t" :style="T.t.caption">{{ d.author ? d.author.charAt(0) : '?' }}</text></div>
               <image v-if="d.pendant" class="dpendant" :src="d.pendant" resize="contain"></image>
             </div>
@@ -46,7 +46,7 @@
               <image class="dvbadge-ic" :src="MIc.bolt" :style="{ width: '11px', height: '11px' }"></image>
             </div>
             <text class="dtime" :style="T.t.caption">{{ d.pubText }}</text>
-            <text class="dbadge" :style="T.accentR">{{ kindName(d.kind) }}</text>
+            <text class="dbadge" :style="T.accentBg">{{ kindName(d.kind) }}</text>
           </div>
 
           <!-- 点击分区 (用户要求): 只有"视频卡片"进视频详情页; 正文/空白/其它一律进动态详情页.
@@ -93,13 +93,13 @@
           </div>
 
           <!-- 专栏/图文(opus) 的标题块: summary 就是主正文, 已在上面 richtext 里渲染过, 这里不再重复 -->
-          <div class="ocard" :style="T.insetR" v-if="d.opus && d.opus.title">
+          <div class="ocard" :style="T.inset" v-if="d.opus && d.opus.title">
             <text class="otitle" :style="T.t.title">{{ d.opus.title }}</text>
           </div>
 
 
 
-          <div class="ostat" :style="T.insetR" v-if="d.orig">
+          <div class="ostat" :style="T.inset" v-if="d.orig">
             <text class="olabel" :style="T.t.accentSub">{{ '转发 @' + d.orig.author + '：' }}</text>
             <richtext class="dtext" :style="T.t.body">
               <template v-for="(seg, si) in d.orig.segs">
@@ -135,11 +135,11 @@
               <image class="dfoot-ic" :src="d.stat.liked ? MIc.thumbupOn : MIc.thumbup" :style="{ width: '20px', height: '20px' }"></image>
               <text :class="['dfoot-t', d.stat.liked ? 'dfoot-t-on' : '']" :style="d.stat.liked ? T.t.accent : T.t.label">{{ d.stat.likeText }}</text>
             </div>
-            <div class="dfoot-btn" :style="T.actionR" @click="openDynPage(d)">
+            <div class="dfoot-btn" :style="T.inset" @click="openDynPage(d)">
               <image class="dfoot-ic" :src="MIc.comment" :style="{ width: '20px', height: '20px' }"></image>
               <text class="dfoot-t" :style="T.t.caption">{{ d.stat.replyText }}</text>
             </div>
-            <div class="dfoot-btn dfoot-static" :style="T.actionR">
+            <div class="dfoot-btn dfoot-static" :style="T.inset">
               <image class="dfoot-ic" :src="MIc.share" :style="{ width: '20px', height: '20px' }"></image>
               <text class="dfoot-t" :style="T.t.caption">{{ d.stat.forwardText }}</text>
             </div>

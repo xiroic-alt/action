@@ -30,7 +30,7 @@
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreRecommend"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
         <div ref="top_recommend" class="top-anchor"></div>
-        <div v-for="item in recResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
+        <div v-for="item in recResults" :key="item.bvid" class="item" :style="T.card" @click="openVideo(item)" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
             <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
@@ -56,7 +56,7 @@
                 :loadmoreoffset="100" :over-scroll="70" @loadmore="loadMoreHot"
                 @scroll="onListScroll" @touchstart="onListTouchStart" @touchmove="onListTouchMove" @touchend="onListTouchEnd">
         <div ref="top_hot" class="top-anchor"></div>
-        <div v-for="item in hotResults" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
+        <div v-for="item in hotResults" :key="item.bvid" class="item" :style="T.card" @click="openVideo(item)">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
           <div class="meta">
             <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
@@ -75,7 +75,7 @@
     <!-- 搜索 -->
     <div v-else-if="activeTab === 'search'" class="tabbody">
       <div class="search-bar" :style="T.bar">
-        <div class="search-input" :style="T.insetR" @click="openKeyboard">
+        <div class="search-input" :style="T.inset" @click="openKeyboard">
           <text class="search-text" :style="T.t.body">{{ keyword ? keyword : placeholder }}</text>
         </div>
         <!-- 清空: 系统输入法经常拿不到「删空后返回空串」的时机, 必须给显式出口,
@@ -102,7 +102,7 @@
             <text v-if="history.length > 0" class="his-clear" :style="T.t.accentSub" @click="clearHistory">清空</text>
           </div>
           <div class="his-chips">
-            <div v-for="(kw, i) in history" :key="i" class="his-chip" :style="T.insetR" @click="searchFromHistory(kw)">
+            <div v-for="(kw, i) in history" :key="i" class="his-chip" :style="T.inset" @click="searchFromHistory(kw)">
               <text class="his-chip-text" :style="T.t.subtitle">{{ kw }}</text>
             </div>
           </div>
@@ -113,7 +113,7 @@
             <text class="his-title" :style="T.t.title">大家都在搜</text>
           </div>
           <div v-if="hotWords.length > 0" class="his-chips">
-            <div v-for="(kw, i) in hotWords" :key="'h' + i" class="his-chip" :style="T.insetR" @click="searchFromHistory(kw)">
+            <div v-for="(kw, i) in hotWords" :key="'h' + i" class="his-chip" :style="T.inset" @click="searchFromHistory(kw)">
               <text class="his-chip-text" :style="T.t.subtitle">{{ kw }}</text>
             </div>
           </div>
@@ -130,7 +130,7 @@
           </div>
         </div>
         <template v-else>
-          <div v-for="item in results" :key="item.bvid" class="item" :style="T.cardR" @click="openVideo(item)">
+          <div v-for="item in results" :key="item.bvid" class="item" :style="T.card" @click="openVideo(item)">
             <image class="cover" :src="item.pic" resize="cover" :lazy-load="true" :style="T.coverR"></image>
             <div class="meta">
               <richtext class="title" :style="T.t.title"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>
@@ -160,7 +160,7 @@
         <div class="mine-inner">
           <div class="mine-head" :style="T.cardR">
             <image v-if="myInfo.isLogin && myInfo.face" class="myface" :src="myInfo.face" resize="cover"></image>
-            <div v-else class="myface-ph" :style="T.accentR"><text class="myface-txt" :style="T.t.onAccent">{{ myInfo.uname ? myInfo.uname.charAt(0) : '访' }}</text></div>
+            <div v-else class="myface-ph" :style="T.accentBg"><text class="myface-txt" :style="T.t.onAccent">{{ myInfo.uname ? myInfo.uname.charAt(0) : '访' }}</text></div>
             <div class="mine-identity">
               <text class="mine-name" :style="T.t.title">{{ myInfo.isLogin ? myInfo.uname : '访客' }}</text>
               <text :style="T.t.caption">{{ myInfo.isLogin ? ('UID ' + myInfo.mid) : '登录后同步关注、收藏与消息' }}</text>
@@ -184,27 +184,27 @@
           </div>
           <!-- 历史记录 / 收藏 / 稍后再看 入口 -->
           <div v-if="myInfo.isLogin" class="entry-row">
-            <div class="entry-btn" :style="T.actionR" @click="openListPage('history')">
+            <div class="entry-btn" :style="T.inset" @click="openListPage('history')">
               <text class="entry-text" :style="T.t.title">历史记录</text>
             </div>
-            <div class="entry-btn" :style="T.actionR" @click="openListPage('fav')">
+            <div class="entry-btn" :style="T.inset" @click="openListPage('fav')">
               <text class="entry-text" :style="T.t.title">收藏</text>
             </div>
-            <div class="entry-btn" :style="T.actionR" @click="openListPage('toview')">
+            <div class="entry-btn" :style="T.inset" @click="openListPage('toview')">
               <text class="entry-text" :style="T.t.title">稍后再看</text>
             </div>
-            <div class="entry-btn" :style="T.actionR" @click="openFollow">
+            <div class="entry-btn" :style="T.inset" @click="openFollow">
               <text class="entry-text" :style="T.t.title">我的关注</text>
             </div>
           </div>
           <text v-if="myInfo.isLogin && myInfo.vip" class="ph-desc2" :style="T.t.empty">{{ myInfo.vip }}</text>
-          <div v-if="!myInfo.isLogin && myLoaded" class="login-cta" :style="T.accentR" @click="openLogin">
+          <div v-if="!myInfo.isLogin && myLoaded" class="login-cta" :style="T.accentBg" @click="openLogin">
             <text class="login-cta-text" :style="T.t.onAccentTitle">扫码登录 / Cookie 导入</text>
           </div>
           <div class="entry-row">
-            <div class="entry-btn" :style="T.actionR" @click="openListPage('live')"><text :style="T.t.body">直播</text></div>
-            <div class="entry-btn" :style="T.actionR" @click="openListPage('msg')"><text :style="T.t.body">消息中心</text></div>
-            <div class="entry-btn" :style="T.actionR" @click="openListPage('lines')"><text :style="T.t.body">播放线路</text></div>
+            <div class="entry-btn" :style="T.inset" @click="openListPage('live')"><text :style="T.t.body">直播</text></div>
+            <div class="entry-btn" :style="T.inset" @click="openListPage('msg')"><text :style="T.t.body">消息中心</text></div>
+            <div class="entry-btn" :style="T.inset" @click="openListPage('lines')"><text :style="T.t.body">播放线路</text></div>
           </div>
           <!-- 「动态」入口已移除 (用户要求): 全类型动态统一在底部「动态」tab 里看,
                这里再放一个入口既重复又占位置.

@@ -4,7 +4,7 @@
          电脑同步模式下左区扩展到全宽 960px (该模式无二维码, 不留空白) -->
     <div :class="['left', mode === 'pc' ? 'left-full' : '']">
       <div :class="['topbar', mode === 'pc' ? 'topbar-full' : '']">
-        <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+        <div class="back" @click="goBack" :style="T.inset" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
           <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
           <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
         </div>

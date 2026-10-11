@@ -58,7 +58,7 @@
         <text v-if="detail" class="stat" :style="T.t.caption">播放 {{ detail.playText }} · 弹幕 {{ detail.danmakuText }} · {{ detail.duration }}</text>
         <text v-if="detail" class="stat" :style="T.t.caption">赞 {{ detail.likeText }} · 币 {{ detail.coinText }} · 藏 {{ detail.favText }} · 转 {{ detail.shareText }}</text>
         <div v-if="detail" class="btnrow">
-          <div class="playbtn" :style="T.accentR" @click="openPlayer">
+          <div class="playbtn" :style="T.accentBg" @click="openPlayer">
             <image class="play-ic" :src="MI.play28" :style="{ width: '28px', height: '28px' }"></image>
             <text class="play-text" :style="T.t.onAccentTitle">播放</text>
           </div>
@@ -78,7 +78,7 @@
           <div :class="['act-btn', detail.reqFav ? 'act-on' : '']" :style="detail.reqFav ? T.accentR : T.actionR" @click="onFavTap">
             <text :class="['act-text', detail.reqFav ? 'act-text-on' : '']" :style="detail.reqFav ? T.t.onAccent : T.t.body">{{ detail.reqFav ? '已藏' : '收藏' }}</text>
           </div>
-          <div class="act-btn act-triple" :style="T.actionR" @click="doTriple">
+          <div class="act-btn act-triple" :style="T.inset" @click="doTriple">
             <text class="act-text" :style="T.t.body">三连</text>
           </div>
           <div :class="['act-btn', detail.reqToview ? 'act-on' : '']" :style="detail.reqToview ? T.accentR : T.actionR" @click="doToview">
@@ -144,7 +144,7 @@
           <text class="sec-title" :style="T.t.title">推荐</text>
           <!-- .ritem 原本 <style> 里写死 #0b0b0d 黑底 -> 浅色下整块黑 (用户反馈: 推荐显示有问题)
                另外 rcover 之前被误绑成 T.t.title (给 <image> 传颜色对象无意义), 已去掉 -->
-          <div v-for="item in related" :key="item.bvid" class="ritem" :style="T.cardR" @click="openVideo(item)">
+          <div v-for="item in related" :key="item.bvid" class="ritem" :style="T.card" @click="openVideo(item)">
             <image class="rcover" :src="item.pic" resize="cover" :lazy-load="true"></image>
             <div class="rmeta">
               <text class="rtitle" :style="T.t.title">{{ item.title }}</text>
@@ -180,7 +180,7 @@
           <!-- 未登录: 登录引导 -->
           <div v-if="!logged && !cLoading" class="gate">
             <text class="gate-text" :style="T.t.bodyVar">评论需要登录后查看</text>
-            <div class="gate-btn" :style="T.accentR" @click="goLogin">
+            <div class="gate-btn" :style="T.accentBg" @click="goLogin">
               <text class="gate-btn-text" :style="T.t.onAccent">去登录 (扫码 / 电脑同步)</text>
             </div>
           </div>
@@ -239,10 +239,10 @@
         </scroller>
         <!-- 底部发评栏 -->
         <div class="postbar" :style="T.bar">
-          <div class="post-input" @click="openPostInput" :style="T.insetR">
+          <div class="post-input" @click="openPostInput" :style="T.inset">
             <text class="post-input-text" :style="T.t.label">{{ logged ? '说点什么…' : '登录后参与评论' }}</text>
           </div>
-          <div class="post-btn" @click="openPostInput" :style="T.accentR">
+          <div class="post-btn" @click="openPostInput" :style="T.accentBg">
             <text class="post-btn-text" :style="T.t.onAccent">发送</text>
           </div>
         </div>
@@ -279,21 +279,21 @@
 
     <!-- 选择器浮层: 收藏夹 / 投币数量 (遮罩不绑点击, 只能点「取消」关闭, 防误触) -->
     <div v-if="pickerMode !== ''" class="picker-mask">
-      <div class="picker" :style="T.cardR">
+      <div class="picker" :style="T.card">
         <text class="picker-title" :style="T.t.title">{{ pickerTitle }}</text>
         <!-- 关注菜单 (图4) -->
         <div v-if="pickerMode === 'follow'" class="picker-row">
-          <div class="picker-coin" @click="toggleSpecial" :style="T.accentR">
+          <div class="picker-coin" @click="toggleSpecial" :style="T.accentBg">
             <image class="picker-ico" :src="rel.special ? MI.starOn : MI.star" :style="{ width: '20px', height: '20px' }"></image>
             <text class="picker-coin-text" :style="T.t.onAccent">{{ rel.special ? '取消特别关注' : '加入特别关注' }}</text>
           </div>
-          <div class="picker-coin" @click="openTagPicker" :style="T.accentR">
+          <div class="picker-coin" @click="openTagPicker" :style="T.accentBg">
             <image class="picker-ico" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
             <text class="picker-coin-text" :style="T.t.onAccent">设置分组</text>
           </div>
         </div>
         <div v-if="pickerMode === 'follow'" class="picker-row">
-          <div class="picker-coin picker-danger" @click="doUnfollow" :style="T.accentR">
+          <div class="picker-coin picker-danger" @click="doUnfollow" :style="T.accentBg">
             <text class="picker-coin-text" :style="T.t.onAccent">取消关注</text>
           </div>
         </div>
@@ -307,15 +307,15 @@
           </div>
         </scroller>
         <div v-if="pickerMode === 'tags'" class="picker-row">
-          <div class="picker-coin" @click="saveTags" :style="T.accentR">
+          <div class="picker-coin" @click="saveTags" :style="T.accentBg">
             <text class="picker-coin-text" :style="T.t.onAccent">保存分组</text>
           </div>
         </div>
         <div v-if="pickerMode === 'coin'" class="picker-row">
-          <div class="picker-coin" @click="pickCoin(1)" :style="T.accentR">
+          <div class="picker-coin" @click="pickCoin(1)" :style="T.accentBg">
             <text class="picker-coin-text" :style="T.t.onAccent">投 1 币</text>
           </div>
-          <div class="picker-coin" @click="pickCoin(2)" :style="T.accentR">
+          <div class="picker-coin" @click="pickCoin(2)" :style="T.accentBg">
             <text class="picker-coin-text" :style="T.t.onAccent">投 2 币</text>
           </div>
         </div>
@@ -327,7 +327,7 @@
             <text class="picker-item-sub" :style="T.t.caption">{{ f.mediaCount }} 个</text>
           </div>
         </scroller>
-        <div class="picker-cancel" @click="closePicker" :style="T.actionR">
+        <div class="picker-cancel" @click="closePicker" :style="T.inset">
           <text class="picker-cancel-text" :style="T.t.body">取消</text>
         </div>
       </div>

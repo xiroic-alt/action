@@ -1,7 +1,7 @@
 <template>
   <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
     <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
-      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+      <div class="back" @click="goBack" :style="T.inset" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
@@ -20,7 +20,7 @@
         </div>
       </div>
       <template v-else>
-        <div v-for="(item, i) in items" :key="item.bvid || ('h' + i)" class="item" @click="openVideo(item)" :style="T.cardR" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
+        <div v-for="(item, i) in items" :key="item.bvid || ('h' + i)" class="item" @click="openVideo(item)" :style="T.card" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <image class="cover" :src="item.pic" resize="cover" :lazy-load="true"></image>
           <div class="meta">
             <richtext class="title" :style="T.t.title" :style="{ color: T.c.onSurface }"><template v-for="(seg, si) in segsOf(item.title)"><span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span><image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image></template></richtext>

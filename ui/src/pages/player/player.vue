@@ -16,7 +16,7 @@
     <div class="stage" @click="toggleBar" @touchstart="markUserTouch">
       <!-- 顶部悬浮栏 -->
       <div v-if="barVisible" class="topbar" :style="T.bar">
-        <div class="nav-back" @click="goBack" :style="T.actionR">
+        <div class="nav-back" @click="goBack" :style="T.inset">
           <image class="nav-ic" :src="MIc.back"></image>
           <text class="nav-t" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
         </div>

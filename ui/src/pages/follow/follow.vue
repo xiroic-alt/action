@@ -1,7 +1,7 @@
 <template>
   <div class="page" :class="entering ? 'page-enter' : ''" :style="T.page" :style="{ backgroundColor: T.c.surface }">
     <div class="topbar" :style="T.bar" :style="{ backgroundColor: T.c.surfaceContainerLow }">
-      <div class="back" @click="goBack" :style="T.actionR" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
+      <div class="back" @click="goBack" :style="T.inset" :style="{ backgroundColor: T.c.surfaceContainerHighest, borderRadius: T.rad.chip }">
         <image class="back-ic" :src="MIc.back" :style="{ width: '26px', height: '26px' }"></image>
         <text class="back-text" :style="T.t.body" :style="{ color: T.c.onSurface }">返回</text>
       </div>
@@ -36,9 +36,9 @@
         </div>
       </div>
       <template v-else>
-        <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)" :style="T.cardR" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
+        <div v-for="u in shown" :key="'u' + u.mid" class="item" @click="openUp(u)" :style="T.card" :style="{ backgroundColor: T.c.surfaceContainerLow, borderRadius: T.rad.card }">
           <div class="face-wrap">
-            <image class="face" :style="T.actionR" :src="u.face" resize="cover" :lazy-load="true"></image>
+            <image class="face" :style="T.inset" :src="u.face" resize="cover" :lazy-load="true"></image>
           </div>
           <div class="meta">
             <div class="namerow">
@@ -61,14 +61,14 @@
 
     <!-- 管理菜单: 设置分组 / 取消关注 -->
     <div v-if="picker.on" class="mask">
-      <div class="panel" :style="T.cardR">
+      <div class="panel" :style="T.card">
         <text class="panel-title" :style="T.t.body">{{ picker.name }}</text>
         <div v-if="!picker.tagsOn" class="panel-row">
-          <div class="panel-btn" :style="T.cardR" @click="openTags">
+          <div class="panel-btn" :style="T.card" @click="openTags">
             <image class="panel-ic" :src="MI.folder" :style="{ width: '20px', height: '20px' }"></image>
             <text class="panel-btn-t" :style="T.t.body">设置分组</text>
           </div>
-          <div class="panel-btn panel-danger" :style="T.cardR" @click="doUnfollow">
+          <div class="panel-btn panel-danger" :style="T.card" @click="doUnfollow">
             <text class="panel-btn-t" :style="T.t.body">取消关注</text>
           </div>
         </div>
@@ -80,11 +80,11 @@
           </div>
         </scroller>
         <div v-if="picker.tagsOn" class="panel-row">
-          <div class="panel-btn" :style="T.cardR" @click="saveTags">
+          <div class="panel-btn" :style="T.card" @click="saveTags">
             <text class="panel-btn-t" :style="T.t.body">保存分组</text>
           </div>
         </div>
-        <div class="panel-cancel" :style="T.cardR" @click="closePicker">
+        <div class="panel-cancel" :style="T.card" @click="closePicker">
           <text class="panel-cancel-t" :style="T.t.body">取消</text>
         </div>
       </div>
