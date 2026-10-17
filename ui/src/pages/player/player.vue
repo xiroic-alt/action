@@ -135,6 +135,9 @@ function playerTokens() {
   }
 }
 
+// 一级探针命令 (模块级: 起播前的快探针与 state=4 的完整探针共用一份)
+var SCAN_BT_CMD = 'for m in $(bluetoothctl devices 2>/dev/null | cut -d" " -f2); do bluetoothctl info $m 2>/dev/null | grep -q "Connected: yes" && echo "CONNECTED $m"; done'
+
 // ALSA 设备串枚举 (取证见文件头): 0/3=speaker, 1=tc_digital, 2=tc_analog, 4=bluealsa:DEV=<mac>
 var AUDIO_TYPE_SPEAKER = 0
 var AUDIO_TYPE_BLUETOOTH = 4
@@ -266,6 +269,9 @@ export default {
       liveFlapAt: 0,         // 直播"状态抖动"上一次换线的时间 (节流)
       liveFlapWinAt: 0,      // 抖动计数窗口起点
       liveFlapN: 0,          // 窗口内 state 变化次数
+      t0: 0,                 // 起播时间线基准 (每次 playStream 重置, 用于诊断音画不同时出现)
+      infoLogged: false,     // 本流是否已记录"视频就绪"
+      playLogged: false,     // 本流是否已记录"PLAYING"
       hideTimer: null,
       keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
     }
@@ -486,29 +492,55 @@ export default {
       this.posAt = Date.now()
       this.curMs = 0
       this.statusText = '缓冲中…'
+      // 起播时间线基准: 之后每条关键节点日志都带 t=+Xms, 用于定位"声音/画面谁先出现"
+      this.t0 = Date.now()
+      this.infoLogged = false
+      this.playLogged = false
+      try { log('播放器', '取流就绪, 开始装配 t=+0ms') } catch (e0) {}
       this.src = url
       this.armLiveWatchdog(gen)
-      // src 绑定到元素属性后, 元素要等下一次属性 diff 才建管线; 稍后再 play(0) 起播
+      // src 绑定到元素属性后, 元素要等下一次属性 diff 才建管线; 稍后再 play(0) 起播.
+      // ★ 关键顺序: **先把音频输出定好, 再 play(0)** —— 反过来(先播再热切)会让音频分支
+      //   在起播后被拆掉重建, 那一秒里声音与画面不同步 (真机 0.9.68 日志实测).
       setTimer(this, 300, function () {
         if (gen !== self.generation || !self.$page) return
-        var r = self.elem('play', 0)
-        if (r === undefined && !self.$refs.vv) {
-          self.statusText = '当前固件不支持内置 video 元素'
-          self.showBar()
-          return
-        }
-        console.log('[player] play(0) -> ' + r)
-        self.opened = true
-        self.startPolling()
+        self.applyAudioRoute({ quick: true, cb: function () { self.startPlay(gen) } })
       })
+    },
+    // 真正起播 (音频输出已就位后才调)
+    startPlay: function (gen) {
+      var self = this
+      if (gen !== this.generation || !this.$page) return
+      var r = this.elem('play', 0)
+      if (r === undefined && !this.$refs.vv) {
+        this.statusText = '当前固件不支持内置 video 元素'
+        this.showBar()
+        return
+      }
+      console.log('[player] play(0) -> ' + r)
+      this.opened = true
+      this.startPolling()
+      try { log('播放器', '起播 t=+' + (Date.now() - this.t0) + 'ms 音频=' + (this.audioRoute || '未定') + ' play(0)=' + r) } catch (e) {}
     },
 
     // ---------------- 音频输出 (蓝牙) ----------------
     // 判定当前有无已连接的蓝牙音频设备, 有就切过去. 命令一律 execAsync
     // (同步 exec 会冻死 QuickJS 主线程, 见 HANDOVER §10).
-    applyAudioRoute: function () {
+    // ★ 0.9.71: 必须在**起播前**调用 (真机日志见下), 且带完成回调 —— play(0) 要等它.
+    //   真机 0.9.68 日志: 15:37:14 state=4(此刻管线用默认/扬声器 sink) -> 15:37:15 才切到蓝牙.
+    //   起播后再热切会把音频分支拆掉重建, 那一秒里声音与画面不是同时出现 —— 用户报的
+    //   "画面比声音延迟出现/声音延迟" 就发生在这个窗口. libfalcon 的 setAudioDeviceType 只是把
+    //   _audioDeviceType/_blueMac 存进全局, 装 sink 时再读 (二进制取证) -> 起播前设置正是它的用法.
+    //   quick=true: 只跑快的一级探针(~100ms), 免得被 timeout 15 的 connect 修复拖住起播;
+    //   一级没命中就照常起播, 交给 state=4 的完整探针(含链路层交叉验证+修复)兜底.
+    applyAudioRoute: function (opts) {
       var self = this
-      if (!this.opened || this.audioProbed) return
+      var o = opts || {}
+      var done = o.cb || function () {}
+      var fired = false
+      var finish = function () { if (!fired) { fired = true; try { done() } catch (e0) {} } }
+      if (this.audioProbed) { finish(); return }
+      if (!this.$refs.vv) { finish(); return }     // 元素没挂载: 留给 state=4 再试
       this.audioProbed = true
       if (!this._elProbed) { this._elProbed = true; this.probeVideoElement() }
       // 判据只看 bluetoothctl 的 "Connected: yes" —— 唯一"真的连着"的证据.
@@ -526,10 +558,11 @@ export default {
       //   并对该设备补一次 bluetoothctl connect 把 bluez 的状态纠正过来 (人工验过: 纠正后
       //   aplay 立刻能建出 /org/bluealsa/hci0/dev_xxx/a2dpsrc/sink).
       try {
-        bilinet.execAsync('for m in $(bluetoothctl devices 2>/dev/null | cut -d" " -f2); do bluetoothctl info $m 2>/dev/null | grep -q "Connected: yes" && echo "CONNECTED $m"; done')
+        bilinet.execAsync(SCAN_BT_CMD)
           .then(function (out) {
             var hit = /CONNECTED ([0-9A-Fa-f:]{17})/.exec(String(out || ''))
             if (hit) return hit[1]
+            if (o.quick) return null      // 起播前不跑链路层修复 (会被 timeout 拖住起播)
             // 二级判据: 链路层有 ACL(state 1) 的已配对设备
             return bilinet.execAsync('hcitool con 2>/dev/null | grep ACL').then(function (c) {
               var link = /([0-9A-Fa-f:]{17})/.exec(String(c || ''))
@@ -539,10 +572,11 @@ export default {
             })
           })
           .then(function (mac) {
-            if (!self.$page) return
+            if (!self.$page) { finish(); return }
             if (!mac) {
               self.audioRoute = 'speaker(默认)'
               try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
+              finish()
               return
             }
             // ★ 蓝牙音画补偿 (设置页 btaudioMs, 默认 200ms): 必须拼成 bluealsa 的 DELAY.
@@ -553,15 +587,18 @@ export default {
             //   把补偿量接在 mac 后面即可, 用户的设置从此真的生效 (设 0 = 不加, 回到默认行为).
             var comp = Number(getCfg('btaudioMs'))
             if (!isFinite(comp)) comp = 200
-            comp = Math.max(0, Math.round(comp))          // 负值对插件无意义 -> 夹到 0
+            // ★ 不再把负值夹成 0: 真机 aplay 对照实验证明 bluealsa 接受负 DELAY
+            //   (DELAY=-100000 能建出 a2dpsrc/sink 并正常开播). "声音超前就减小" 就是这个方向.
+            comp = Math.round(comp)
             // 音频档位: a2dp(默认) / sco(低延迟). 插件只接受这两种 profile —— 拿 BOGUS 做对照时
             // ALSA 直接报 "Unknown parameter BOGUS", 而 PROFILE=sco 被正常解析成
             // "Getting BlueALSA PCM: PLAYBACK <mac> sco" (真机 aplay 实测), 所以拼串安全.
             var prof = getCfg('btAudioMode') === 'sco' ? ',PROFILE=sco' : ''
             var dev = mac + prof + (comp > 0 ? (',DELAY=' + (comp * 1000)) : '')
             self.setAudioOut(AUDIO_TYPE_BLUETOOTH, dev)
-            try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)') } catch (e3) {}
-          }).catch(function () {})
+            try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)' + (o.quick ? ' [起播前]' : '')) } catch (e3) {}
+            finish()
+          }).catch(function () { finish() })
       } catch (e2) {}
     },
     // 切换音频输出设备. 只有"已连接的蓝牙"会走到这里; 失败也只记日志 —— 原生换 sink 失败会
@@ -631,6 +668,10 @@ export default {
         this.applyOnce()
         if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
         if (this.isLive && !this.liveStartedAt) { this.liveStartedAt = Date.now(); this.reconnectCount = 0 }
+        if (!this.playLogged) {
+          this.playLogged = true
+          try { log('播放器', 'PLAYING t=+' + (Date.now() - this.t0) + 'ms 音频=' + (this.audioRoute || '未定')) } catch (e0) {}
+        }
         this.applyAudioRoute()
         this.posAt = Date.now()
         this.startPolling()
@@ -665,6 +706,12 @@ export default {
 
     onEvtInfo: function (e) {
       if (!e) return
+      // 视频就绪时间戳 (首次拿到尺寸/时长 = 视频轨已解析): 与起播/音频切换时刻对比,
+      // 就能判断"声音先到还是画面先到"发生在哪一段 (本机拿不到"首帧上屏"事件, 这是最接近的)
+      if (!this.infoLogged) {
+        this.infoLogged = true
+        try { log('播放器', '视频就绪 t=+' + (Date.now() - this.t0) + 'ms ' + (Number(e.video_width) || 0) + 'x' + (Number(e.video_height) || 0) + ' 音频=' + (this.audioRoute || '未定')) } catch (e0) {}
+      }
       var d = Number(e.duration)
       if (d > 0) this.durMs = d * 1000
       var h = Number(e.video_height)

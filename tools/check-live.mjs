@@ -227,9 +227,18 @@ ok(/getCfg\('btaudioMs'\)/.test(player), 'player: 蓝牙音画补偿读设置页
 // bluealsa 的 PCM 认 device/profile/delay; libfalcon 只拼 DEV= -> 延迟被少报 -> 画面超前.
 // 补偿必须拼成设备串的 DELAY=<µs> (插件键名已从 libasound_module_pcm_bluealsa.so 校验)
 ok(/',DELAY=' \+ \(comp \* 1000\)/.test(player), 'player: 补偿拼成 bluealsa DELAY=<µs>')
-ok(/comp = Math\.max\(0, Math\.round\(comp\)\)/.test(player), 'player: 补偿负值夹到 0 (插件不接受负 delay)')
+// 真机对照实验 (aplay): DELAY=0 / -100000 / 2000000 都能建出 a2dpsrc/sink 并正常开播,
+// 所以"声音超前就减小"这个方向可用 -> 不再夹负值
+ok(!/Math\.max\(0, Math\.round\(comp\)\)/.test(player), 'player: 补偿不再夹负值 (插件接受负 delay, 已真机验证)')
+ok(/comp = Math\.round\(comp\)/.test(player), 'player: 补偿只取整, 保留正负两个方向')
 ok(/isFinite\(comp\)\) comp = 200/.test(player), 'player: 设置缺省时兜底 200ms')
-ok(/execAsync\(/.test(player.split('applyAudioRoute')[1] || ''), 'player: 蓝牙探测必须用 execAsync (同步 exec 冻主线程)')
+ok(/execAsync\(SCAN_BT_CMD\)/.test(player) && /var SCAN_BT_CMD = /.test(player),
+  'player: 蓝牙探测用 execAsync + 模块级命令常量 (同步 exec 冻主线程)')
+// 起播前定音频输出: play(0) 必须等 applyAudioRoute 的完成回调, 否则起播后再热切 sink
+ok(/applyAudioRoute\(\{ quick: true, cb: function \(\) \{ self\.startPlay\(gen\) \} \}\)/.test(player),
+  'player: 先定音频输出再 play (quick 探针 + 完成回调)')
+ok(/if \(o\.quick\) return null/.test(player), 'player: 起播前只跑快探针, 不被 connect 修复拖住')
+ok(/视频就绪 t=\+/.test(player) && /PLAYING t=\+/.test(player), 'player: 起播时间线日志 (取流/视频就绪/PLAYING 带 ms 偏移)')
 ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
 ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')
 
