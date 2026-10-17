@@ -165,6 +165,8 @@ eq(filter([{ id: '5' }, { id: '6' }]).map((d) => d.id), ['5', '6'], '弹幕过�
 
 // ================= 5. 播放器: 直播态源码契约 =================
 const player = readSrc('pages/player/player.vue')
+const cfg = readSrc('services/config.js')
+const setv = readSrc('pages/settings/settings.vue')
 ok(/isLive\(\)\s*\{\s*return this\.mode === 'live'\s*\}/.test(player), 'player: isLive 由 options.mode 决定')
 ok(/\(options\.mode === 'live' \|\| rid > 0\) \? 'live' : ''/.test(player), 'player: applyOptions 用 mode=live 或 roomid 判定直播态')
 // 第二个参数是"候选线路序号" (直播起播失败时轮换), 取流仍然一律走 bili.js
@@ -212,6 +214,15 @@ ok(/Connected: yes/.test(player), 'player: 只认 bluetoothctl 的 Connected: ye
 ok(/bluetoothctl devices/.test(player) && /CONNECTED \(\[0-9A-Fa-f:\]\{17\}\)/.test(player),
   'player: 枚举已配对设备再逐个查 Connected (两种省事写法在本机都取不到)')
 ok(/bluealsa:DEV=/.test(player), 'player: 日志回显 bluealsa:DEV=<mac> (排查用)')
+// 真机 2026-10-17: bluez 会谎报连接状态 (hcitool con 有 ACL, bluetoothctl 说 Connected: no),
+// 后果是"以为没连蓝牙 -> 不切输出 -> 声音还在扬声器", 且 bluealsa 建不出 A2DP PCM.
+// 所以判据必须是两级: 先 bluez 扫, 再拿链路层真相交叉验证, 并补一次 connect 纠正.
+ok(/hcitool con/.test(player), 'player: 用 hcitool con 的链路层真相交叉验证 bluez 状态')
+ok(/bluetoothctl connect ' \+ link\[1\]/.test(player), 'player: 对谎报的设备补 connect 纠正')
+// 低延迟档 (HFP/SCO): 插件只接受 [a2dp, sco] (BOGUS 对照实验真机验过)
+ok(/btAudioMode/.test(player) && /',PROFILE=sco'/.test(player), 'player: 支持 SCO 低延迟档 (拼 bluealsa PROFILE)')
+ok(/btAudioMode: \['a2dp', 'enum', \['a2dp', 'sco'\]\]/.test(cfg), 'config: btAudioMode 枚举 a2dp/sco')
+ok(/k: 'btAudioMode'/.test(setv), 'settings: 蓝牙音频模式有可选行 (音质优先/低延迟)')
 ok(/getCfg\('btaudioMs'\)/.test(player), 'player: 蓝牙音画补偿读设置页的 btaudioMs')
 // bluealsa 的 PCM 认 device/profile/delay; libfalcon 只拼 DEV= -> 延迟被少报 -> 画面超前.
 // 补偿必须拼成设备串的 DELAY=<µs> (插件键名已从 libasound_module_pcm_bluealsa.so 校验)

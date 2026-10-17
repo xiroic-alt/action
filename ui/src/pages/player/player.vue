@@ -518,12 +518,29 @@ export default {
       //   连上就切 bluealsa:DEV=<mac> (type=4); 没连就什么都不做 (默认就是 speaker).
       //   ★ 命令里**不许出现 sed 的 \1 反引用**: QuickJS 以严格模式跑 ESM, 字符串里的 \1
       //     是八进制转义 -> 整个页面脚本语法错误 (validate.mjs 当场抓到). 用 cut 取第 2 段.
+      // ★ 真机 (2026-10-17) 发现 bluez 会**谎报**连接状态: hcitool con 显示 ACL 链路是活的
+      //   (state 1 lm MASTER AUTH ENCRYPT), 而 bluetoothctl info 报 "Connected: no".
+      //   后果极隐蔽: 我们以为"没连蓝牙"就不切音频输出, 声音其实还在扬声器上;
+      //   而 bluealsa 也因为 bluez 的状态建不出 A2DP PCM (aplay 报 "PCM not found").
+      //   所以判据变成两级: 先按 bluez 扫; 扫不到就用 hcitool 的**链路层真相**交叉验证,
+      //   并对该设备补一次 bluetoothctl connect 把 bluez 的状态纠正过来 (人工验过: 纠正后
+      //   aplay 立刻能建出 /org/bluealsa/hci0/dev_xxx/a2dpsrc/sink).
       try {
         bilinet.execAsync('for m in $(bluetoothctl devices 2>/dev/null | cut -d" " -f2); do bluetoothctl info $m 2>/dev/null | grep -q "Connected: yes" && echo "CONNECTED $m"; done')
           .then(function (out) {
+            var hit = /CONNECTED ([0-9A-Fa-f:]{17})/.exec(String(out || ''))
+            if (hit) return hit[1]
+            // 二级判据: 链路层有 ACL(state 1) 的已配对设备
+            return bilinet.execAsync('hcitool con 2>/dev/null | grep ACL').then(function (c) {
+              var link = /([0-9A-Fa-f:]{17})/.exec(String(c || ''))
+              if (!link) return null
+              try { log('播放器', 'bluez 报未连接但链路层已连 ' + link[1] + ' -> 补一次 connect 纠正') } catch (e0) {}
+              return bilinet.execAsync('timeout 15 bluetoothctl connect ' + link[1]).then(function () { return link[1] })
+            })
+          })
+          .then(function (mac) {
             if (!self.$page) return
-            var m = /CONNECTED ([0-9A-Fa-f:]{17})/.exec(String(out || ''))
-            if (!m) {
+            if (!mac) {
               self.audioRoute = 'speaker(默认)'
               try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
               return
@@ -537,14 +554,19 @@ export default {
             var comp = Number(getCfg('btaudioMs'))
             if (!isFinite(comp)) comp = 200
             comp = Math.max(0, Math.round(comp))          // 负值对插件无意义 -> 夹到 0
-            var dev = comp > 0 ? (m[1] + ',DELAY=' + (comp * 1000)) : m[1]
+            // 音频档位: a2dp(默认) / sco(低延迟). 插件只接受这两种 profile —— 拿 BOGUS 做对照时
+            // ALSA 直接报 "Unknown parameter BOGUS", 而 PROFILE=sco 被正常解析成
+            // "Getting BlueALSA PCM: PLAYBACK <mac> sco" (真机 aplay 实测), 所以拼串安全.
+            var prof = getCfg('btAudioMode') === 'sco' ? ',PROFILE=sco' : ''
+            var dev = mac + prof + (comp > 0 ? (',DELAY=' + (comp * 1000)) : '')
             self.setAudioOut(AUDIO_TYPE_BLUETOOTH, dev)
-            try { log('播放器', '蓝牙音画补偿 ' + comp + 'ms -> bluealsa DELAY=' + (comp * 1000) + 'us') } catch (e3) {}
+            try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)') } catch (e3) {}
           }).catch(function () {})
       } catch (e2) {}
     },
     // 切换音频输出设备. 只有"已连接的蓝牙"会走到这里; 失败也只记日志 —— 原生换 sink 失败会
-    // 让整条管线报 "Could not open audio device for playback", 所以 mac 必须是 17 位 BD 地址.
+    // 让整条管线报 "Could not open audio device for playback", 所以串首必须是 17 位 BD 地址
+    // (后面可以跟 ,PROFILE=sco / ,DELAY=<us> 这类 bluealsa 参数, 已真机验证可解析).
     setAudioOut: function (type, mac) {
       var r = this.elem('setAudioDeviceType', type, mac)
       this.audioRoute = (type === AUDIO_TYPE_BLUETOOTH ? ('bluetooth ' + mac) : 'speaker')

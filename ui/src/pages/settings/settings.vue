@@ -161,7 +161,8 @@ const SCHEMA = [
       { k: 'resumePlay', t: 'switch', label: '断点续播', desc: '记住每支视频看到哪, 下次接着放' },
       { k: 'skipIntroSec', t: 'number', label: '跳过片头', desc: '进入播放时直接跳过开头 N 秒', step: 5, fmt: (v) => v + 's' },
       { k: 'keepAwake', t: 'switch', label: '播放防息屏', desc: '播放期间每 6s 点亮一次屏幕' },
-      { k: 'btaudioMs', t: 'number', label: '蓝牙音画补偿', desc: '画面超前就加大, 声音超前就减小', step: 50, fmt: (v) => v + 'ms' }
+      { k: 'btAudioMode', t: 'choice', label: '蓝牙音频模式', desc: '音质优先=A2DP(延迟约200ms, 协议固有); 低延迟=HFP通话档(延迟约30-80ms, 音质下降)', opts: [['a2dp', '音质优先'], ['sco', '低延迟']] },
+      { k: 'btaudioMs', t: 'number', label: '蓝牙音画补偿', desc: '把画面推迟去对齐蓝牙声音 (不减少声音本身的延迟); 0 = 关闭', step: 50, fmt: (v) => v + 'ms' }
     ]
   },
   {

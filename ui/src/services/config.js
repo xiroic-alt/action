@@ -58,7 +58,10 @@ var SPEC = {
   defaultRate: [1, 'enum', [0.5, 0.75, 1, 1.25, 1.5, 2]],
   resumePlay: [true, 'bool'],
   skipIntroSec: [0, 'int', [0, 300]],
-  btaudioMs: [200, 'int', [-500, 800]],
+  btaudioMs: [200, 'int', [-500, 800]],   // 音画对齐补偿: 往 bluealsa 申报 DELAY, 让画面等声音
+  // 蓝牙音频模式: a2dp=音质优先(SBC, 端到端约 150-250ms, 协议固有) / sco=低延迟(HFP 通话档, 约 30-80ms, 音质降到通话级)
+  // 取证: libasound_module_pcm_bluealsa.so 校验 profile 只接受 [a2dp, sco] (真机 aplay 对照实验已验)
+  btAudioMode: ['a2dp', 'enum', ['a2dp', 'sco']],
   keepAwake: [true, 'bool'],
 
   // ---------- 网络 / 内容 ----------
