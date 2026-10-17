@@ -98,26 +98,14 @@ jobs:
           aarch64-linux-gnu-readelf -h ui/libs/libjsapi_bilinet.so | grep -E 'Class|Machine'
           aarch64-linux-gnu-nm -D ui/libs/libjsapi_bilinet.so | grep custom_init_jsapis
 
-      - name: Install aarch64 GStreamer dev (multiarch)
-        run: |
-          # arm64 gstreamer/glib 开发包与设备 (gnueabihf=glibc buildroot, gst 1.22) ABI 兼容;
-          # Ubuntu jammy 为 glib 2.72/gst 1.20, 基础 API 向下兼容, 运行时链接设备 /usr/lib 同名库
-          sudo dpkg --add-architecture arm64
-          sudo rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list
-          printf '%s\n' \
-            'deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main restricted universe multiverse' \
-            'deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main restricted universe multiverse' \
-            'deb [arch=amd64] http://security.ubuntu.com/ubuntu jammy-security main restricted universe multiverse' | sudo tee /etc/apt/sources.list.d/amd64.list
-          printf '%s\n' \
-            'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse' \
-            'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse' | sudo tee /etc/apt/sources.list.d/arm64.list
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libunwind-dev:arm64 libglib2.0-dev:arm64 libgstreamer1.0-dev:arm64 libgstreamer-plugins-base1.0-dev:arm64
-          sudo rm -rf /var/lib/apt/lists/*
-
       # gstplayer (自建 libjsapi_gstplayer.so + gstplayerd 子进程) 已整棵移除:
-      #   播放页迁到框架内置 <video> 元素后 (HANDOVER §27) 它零引用,
-      #   顺带省掉整条 GStreamer multiarch 安装步骤 -> CI 时间大幅缩短.
+      #   播放页迁到框架内置 <video> 元素后 (HANDOVER §27) 它零引用.
+      # ★ 2026-10-17: 这里原本还留着"Install aarch64 GStreamer dev (multiarch)"整段,
+      #   纯属该模块的遗留. 现在 native/ 下只剩 bilinet, CMakeLists 里 target_link_libraries
+      #   只有 dl pthread (全仓库对 glib/gstreamer 零引用), 所以这段安装没有任何消费者.
+      #   留着不但白花时间, 还会因为上游 ports.ubuntu.com 的 arm64 依赖链断裂
+      #   (libx11-dev:arm64 / libudev1:arm64 装不上 -> "held broken packages", exit 100)
+      #   把整条构建打断 —— 2026-10-17 的 CI 失败就是这个, 与业务代码无关.
 
       - name: Install dependencies
         run: |
