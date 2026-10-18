@@ -166,6 +166,7 @@ eq(filter([{ id: '5' }, { id: '6' }]).map((d) => d.id), ['5', '6'], '弹幕过�
 // ================= 5. 播放器: 直播态源码契约 =================
 const player = readSrc('pages/player/player.vue')
 const cfg = readSrc('services/config.js')
+const pageSrc = readSrc('pages/page/page.vue')
 const setv = readSrc('pages/settings/settings.vue')
 ok(/isLive\(\)\s*\{\s*return this\.mode === 'live'\s*\}/.test(player), 'player: isLive 由 options.mode 决定')
 ok(/\(options\.mode === 'live' \|\| rid > 0\) \? 'live' : ''/.test(player), 'player: applyOptions 用 mode=live 或 roomid 判定直播态')
@@ -197,6 +198,13 @@ ok(/if \(self\.resumeOn && !self\._resumeRead\)/.test(player), 'player: 断点�
 ok(/setProgress\(this\.bvid, Math\.round\(ms \/ 1000\), Math\.round\(this\.durMs \/ 1000\), this\.histMeta\(\)\)/.test(player),
   'player: 写进度时一并落历史元数据 (标题/UP/封面)')
 ok(/this\.recordHistory\(\)/.test(player), 'player: 起播即落一条历史 (点开就退也有记录)')
+// 元数据链路的另一端: histMeta 必须真的从 options 带过来的字段取值, 详情页必须真的传
+ok(/histMeta: function \(\)[\s\S]{0,220}?title: this\.titleText[\s\S]{0,160}?author: this\.authorText[\s\S]{0,120}?pic: this\.coverUrl/.test(player),
+  'player: histMeta 从 options 字段(标题/UP/封面)取元数据')
+ok(/this\.authorText = options\.author/.test(player) && /this\.coverUrl = options\.cover/.test(player) && /this\.durTextOpt = options\.durText/.test(player),
+  'player: applyOptions 接住 author/cover/durText')
+ok(/author: this\.detail\.author/.test(pageSrc) && /cover: this\.detail\.pic/.test(pageSrc) && /durText: this\.detail\.duration/.test(pageSrc),
+  'detail: 进播放页时把 author/cover/durText 带给播放器 (本地历史用)')
 
 // ---- 音频输出路由 (蓝牙): 不调用 setAudioDeviceType 就永远只有扬声器 ----
 // ---- 视频页固定深色 + 控制条间距 ----

@@ -81,7 +81,7 @@ import * as screenon from '../../services/screenon.js'
 import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl } from '../../services/bili.js'
 import { bilinet } from '../../services/native.js'
 import { getCfg } from '../../services/config.js'
-import { getProgress, setProgress, clearProgress, flushProgress } from '../../services/progress.js'
+import { getProgress, setProgress, flushProgress } from '../../services/progress.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
 

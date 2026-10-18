@@ -28,8 +28,11 @@
           <text v-if="item.posText" class="cover-tag">{{ item.posText }}</text>
         </div>
         <div class="meta">
+          <!-- 老记录(0.9.73 之前只存了 bvid)没有标题: 显示成"未记录标题"而不是把 bvid 当标题,
+               一旦重新看过一次就会自动补全 (播放页会把标题/UP/封面写回去) -->
           <text class="title" :style="T.t.title" :style="{ color: T.c.onSurface }">{{ item.title || item.bvid }}</text>
-          <text class="up" :style="T.t.accent">{{ item.author || '—' }}</text>
+          <text v-if="item.author" class="up" :style="T.t.accent">{{ item.author }}</text>
+          <text v-else class="up" :style="T.t.caption">{{ item.stale ? '旧记录 · 再看一次可补全' : '' }}</text>
           <text class="stat" :style="T.t.caption">{{ item.durText || '' }}{{ item.durText ? '  ' : '' }}{{ item.atText }}</text>
         </div>
         <div class="del" @click.stop="del(item)" :style="T.inset">
@@ -122,7 +125,9 @@ export default {
           mid: r.mid,
           durText: r.durText || (r.dur > 0 ? mmss(r.dur) : ''),
           posText: r.pos > 0 ? ('看到 ' + mmss(r.pos)) : '',
-          atText: relTime(r.at)
+          atText: relTime(r.at),
+          // 0.9.73 之前的记录只有 bvid/进度, 没有标题与封面 —— 标出来, 别让人以为是加载失败
+          stale: !r.title && !r.pic
         })
       }
       this.items = out
