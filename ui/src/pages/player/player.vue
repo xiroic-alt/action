@@ -13,6 +13,21 @@
          (libfalcon.so: JQuick::HoleView::draw 反汇编实证), UI 之下透出视频 -->
     <hole class="hole" :style="vrectStyle"></hole>
 
+    <!-- 弹幕层: 严格裁在视频矩形 (vrect) 内 —— 笔屏 960x266 里画面只占中间一条,
+         弹幕跑到黑边上既浪费又难看. pointer-events 不接事件, 点击仍然落到 stage.
+         每帧只取 visibleAt() 命中的那几条 (danmaku.js 的独占泳道保证不重叠). -->
+    <div class="dm-layer" :style="vrectStyle">
+      <text v-for="d in dmFrame" :key="d.k" class="dm"
+            :style="{ left: d.x + 'px', top: d.y + 'px', color: d.color, fontSize: d.size + 'px', opacity: d.op }">{{ d.text }}</text>
+    </div>
+
+    <!-- 字幕层: 主字幕 + 副字幕 (双语) 贴着画面底部, 底衬用半透明块而不是描边阴影
+         (设备文本没有 text-shadow, 只能用底色压住画面) -->
+    <div v-if="subMain !== '' || subSecond !== ''" class="sub-layer" :style="subLayerStyle">
+      <text v-if="subMain !== ''" class="sub" :style="subMainStyle">{{ subMain }}</text>
+      <text v-if="subSecond !== ''" class="sub sub2" :style="subSecondStyle">{{ subSecond }}</text>
+    </div>
+
     <div class="stage" @click="toggleBar" @touchstart="markUserTouch">
       <!-- 顶部悬浮栏 -->
       <div v-if="barVisible" class="topbar" :style="T.bar">
@@ -78,12 +93,17 @@
 // 元素方法: play pause resume stop seekto setSrc setRate getRate
 //           setAudioDeviceType setVideoSurface
 import * as screenon from '../../services/screenon.js'
-import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl } from '../../services/bili.js'
+import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl, getDanmakuXml, getSubtitleBody, getSponsorSegments } from '../../services/bili.js'
+// PiliNara 衍生: 弹幕 (解析/合并放大/屏蔽/泳道) 与 字幕 (解析/选轨) 都是纯逻辑模块
+import { parseDanmakuXml, mergeDanmaku, filterDanmaku, buildTracks, visibleAt, colorHex } from '../../services/danmaku.js'
+import { pickCue } from '../../services/subtitle.js'
+import { shouldSkip } from '../../services/sponsorblock.js'
+import { parseLines } from '../../services/features/danmaku-feature.js'
 import { bilinet } from '../../services/native.js'
 import { getCfg } from '../../services/config.js'
 import { getProgress, setProgress, clearProgress, flushProgress } from '../../services/progress.js'
 import { afterPaint } from '../../base-page.js'
-import { log } from '../../services/log.js'
+import { log, logDebug } from '../../services/log.js'
 
 var TICK_MS = 500        // 进度刷新周期 (position 事件 ~1s 一次, 中间用本地时钟插值)
 var BAR_HIDE_MS = 5000   // 播放中控制条自动隐藏延时
@@ -273,7 +293,30 @@ export default {
       infoLogged: false,     // 本流是否已记录"视频就绪"
       playLogged: false,     // 本流是否已记录"PLAYING"
       hideTimer: null,
-      keepTimer: null        // 防息屏注入定时器 (播放中每 6s 一次)
+      keepTimer: null,       // 防息屏注入定时器 (播放中每 6s 一次)
+
+      // ---------------- 弹幕 (PiliNara) ----------------
+      dmOn: true,            // dmEnable: 弹幕总开关
+      dmCid: 0,              // 当前已装载弹幕的 cid (换分 P/换视频才重取)
+      dmItems: [],           // buildTracks 的产物: [{ t, text, color, lane, w, dur, mode }]
+      dmFrame: [],           // 当前在屏的弹幕 (每 tick 重算, 模板直接渲染)
+      dmShown: {},           // 已上屏的 key (避免同一 tick 重复加入)
+      dmTimer: null,         // 弹幕节拍器 (只做上下屏, 位移交给 CSS transform 过渡)
+      dmAreaW: 474,          // 弹幕活动区宽 = 视频矩形宽
+      dmAreaH: BAND_H,
+      dmPending: false,      // 正在取弹幕
+      dmCount: 0,            // 本次装载的弹幕条数 (日志/诊断)
+
+      // ---------------- 字幕 (PiliNara 双语字幕) ----------------
+      subCues: null,         // 主字幕 cues
+      subCues2: null,        // 副字幕 cues (双语时的第二条)
+      subMain: '',
+      subSecond: '',
+      subLans: '',           // 主/副语言回显 (log 用)
+
+      // ---------------- SponsorBlock ----------------
+      sbSegs: [],            // 归一化后的片段
+      sbLastSkipAt: 0        // 跳过节流 (同一片段不要反复 seek)
     }
   },
   computed: {
@@ -307,7 +350,26 @@ export default {
       if (this.seekDragging && this.seekDstMs > 0) return fmtMs(this.seekDstMs)
       return fmtMs(this.curMs)
     },
-    durText: function () { return fmtMs(this.durMs) }
+    durText: function () { return fmtMs(this.durMs) },
+    // 字幕层: 贴着视频矩形的底部 (subOffsetY 离底高度), 宽度 = 视频宽
+    subLayerStyle: function () {
+      var r = this.vrect || { x: 243, y: 0, w: 474, h: BAND_H }
+      var off = Number(getCfg('subOffsetY')) || 10
+      var total = Number(getCfg('subSubFont')) || 18
+      if (this.subSecond === '') total = Number(getCfg('subFont')) || 22
+      var h = 26 + (this.subSecond !== '' ? total + 6 + 24 : 0)
+      return { left: r.x + 'px', top: (r.y + r.h - off - h) + 'px', width: r.w + 'px', height: h + 'px', alignItems: 'center', justifyContent: 'flex-end' }
+    },
+    subMainStyle: function () {
+      var fs = Number(getCfg('subFont')) || 22
+      var bg = 'rgba(0,0,0,' + ((Number(getCfg('subBgOpacity')) || 35) / 100) + ')'
+      return { fontSize: fs + 'px', fontWeight: String(getCfg('subWeight') || 'bold'), backgroundColor: bg, paddingLeft: '6px', paddingRight: '6px', paddingTop: '2px', paddingBottom: '2px' }
+    },
+    subSecondStyle: function () {
+      var fs = Number(getCfg('subSubFont')) || 18
+      var bg = 'rgba(0,0,0,' + ((Number(getCfg('subBgOpacity')) || 35) / 100) + ')'
+      return { fontSize: fs + 'px', backgroundColor: bg, paddingLeft: '6px', paddingRight: '6px', paddingTop: '2px', paddingBottom: '2px' }
+    }
   },
   methods: {
     // ---------------- 生命周期 ----------------
@@ -316,6 +378,14 @@ export default {
       this.startRate = Number(getCfg('defaultRate')) || 1
       this.skipIntro = Number(getCfg('skipIntroSec')) || 0
       this.resumeOn = getCfg('resumePlay') !== false
+      // 弹幕/字幕设置可能在设置页改过: 重排泳道 + 重建节拍器 (改开关时不必重新取网络)
+      var dmNow = getCfg('dmEnable') !== false
+      if (dmNow !== this.dmOn) {
+        this.dmOn = dmNow
+        if (dmNow) { this.rebuildDanmaku(); this.startDmLoop() } else { this.stopDmLoop() }
+      } else if (dmNow) {
+        this.rebuildDanmaku()
+      }
       if (!this.inited) {
         // 同页 navTo 的 onNewOptions 只发到 Page 实例, 需显式挂钩到组件
         if (this.$page && !this._newOptionsBound) {
@@ -363,6 +433,12 @@ export default {
       try { flushProgress() } catch (e) {}
       this.disarmLiveWatchdog()
       this.stopPolling()
+      this.stopDmLoop()
+      this.dmItems = []
+      this.dmRaw = []
+      this.subCues = null
+      this.subCues2 = null
+      this.sbSegs = []
       this.stopKeepAwake()
       screenon.screenOnStop()
       this.cancelHideBar()
@@ -462,6 +538,10 @@ export default {
           : null
         var cid = page ? page.cid : 0
         if (!cid) throw new Error('未找到视频 cid')
+        // PiliNara 衍生: 弹幕 / 字幕 / 赞助片段 —— 都挂在详情回来后 (cid 与字幕轨都在这)
+        try { self.loadDanmaku(cid) } catch (e1) {}
+        try { self.loadSubtitles(detail, gen) } catch (e2) {}
+        try { self.loadSponsor(self.bvid) } catch (e3) {}
         return getPlayUrl(self.bvid, cid)
       }).then(function (play) {
         if (gen !== self.generation || !play) return
@@ -520,6 +600,9 @@ export default {
       console.log('[player] play(0) -> ' + r)
       this.opened = true
       this.startPolling()
+      this.dmOn = getCfg('dmEnable') !== false
+      this.rebuildDanmaku()
+      this.startDmLoop()
       try { log('播放器', '起播 t=+' + (Date.now() - this.t0) + 'ms 音频=' + (this.audioRoute || '未定') + ' play(0)=' + r) } catch (e) {}
     },
 
@@ -952,6 +1035,275 @@ export default {
       this.keepTimer = null
     },
 
+    // ---------------- 弹幕 (PiliNara) ----------------
+    // 弹幕分四段: 取(bili.getDanmakuXml) -> 解/合并/屏蔽/排(danmaku.js) -> 上屏(这里) -> 位移(CSS transform 过渡)
+    //
+    // 为什么位移交给 CSS 而不是每帧算: 本机 QuickJS 上每帧重写几十个元素的 style 会明显掉帧,
+    // 而 CSS transition 的 transform 是框架支持的动画通道 (HANDOVER §3: 只支持 transform, 不支持 opacity).
+    // 于是这里只做两件事: ① 按当前时间挑选"在屏项" ② 给新上屏的项一条 transform 过渡.
+    loadDanmaku: function (cid) {
+      var id = Number(cid) || 0
+      if (!id || id === this.dmCid) return
+      this.dmCid = id
+      this.dmItems = []
+      this.dmRaw = []
+      this.dmScanFrom = 0
+      this.dmFrame = []
+      if (this.dmOn === false) return
+      var self = this
+      this.dmPending = true
+      getDanmakuXml(id).then(function (xml) {
+        if (!xml || self.dmCid !== id) { self.dmPending = false; return }
+        self.buildDanmaku(xml)
+        self.dmPending = false
+      }).catch(function (err) {
+        self.dmPending = false
+        logDebug('播放器', '弹幕加载失败: ' + (err && err.message ? err.message : err))
+      })
+    },
+
+    // 解析 -> 合并放大 -> 屏蔽 -> 排泳道. 只在这里碰设置, 设置改了走 rebuildDanmaku.
+    buildDanmaku: function (xml) {
+      var font = Number(getCfg('dmFont')) || 24
+      var merge = getCfg('dmMerge') !== false
+      var list = parseDanmakuXml(xml)
+      var merged = merge
+        ? mergeDanmaku(list, {
+          windowSec: 6,
+          threshold: Number(getCfg('dmMergeThreshold')) || 3,
+          growth: (Number(getCfg('dmMergeGrowth')) || 12) / 100,
+          maxScale: 2.2,
+          keepMode: true            // 顶/底弹幕靠 mode 区分, 合并时必须保留
+        })
+        : list
+      var modes = []
+      var rawModes = parseLines(getCfg('dmBlockModes'))
+      for (var i = 0; i < rawModes.length; i++) {
+        var m = parseInt(rawModes[i], 10)
+        if (isFinite(m)) modes.push(m)
+      }
+      var kept = filterDanmaku(merged, {
+        keywords: parseLines(getCfg('dmBlockWords')),
+        regexes: parseLines(getCfg('dmBlockRegex')),
+        modes: modes,
+        minLength: 0
+      })
+      // 笔屏矮: 底端弹幕会和字幕/控制条抢地方 (设置项 dmHideBottom 直接剔除 mode=4)
+      if (getCfg('dmHideBottom') === true) {
+        var noBottom = []
+        for (var j = 0; j < kept.length; j++) if (Number(kept[j].mode) !== 4) noBottom.push(kept[j])
+        kept = noBottom
+      }
+      this.dmRaw = kept
+      this.rebuildDanmaku()
+      this.dmCount = kept.length
+      log('播放器', '弹幕装载 ' + this.dmCid + ': ' + list.length + ' 条 -> 合并/屏蔽后 ' + kept.length + ' 条')
+    },
+
+    // 只重排泳道 (改字号/速度/行数/开关时用, 不需要重新取网络)
+    rebuildDanmaku: function () {
+      var raw = this.dmRaw || []
+      if (!raw.length) { this.dmItems = []; this.dmFrame = []; return }
+      var r = this.vrect || { w: 474, h: BAND_H }
+      var font = Number(getCfg('dmFont')) || 24
+      var speedSec = Number(getCfg('dmSpeedSec')) || 9
+      if (speedSec < 1) speedSec = 9
+      var lanes = Number(getCfg('dmLanes')) || 6
+      var areaW = r.w > 0 ? r.w : 474
+      var areaH = r.h > 0 ? r.h : BAND_H
+      // buildTracks 的滚动时长 = areaW / speedPx, 所以 speedPx 由"过屏秒数"反推
+      var t = buildTracks(raw, {
+        areaW: areaW,
+        areaH: areaH,
+        fontSize: font,
+        speedPx: Math.round(areaW / speedSec),
+        laneH: Math.round(font * 1.5),
+        maxLanes: lanes
+      })
+      var items = t.items || []
+      // 把 dur / laneH / mode 摊到每一项上, 上屏时不必再查设置
+      var proj = []
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i]
+        proj.push({
+          t: Number(it.t) || 0,
+          text: String(it.text == null ? '' : it.text),
+          color: colorHex(it.color),
+          lane: Number(it.lane) || 0,
+          laneH: Math.round(font * 1.5),
+          w: Number(it.w) || 0,
+          dur: Number(it.dur) > 0 ? Number(it.dur) : speedSec,
+          mode: Number(it.mode) || 1
+        })
+      }
+      this.dmAreaW = areaW
+      this.dmAreaH = areaH
+      this.dmItems = proj
+      this.dmScanFrom = 0
+      this.dmShown = {}
+      this.dmFrame = []
+    },
+
+    startDmLoop: function () {
+      if (this.dmTimer != null) return
+      if (this.dmOn === false || this.isLive) return
+      var self = this
+      this.dmTimer = setTicker(this, 200, function () { self.dmTick() })
+    },
+    stopDmLoop: function () {
+      clearTicker(this, this.dmTimer)
+      this.dmTimer = null
+      this.dmFrame = []
+      this.dmShown = {}
+    },
+
+    // 每 200ms 一次: 只做"谁在屏 / 谁该走", 位移靠 transform 过渡
+    dmTick: function () {
+      if (this.dmOn === false || this.isLive || !this.playing) {
+        if (this.dmFrame.length) { this.dmFrame = []; this.dmShown = {} }
+        return
+      }
+      var items = this.dmItems
+      if (!items.length) return
+      var t = this.curMs / 1000
+      // seek 回退时游标必须重来 (否则回退后弹幕不再出现)
+      if (this.dmLastT != null && t < this.dmLastT) { this.dmScanFrom = 0; this.dmShown = {}; this.dmFrame = [] }
+      this.dmLastT = t
+      var from = this.dmScanFrom || 0
+      // 游标前进: 已经完全跑完的项不再参与扫描
+      while (from < items.length && items[from].t + items[from].dur < t) from++
+      this.dmScanFrom = from
+
+      var W = this.dmAreaW
+      var op = (Number(getCfg('dmOpacity')) || 90) / 100
+      var font = Number(getCfg('dmFont')) || 24
+      var frame = []
+      var shown = this.dmShown || {}
+      var next = {}
+      for (var i = from; i < items.length; i++) {
+        var it = items[i]
+        if (it.t > t + 0.4) break                  // 还没到 (给一点提前量, 上屏更顺)
+        if (t >= it.t + it.dur) continue
+        var prog = (t - it.t) / it.dur
+        if (prog < 0) prog = 0
+        var x, y
+        var top = it.lane * it.laneH
+        if (it.mode === 4) {                       // 底端: 贴画面底往上排
+          x = Math.round((W - it.w) / 2)
+          y = this.dmAreaH - 30 - top
+        } else if (it.mode === 5) {                // 顶端: 从上往下排
+          x = Math.round((W - it.w) / 2)
+          y = top
+        } else {                                   // 滚动: 从右往左
+          x = Math.round(W - prog * (W + it.w))
+          y = top
+        }
+        // 新上屏的项加一条过渡: 首帧先落在起点, 下一拍才给终点, 否则浏览器会把两帧合并成"瞬间到位".
+        var key = i
+        var trans = ''
+        if (shown[key] === undefined && it.mode !== 4 && it.mode !== 5) {
+          trans = 'transform ' + it.dur + 's linear'
+        }
+        next[key] = 1
+        frame.push({
+          k: key, text: it.text, color: it.color, size: font, op: op, x: x, y: y,
+          tr: trans, mode: it.mode
+        })
+      }
+      this.dmShown = next
+      this.dmFrame = frame
+    },
+
+    // ---------------- 字幕 (PiliNara 主/副双语) ----------------
+    loadSubtitles: function (detail, gen) {
+      this.subCues = null
+      this.subCues2 = null
+      this.subMain = ''
+      this.subSecond = ''
+      this.subLans = ''
+      if (this.isLive) return
+      if (getCfg('subEnable') === false) return
+      var subs = (detail && detail.subtitles) || []
+      if (!subs.length) return
+      var remember = String(getCfg('subRemember') || '')
+      var main = null
+      for (var i = 0; i < subs.length; i++) {
+        if (remember && subs[i].lan === remember) { main = subs[i]; break }
+      }
+      if (!main) main = subs[0]
+      var second = null
+      for (var j = 0; j < subs.length; j++) {
+        if (subs[j].url !== main.url && subs[j].lan !== main.lan) { second = subs[j]; break }
+      }
+      var self = this
+      var g = gen
+      getSubtitleBody(main.url).then(function (cues) {
+        if (g !== self.generation) return
+        self.subCues = cues
+        self.subLans = main.lan
+        log('播放器', '字幕装载 ' + main.lan + ' ' + (cues ? cues.length : 0) + ' 条')
+      }).catch(function (e) { logDebug('播放器', '字幕失败: ' + (e && e.message ? e.message : e)) })
+      if (second) {
+        getSubtitleBody(second.url).then(function (cues2) {
+          if (g !== self.generation) return
+          self.subCues2 = cues2
+          self.subLans += ' + ' + second.lan
+        }).catch(function (e) {})
+      }
+    },
+
+    subtitleTick: function () {
+      if (this.isLive) return
+      if (!this.subCues && !this.subCues2) {
+        if (this.subMain !== '') this.subMain = ''
+        if (this.subSecond !== '') this.subSecond = ''
+        return
+      }
+      var t = this.curMs / 1000
+      var a = '', b = ''
+      try {
+        var c1 = this.subCues ? pickCue(this.subCues, t) : null
+        if (c1 && c1.text) a = String(c1.text)
+        var c2 = this.subCues2 ? pickCue(this.subCues2, t) : null
+        if (c2 && c2.text) b = String(c2.text)
+      } catch (e) {}
+      if (a === b) b = ''                        // 主副同文时只显示一行
+      if (a !== this.subMain) this.subMain = a
+      if (b !== this.subSecond) this.subSecond = b
+    },
+
+    // ---------------- SponsorBlock (跳过赞助/片头/片尾) ----------------
+    loadSponsor: function (bvid) {
+      this.sbSegs = []
+      if (this.isLive || !bvid) return
+      var self = this
+      getSponsorSegments(bvid).then(function (segs) {
+        self.sbSegs = segs || []
+        if (self.sbSegs.length) log('播放器', 'SponsorBlock 片段 ' + self.sbSegs.length + ' 个')
+      }).catch(function (e) {})
+    },
+
+    sponsorTick: function () {
+      if (this.isLive || !this.sbSegs.length || this.seekDragging) return
+      var cats = parseLines(getCfg('sbCats'))
+      if (!cats.length) return
+      var hit = shouldSkip(this.curMs / 1000, this.sbSegs, {
+        categories: cats,
+        minLenSec: Number(getCfg('sbMinLen')) || 1,
+        maxSkipSec: Number(getCfg('sbMaxSkip')) || 90
+      })
+      if (!hit) return
+      if (Date.now() - this.sbLastSkipAt < 1500) return
+      this.sbLastSkipAt = Date.now()
+      var to = Math.round(hit.to)
+      this.elem('seekto', to)
+      this.curMs = to * 1000
+      this.posMs = to * 1000
+      this.posAt = Date.now()
+      this.seekHoldMs = null
+      try { log('播放器', '跳过' + hit.label + ' ' + Math.round(hit.len) + 's -> ' + to + 's') } catch (e) {}
+    },
+
     // ---------------- 进度刷新 ----------------
     // position 事件 ~1s 一次; 中间用本地时钟插值, 进度条/时间才连续
     startPolling: function () {
@@ -969,6 +1321,10 @@ export default {
         var ms = self.posMs + (Date.now() - self.posAt)
         if (self.durMs > 0 && ms > self.durMs) ms = self.durMs
         self.curMs = ms
+        // 弹幕/字幕/跳过片段跟着播放时钟走 (同一个节拍, 不另起定时器)
+        try { self.dmTick() } catch (e1) {}
+        try { self.subtitleTick() } catch (e2) {}
+        try { self.sponsorTick() } catch (e3) {}
       })
     },
     stopPolling: function () {
@@ -1154,6 +1510,45 @@ export default {
   width: 960px;
   height: 266px;
 }
+/* 弹幕层: 绝对定位在视频矩形上 (vrectStyle 注入 left/top/width/height).
+     帧内每一项都是绝对定位的 text, 位移用 CSS transform 过渡 —— 框架只支持 transform 动画. */
+.dm-layer {
+  position: absolute;
+  left: 243px;
+  top: 0px;
+  width: 474px;
+  height: 266px;
+  overflow: hidden;
+}
+.dm {
+  position: absolute;
+  left: 0px;
+  top: 0px;
+  font-weight: bold;
+  /* 过渡打在 transform 上: 首帧 x=右边, 下一拍给终点 transform, 浏览器做线性滚动 */
+  transition: transform 9s linear;
+  white-space: nowrap;
+}
+/* 字幕层: 贴视频矩形底部 (subLayerStyle 注入几何), 用 flex 居中整行 */
+.sub-layer {
+  position: absolute;
+  left: 243px;
+  top: 200px;
+  width: 474px;
+  height: 48px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+.sub {
+  color: #ffffff;
+  text-align: center;
+  margin-bottom: 2px;
+}
+.sub2 {
+  margin-bottom: 8px;
+}
+
 /* 顶部栏 */
 .topbar {
   position: absolute;

@@ -205,11 +205,25 @@
                       <span v-if="seg.t === 0" :key="'s' + si">{{ seg.v }}</span>
                       <!-- @昵称: 主题色高亮 (本机 richtext 内元素点不动, 只能做视觉) -->
                       <span v-else-if="seg.t === 3" :key="'m' + si" class="mn">{{ seg.v }}</span>
+                      <!-- BV/av 号: 同样只能高亮. 真正的跳转入口在正文下方那条快捷栏
+                           (richtext 内元素点不动, 见 HANDOVER §23.2) -->
+                      <span v-else-if="seg.t === 4" :key="'v' + si" class="bvseg">{{ seg.v }}</span>
                       <image v-else :key="'e' + si" :src="seg.v" :style="{ width: seg.w + 'px', height: seg.h + 'px' }"></image>
                     </template>
                   </richtext>
                   <!-- 折叠态右下角省略号 (richtext 被 lines 截断时不会自己带 ...) -->
                   <text v-if="!r.expanded && r.long" class="reply-more" :style="T.onPage" @click="toggleReply(r)">…</text>
+                </div>
+                <!-- 评论里的 BV/av 号: 可点跳转入口 (用户要求"评论区 BV/AV 号跳转").
+                     为什么不在正文里直接点: 本机 richtext 内元素不触发点击 (§23.2),
+                     而按字符命中位置去反推"点到了哪个号"在没有测量接口的前提下不可靠.
+                     于是做成正文下方一条明确的命中区 —— 有尺寸的 div, 点击稳定生效. -->
+                <div v-if="replyBvids(r).length > 0" class="reply-bvbar">
+                  <div v-for="(b, bi) in replyBvids(r)" :key="'bv' + r.rpid + bi" class="reply-bvhit"
+                       :style="T.insetR" @click="openBv(b)">
+                    <image class="reply-bvic" :src="MIc.play" :style="{ width: '14px', height: '14px' }"></image>
+                    <text class="reply-bvt" :style="T.t.caption">{{ b }}</text>
+                  </div>
                 </div>
                 <!-- 每张图一个独立命中区: 原来所有图挤在一个命中 div 里, 而那个 div 的 :style 引用了
                      内层 v-for 的 pic (作用域外 -> undefined) => 尺寸 0 => 图也点不开 -->
@@ -410,6 +424,8 @@ const MI = {
   reply: require('../../assets/mi/reply_20_m.png'),
   img: require('../../assets/mi/image_20_m.png'),
   check: require('../../assets/mi/check_20_w.png'),
+  // 评论里 BV/av 快捷跳转的前导图标 (与列表卡片同一个播放符号)
+  play: require('../../assets/mi/play_18_w.png'),
   minus: require('../../assets/mi/remove_32_w.png'),
   plus: require('../../assets/mi/add_32_w.png')
 }
@@ -429,6 +445,7 @@ const MI_D = {
   reply: require('../../assets/mi/reply_20_dm.png'),
   img: require('../../assets/mi/image_20_dm.png'),
   check: require('../../assets/mi/check_20_d.png'),
+  play: require('../../assets/mi/play_18_d.png'),
   minus: require('../../assets/mi/remove_32_d.png'),
   plus: require('../../assets/mi/add_32_d.png')
 }
@@ -1393,6 +1410,24 @@ export default {
     toggleDesc() {
       this.descExpanded = !this.descExpanded
     },
+    // 评论里的视频号列表 (去重, 最多 3 个: 一行放得下, 也不至于把评论挤走)
+    replyBvids(r) {
+      if (!r || !r.segs) return []
+      const out = []
+      for (let i = 0; i < r.segs.length; i++) {
+        const s = r.segs[i]
+        if (s && s.t === 4 && s.bvid && out.indexOf(s.bvid) < 0) out.push(s.bvid)
+        if (out.length >= 3) break
+      }
+      return out
+    },
+    openBv(bvid) {
+      if (!bvid) return
+      try { $falcon.navTo('page', { bvid: bvid }) } catch (e) {
+        try { log('评论区', '打开视频失败: ' + (e && e.message ? e.message : e)) } catch (e2) {}
+      }
+    },
+
     toggleReply(r) {
       // expanded 在 appendPage 推入时已声明, 是响应式字段; :key 变化重建 richtext
       r.expanded = !r.expanded
@@ -2205,6 +2240,29 @@ export default {
 .tag-up {
   background-color: #3ca5ec;
   color: #ffffff;
+}
+
+/* 评论里的 BV/av 号: 正文高亮段 + 正文下方的可点快捷栏 */
+.bvseg {
+  color: #fb7299;
+}
+.reply-bvbar {
+  flex-direction: row;
+  align-items: center;
+  margin-top: 4px;
+}
+.reply-bvhit {
+  flex-direction: row;
+  align-items: center;
+  height: 26px;
+  padding-left: 8px;
+  padding-right: 10px;
+  margin-right: 8px;
+}
+.reply-bvic {
+  margin-right: 4px;
+}
+.reply-bvt {
 }
 .reply-pics {
   flex-direction: row;

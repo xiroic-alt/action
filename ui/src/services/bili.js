@@ -8,6 +8,44 @@
 //   - 无 Cookie 态 (无 buvid3) 反而绕开部分风控, 故不再取手指纹
 
 import { splitMentionSegs } from './mention.js'
+// 纯逻辑模块 (无副作用): 字幕归一化/解析, 赞助片段判定
+import { parseSubtitleJson, pickSubtitles } from './subtitle.js'
+import { normalizeSegments } from './sponsorblock.js'
+// BV/av 号扫描: 评论正文按段切出视频号 (t=4), 详情页据此做"评论内跳视频"
+import { findVideoIds } from './bv.js'
+
+/**
+ * 把"@提及段"再按 BV/av 号切一刀, 产出一条混合段列表.
+ * 输入/输出都是 parseMessage 的段形状: [{ t: 0|1|2|3, v|src|w|h }].
+ * 新增 t=4 = 视频号段, 带 bvid 字段.
+ */
+function splitVideoIds(segs) {
+  const out = []
+  const list = segs || []
+  for (let i = 0; i < list.length; i++) {
+    const s = list[i]
+    // 只有纯文本段才扫描 (图片/提及段本来就不是可点正文)
+    if (!s || s.t !== 0 || typeof s.v !== 'string' || s.v === '') { out.push(s); continue }
+    const parts = splitTextByVideoIds(s.v)
+    for (let j = 0; j < parts.length; j++) out.push(parts[j])
+  }
+  return out
+}
+
+function splitTextByVideoIds(text) {
+  const ids = findVideoIds(text)
+  if (!ids.length) return [{ t: 0, v: text }]
+  const out = []
+  let pos = 0
+  for (let i = 0; i < ids.length; i++) {
+    const it = ids[i]
+    if (it.index > pos) out.push({ t: 0, v: text.substring(pos, it.index) })
+    out.push({ t: 4, v: text.substring(it.index, it.index + it.length), bvid: it.bvid })
+    pos = it.index + it.length
+  }
+  if (pos < text.length) out.push({ t: 0, v: text.substring(pos) })
+  return out
+}
 import { bilinet } from './native.js'
 import * as auth from './auth.js'
 import { log, logError, logDebug } from './log.js'
@@ -802,9 +840,10 @@ export async function searchVideos(keyword, page) {
  * @returns {Promise<{bvid,aid,title,pic,desc,author,duration,pubdateText,playText,danmakuText,likeText,coinText,favText,shareText,reqLike,reqCoin,reqFav}>}
  */
 // ==================== 搜索页: 大家都在搜 / 搜索发现 ====================
-// 两个接口真机实测都可匿名访问 (设备 curl 直连):
-//   s.search.bilibili.com/main/hotword            -> {code:0, list:[...]}
-//   app.bilibili.com/x/v2/search/trending/ranking -> {code:0, data:{list:[...]}}
+// ★ 用户硬约束: 只做 Web 端 API, 不用 App 端接口. a 2024-11 起 app.bilibili.com/x/v2/
+//   一律不给网页面, 所以热搜也统一走两条 Web 链路 (真机 curl 均已验证):
+//   - s.search.bilibili.com/main/hotword                    -> {code:0, list:[{keyword}]}
+//   - api.bilibili.com/x/web-interface/search/square        -> {code:0, data:{trending:{list:[{keyword,show_name}]}}}
 // 取 show_name 而不是 keyword: 前者是给用户看的文案 (可能带活动后缀), 后者是检索词.
 function pickWords(list, max) {
   const out = []
@@ -821,8 +860,9 @@ export async function getHotSearch() {
 }
 
 export async function getSearchTrending() {
-  const body = await getJsonAsync("https://app.bilibili.com/x/v2/search/trending/ranking?limit=10", 12)
-  return pickWords(body && body.data && body.data.list, 10)
+  const body = await getJsonAsync("https://api.bilibili.com/x/web-interface/search/square?limit=10", 12)
+  const list = body && body.data && body.data.trending && body.data.trending.list
+  return pickWords(list, 10)
 }
 
 // ==================== 详情页: AI 总结 ====================
@@ -912,6 +952,11 @@ export async function getVideoDetail(bvid, noCache) {
     // 这里先声明字段 (Vue2 新增属性不响应, 必须建对象时就带上)
     reqToview: false,
     mid: (d.owner && d.owner.mid) || 0,
+    // cid: 第一个分 P 的 (弹幕接口要它); 分 P 页会用 pages[i].cid 覆盖
+    cid: Number(d.cid) || ((d.pages && d.pages[0] && d.pages[0].cid) || 0),
+    // CC 字幕轨 (PiliNara 的双语字幕入口): wbi/view 的 data.subtitle.subtitles,
+    // 未登录也可能拿到, 但正文 url 是签名地址, 必须在有效期内取
+    subtitles: pickSubtitles(d),
     // 分 P (同稿件多段)
     pages: (d.pages || []).map(function (p) {
       return { page: p.page || 0, cid: p.cid || 0, part: p.part || '', duration: formatDuration(p.duration) }
@@ -2406,8 +2451,11 @@ function mapReply(r, upperMid, builtinEmoji, opts) {
     face: thumb(face, 60, 60),
     message: stripTags(content.message),
     pics: mapReplyPics(content),                   // 评论图片 (最多 6 张)
-    // 评论正文里的 @昵称 切成 t=3 提及段 -> 三个评论页面 (视频详情/楼中楼/动态详情) 都高亮
-    segs: splitMentionSegs(parseMessage(content.message, content.emote, builtinEmoji)),
+    // 评论正文里的 @昵称 切成 t=3 提及段 -> 三个评论页面 (视频详情/楼中楼/动态详情) 都高亮.
+    // 同一趟里再把 BV/av 号切出来 (t=4): 用户要求"评论区 BV/AV 号可点击跳转",
+    // 而 richtext 里的元素点不动 (HANDOVER §23.2), 所以跳转只能靠**点击前的文本段**判定 ——
+    // 页面上按段渲染, 点正文时用命中段是否 kind==='bv' 决定是跳视频还是展开评论.
+    segs: splitVideoIds(splitMentionSegs(parseMessage(content.message, content.emote, builtinEmoji))),
     long: isLongMessage(stripTags(content.message)),
     likeText: formatPlay(r.like),
     timeText: formatRelative(r.ctime),
@@ -2539,6 +2587,89 @@ export async function addReply(aid, message, root, parent, type) {
     throw new Error(body.message || ('评论发送失败 code=' + body.code))
   }
   return true
+}
+
+// ================= PiliNara 衍生: 弹幕 / 字幕 / 赞助片段 =================
+
+/**
+ * 原始文本 GET (弹幕 XML / 字幕 JSON 这类非 JSON 包装的响应).
+ * 与 getJsonAsync 的区别只有一个: 不做 JSON.parse, 把 body 原样交回调用方.
+ */
+async function getTextAsync(url, timeoutSec, headers) {
+  const to = timeoutSec || defTimeout()
+  if (!hasHttpAsync()) {
+    const s = headers ? bilinet.httpGet(url, to, headers) : bilinet.httpGet(url, to)
+    if (!s) throw new Error('请求失败 (空响应)')
+    return s
+  }
+  const s = headers ? await bilinet.httpGetAsync(url, to, headers) : await bilinet.httpGetAsync(url, to)
+  if (!s) throw new Error('请求失败 (空响应)')
+  return s
+}
+
+/**
+ * 弹幕 XML (PiliNara 弹幕链路的第一段).
+ *
+ * 走 comment.bilibili.com/<cid>.xml: 匿名可用、不需要 wbi、还能借设备 curl 自带的浏览器 UA.
+ * 为什么不用官方 protobuf 的 x/v1/dm/list.so: 那条要先 wbi 签名拿 URL, 再对 deflate 体解包,
+ * 而 QuickJS 侧没有解压器 (HANDOVER §29.6 直播弹幕同款结论).
+ * @param {number|string} cid
+ * @returns {Promise<string>} XML 原文 (无弹幕时为空串)
+ */
+export async function getDanmakuXml(cid) {
+  const id = Number(cid) || 0
+  if (!id) return ''
+  const ckey = cacheKey('dm:' + id)
+  const cached = cacheGet(ckey, 600000)
+  if (cached) return cached
+  const text = await getTextAsync('https://comment.bilibili.com/' + id + '.xml', 20)
+  // 空 body / 风控页都当"没有弹幕": 播放不该被弹幕拖住
+  if (!text || text.indexOf('<i>') !== 0) return ''
+  cacheSet(ckey, text)
+  return text
+}
+
+/**
+ * 字幕正文 (B 站 CC 的签名 JSON 地址, 来自详情的 subtitles[].url)
+ * @returns {Promise<Array<{from:number,to:number,text:string}>>}
+ */
+export async function getSubtitleBody(url) {
+  const u = String(url || '')
+  if (!u) return []
+  const ckey = cacheKey('sub:' + u)
+  const cached = cacheGet(ckey, 600000)
+  if (cached) return cached
+  const text = await getTextAsync(u, 20)
+  const cues = parseSubtitleJson(text)
+  cacheSet(ckey, cues)
+  return cues
+}
+
+/**
+ * SponsorBlock 片段 (跳过赞助/片头/片尾). 公共 API, 匿名.
+ * 网络不可达时**不抛异常**而是返回空数组并记一条日志: 国内网络访问不到它属于常态,
+ * 不该让"跳过片段"这个可选功能影响正常播放.
+ * @returns {Promise<Array>} normalizeSegments 归一化后的片段
+ */
+export async function getSponsorSegments(bvid) {
+  const id = String(bvid || '')
+  if (!id || !/^BV/.test(id)) return []
+  const ckey = cacheKey('sb:' + id)
+  const cached = cacheGet(ckey, 1800000)
+  if (cached) return cached
+  const url = 'https://sponsor.ajay.app/api/skipSegments?videoID=' + encodeURIComponent(id)
+  try {
+    const text = await getTextAsync(url, 6)
+    const json = JSON.parse(text)
+    const segs = normalizeSegments(json)
+    cacheSet(ckey, segs)
+    return segs
+  } catch (e) {
+    // 404(无片段) 与 网络不可达 都会走到这里; 缓存 10 分钟空结果, 避免每支视频都白等 6s
+    logDebug('SponsorBlock', id + ' 无片段/不可达: ' + (e && e.message ? e.message : e))
+    cacheSet(ckey, [])
+    return []
+  }
 }
 
 /**

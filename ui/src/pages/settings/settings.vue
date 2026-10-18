@@ -63,6 +63,14 @@
             </div>
           </div>
 
+          <!-- 文本行 (PiliNara 的"列表式编辑"在笔上的等价物):
+               点一下唤起系统输入法, 回来即写盘. 长文本(屏蔽词/正则/保留词)只能这么改 ——
+               笔屏 960x266 放不下内联输入框, 也放不下软键盘. -->
+          <div v-else-if="r.t === 'input'" class="go" :style="T.insetR" @click="editText(r)">
+            <text class="got" :style="T.t.label">{{ inputPreview(r) }}</text>
+            <image class="goic" :src="MIc.edit" :style="{ width: '20px', height: '20px' }"></image>
+          </div>
+
           <!-- 跳转 -->
           <div v-else-if="r.t === 'go'" class="go" :style="T.insetR" @click="nav(r.to)">
             <text class="got" :style="T.t.label">{{ r.val() }}</text>
@@ -101,6 +109,10 @@ import { currentLineLabel } from '../../services/lines.js'
 import { log, logStatus, setLogLevel } from '../../services/log.js'
 import { getMid, clearLogin, hasCookie } from '../../services/auth.js'
 import { clearSearchHistory } from '../../services/store.js'
+import { createIME } from '../../services/ime.js'
+// PiliNara 衍生功能自带的设置分组 (弹幕/字幕/过滤/备注/备份/多账号...):
+// 每个功能模块自己声明行, 这里只负责把它们追加到静态 SCHEMA 之后 —— 共享文件不再被并行改动.
+import { settingsGroups } from '../../services/features/index.js'
 
 // 图标 (material-icons-svg 光栅化; _w 深色主题底 / _d 浅色主题底)
 const MI = {
@@ -117,7 +129,8 @@ const MI = {
   chevron: require('../../assets/mi/chevron_20_m.png'),
   // 色板打勾: 深底用白勾, 浅底用黑勾 (种子的明度决定)
   check: require('../../assets/mi/check_20_w.png'),
-  checkDark: require('../../assets/mi/check_20_d.png')
+  checkDark: require('../../assets/mi/check_20_d.png'),
+  edit: require('../../assets/mi/edit_w.png')
 }
 const MI_D = {
   back: require('../../assets/mi/back_26_d.png'),
@@ -132,7 +145,8 @@ const MI_D = {
   set_msg: require('../../assets/mi/set_msg_d.png'),
   chevron: require('../../assets/mi/chevron_20_dm.png'),
   check: require('../../assets/mi/check_20_d.png'),
-  checkDark: require('../../assets/mi/check_20_d.png')
+  checkDark: require('../../assets/mi/check_20_d.png'),
+  edit: require('../../assets/mi/edit_d.png')
 }
 
 // 分组与行 (结构). 值一律从 this.cfg live 读, 不在这里快照.
@@ -215,7 +229,8 @@ export default {
   data() {
     return {
       cfg: loadConfig(),
-      groups: SCHEMA,
+      // 静态 SCHEMA (核心设置) + 功能模块贡献的分组 (PiliNara 衍生功能)
+      groups: SCHEMA.concat(settingsGroups()),
       seeds: seedList(),
       T: tokens(),
       version: '',
@@ -223,6 +238,7 @@ export default {
       statusTimer: null,
       confirmKey: '',
       confirmTimer: null,
+      ime: null,
       cfgPath: CFG_PATH
     }
   },
@@ -246,11 +262,14 @@ export default {
     onUnload() {
       if (this.statusTimer) { clearTimeout(this.statusTimer); this.statusTimer = null }
       if (this.confirmTimer) { clearTimeout(this.confirmTimer); this.confirmTimer = null }
+      if (this.ime) { try { this.ime.destroy() } catch (e) {} this.ime = null }
     },
 
     reload() {
       this.T = tokens()
       this.cfg = loadConfig()
+      // 分组在功能模块 eval 时就注册好了, 这里重取一次: 支持"设置页活着时新功能生效"
+      this.groups = SCHEMA.concat(settingsGroups())
       try {
         const info = pm.getPackageInfo('8009476000000001')
         if (info && info.version) this.version = info.version
@@ -302,6 +321,31 @@ export default {
       this.tip(r.label + ' = ' + next)
     },
 
+    // 文本行预览: 空值显示占位, 过长截断 (笔屏一行放不下)
+    inputPreview(r) {
+      const v = String(this.cfg[r.k] == null ? '' : this.cfg[r.k])
+      if (!v) return '点击输入'
+      return v.length > 30 ? v.substring(0, 30) + '…' : v
+    },
+    async editText(r) {
+      if (this.ime == null) this.ime = createIME()
+      try {
+        const text = await this.ime.open({
+          text: String(this.cfg[r.k] == null ? '' : this.cfg[r.k]),
+          placeholder: r.label,
+          maxlength: 512,
+          multiline: true,
+          enterButtonText: '确定',
+          confirmText: '确定'
+        })
+        if (text === null || text === undefined) return
+        this.apply(r.k, String(text))
+        this.tip(r.label + ' 已保存')
+      } catch (e) {
+        this.tip('输入失败: ' + (e && e.message ? e.message : e))
+      }
+    },
+
     nav(to) { try { $falcon.navTo(to, {}) } catch (e) { this.tip('打开失败: ' + (e && e.message ? e.message : e)) } },
     goBack() { try { this.$page.finish() } catch (e) { try { $falcon.navTo('index') } catch (e2) {} } },
 
@@ -317,6 +361,11 @@ export default {
       }
       this.confirmKey = ''
       if (this.confirmTimer) clearTimeout(this.confirmTimer)
+      // 功能模块的行自带 fn(ctx) —— 共享的 settings.vue 不需要认识每个功能
+      if (typeof r.fn === 'function') {
+        try { r.fn(this) } catch (e) { this.tip('执行失败: ' + (e && e.message ? e.message : e)) }
+        return
+      }
       if (r.run === 'clearImage') this.doClearImage()
       else if (r.run === 'clearHis') this.doClearHis()
       else if (r.run === 'reset') this.doReset()

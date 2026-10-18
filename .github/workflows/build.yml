@@ -72,6 +72,10 @@ jobs:
           node tools/check-messages.mjs
           node tools/check-bindings.mjs
           node tools/check-mention.mjs
+          # PiliPRO 衍生功能门禁 (弹幕/字幕/BV-av 识别与 SponsorBlock)
+          node tools/check-danmaku.mjs
+          node tools/check-subtitle.mjs
+          node tools/check-pilipro-extras.mjs
 
       - name: Install aarch64 cross toolchain
         run: |

@@ -105,6 +105,8 @@ const PAIRS = [
   { name: 'set_speed', icon: 'speed', size: 22 },
   // 单选项 (设置页的 radio 语义)
   { name: 'opt_on', icon: 'radio_button_checked', size: 20 },
+  // 设置页"文本行"的编辑入口 (屏蔽词/正则/保留词这些长文本)
+  { name: 'edit', icon: 'edit', size: 20 },
   { name: 'opt_off', icon: 'radio_button_unchecked', size: 20 },
   // 「我的」页入口
   { name: 'my_history', icon: 'history', size: 22 },

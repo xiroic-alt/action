@@ -59,10 +59,14 @@ for (const p of pages) {
   ok(/seg\.t === 3/.test(src), p + ': 评论正文渲染 mention 段 (t=3)')
   ok(/\.mn \{/.test(src), p + ': 有 .mn 提及高亮样式')
 }
-// 评论 segs 只有一个生成点 -> 在 mapReply 里统一切, 三页自动受益
+// 评论 segs 只有一个生成点 -> 在 mapReply 里统一切, 三页自动受益.
+// PiliPRO 起这条管线多了一道: 提及切完再按 BV/av 号切一刀 (t=4 段, 供评论区跳转),
+// 所以断言改成"以 splitMentionSegs(parseMessage(...)) 为内核, 外层允许再包一次切号".
 const biliSrc = read('services/bili.js')
-ok(/segs: splitMentionSegs\(parseMessage\(content\.message/.test(biliSrc),
+ok(/segs: [A-Za-z]*\(?\s*splitMentionSegs\(parseMessage\(content\.message/.test(biliSrc),
   'bili.js: 评论 segs 在 mapReply 里统一切提及 (三页共用一处)')
+ok(/t: 4/.test(biliSrc) && /findVideoIds/.test(biliSrc),
+  'bili.js: 评论正文里额外切出 BV/av 段 (t=4), 供评论区跳转')
 ok(/import \{ splitMentionSegs \} from '\.\/mention\.js'/.test(biliSrc), 'bili.js: 引入 mention 助手')
 // 发送侧: 楼中楼是唯一"有回复目标"的输入口
 const sub = read('pages/subreply/subreply.vue')

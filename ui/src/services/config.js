@@ -72,6 +72,26 @@ var SPEC = {
   logLevel: ['info', 'enum', ['off', 'error', 'info', 'debug']]
 }
 
+/**
+ * 扩展配置表 (由 services/features/registry.js 调用).
+ *
+ * 为什么要有这个口子: SPEC 既是默认值来源、也是类型校验来源、也是设置页渲染来源,
+ * 所以功能模块的配置项**必须**进这张表才享受完整的 coerce/持久化. 但功能会持续增加,
+ * 让每个功能模块都去改这份共享文件, 并行开发时必然互相覆盖 —— 于是开一个注册口:
+ * 功能模块自己声明, 这里只负责合并且**不覆盖已有键** (后注册的不能改别人的语义).
+ */
+export function extendSpec(map) {
+  if (!map) return 0
+  var n = 0
+  for (var k in map) {
+    if (!map.hasOwnProperty(k)) continue
+    if (SPEC[k]) continue
+    SPEC[k] = map[k]
+    n++
+  }
+  return n
+}
+
 function typeOf(key) { return SPEC[key] ? SPEC[key][1] : null }
 
 function coerce(key, v) {

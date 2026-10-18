@@ -119,7 +119,7 @@
             </div>
           </div>
 
-          <!-- 搜索发现: app.bilibili.com/x/v2/search/trending/ranking (匿名可访问) -->
+          <!-- 搜索发现: Web 端接口 api.bilibili.com/x/web-interface/search/square (用户约束: 不做 App API) -->
           <div v-if="trending.length > 0" class="his-head">
             <text class="his-title" :style="T.t.title">搜索发现</text>
           </div>
@@ -240,6 +240,8 @@ import { afterPaint } from '../../base-page.js'
 import { hasCookie, saveProfile } from '../../services/auth.js'
 import { log, logStatus } from '../../services/log.js'
 import { storeStatus, addSearchHistory, getSearchHistory, clearSearchHistory } from '../../services/store.js'
+// BV/av 号识别: 搜索框直达视频 (用户收窄范围后只保留这一处 + 评论区跳转)
+import { normalizeQuery } from '../../services/bv.js'
 import { tokens, themeRev } from '../../services/theme.js'
 import { getCfg } from '../../services/config.js'
 import pm from 'pm'
@@ -725,6 +727,14 @@ export default {
     },
 
     async doSearch(keyword) {
+      // ★ 用户明确要求: 搜索框输入 BV / av 号时直接进该视频, 不再当关键词搜.
+      //   判定放在发请求之前 —— 否则会先白跑一次搜索 (还消耗风控配额).
+      const q = normalizeQuery(keyword)
+      if (q.kind === 'video') {
+        this.resetSearchState()
+        try { $falcon.navTo('page', { bvid: q.bvid }) } catch (e) { this.status = '打开失败: ' + (e && e.message ? e.message : e) }
+        return
+      }
       const gen = ++this.generation
       this.loading = true
       this.status = '搜索中…'

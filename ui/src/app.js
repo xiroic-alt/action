@@ -4,6 +4,11 @@
 // - 统一注册 BasePage 管理事件/timer 资源
 import { BasePage } from './base-page.js'
 
+// ★ 功能注册必须在任何一次 getCfg/loadConfig 之前完成: config.js 的 SPEC 表在功能模块
+//   eval 时被 extendSpec() 补齐(默认值 + 取值域), 晚于首次读配置就会出现"键存在但没默认值".
+//   这里用模块顶层 import 保证顺序 (import 先于 onLaunch 执行).
+import { runFeatureInits } from './services/features/index.js'
+
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易"跑的还是旧包",
 // 有这行日志就能一眼确认当前跑的到底是哪一版 (index.vue 里也有一份, 这里进日志首行)
 const BUILD_TAG = 'PRO-1.0.0-pilipro'
@@ -44,6 +49,9 @@ class App extends $falcon.App {
     }
     initLog(BUILD_TAG + ' appid=8009476000000001')
     setLogLevel(getCfg('logLevel'))
+    // 功能模块的启动钩子 (注册顺序 = features/index.js 里的 import 顺序).
+    // 放在设置就绪之后: 各功能 init 里可以安全 getCfg().
+    try { runFeatureInits() } catch (e) { console.warn('[app] feature init failed: ' + e) }
     // 设置页面基类,应用全局的$falcon.Page将被替换成此处指定的BasePage.
     $falcon.useDefaultBasePageClass(BasePage)
   }
