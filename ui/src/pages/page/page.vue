@@ -716,7 +716,15 @@ export default {
     seekTo(ts) {
       const t = Number(ts) || 0
       try {
-        $falcon.navTo('player', { bvid: this.bvid, page: String(this.currentPage), title: this.detail ? this.detail.title : this.fallbackTitle, t: t })
+        $falcon.navTo('player', {
+          bvid: this.bvid,
+          page: String(this.currentPage),
+          title: this.detail ? this.detail.title : this.fallbackTitle,
+          author: this.detail ? (this.detail.author || '') : '',
+          cover: this.detail ? (this.detail.pic || '') : '',
+          durText: this.detail ? (this.detail.duration || '') : '',
+          t: t
+        })
       } catch (e) { try { log('详情', '跳转播放页失败') } catch (e0) {} }
     },
 
@@ -921,7 +929,16 @@ export default {
         try { log('播放器', 'openPlayer: detail 为空, 不跳转') } catch (e) {}
         return
       }
-      const opts = { bvid: this.bvid, page: String(this.currentPage), title: this.detail.title }
+      // author/cover/durText 一并带给播放页: 播放页用它们写**本机**观看记录
+      // (services/progress.js, 只落 /userdisk/xiro/progress.json, 不上传 b 站)
+      const opts = {
+        bvid: this.bvid,
+        page: String(this.currentPage),
+        title: this.detail.title,
+        author: this.detail.author || '',
+        cover: this.detail.pic || '',
+        durText: this.detail.duration || ''
+      }
       if (this._warmUrl) opts.url = this._warmUrl
       try {
         $falcon.navTo('player', opts)

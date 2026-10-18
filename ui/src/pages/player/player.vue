@@ -224,6 +224,10 @@ export default {
       lastReconnectAt: 0,
       pageNo: 1,
       directUrl: '',       // 调试直链, 由 options.url 传入
+      // 本地历史元数据 (来自详情页的 options): 只写本机文件, 不上传 b 站
+      authorText: '',
+      coverUrl: '',
+      durTextOpt: '',
       src: '',
       inited: false,
       opened: false,
@@ -413,6 +417,10 @@ export default {
       this.bvid = options.bvid || ''
       this.pageNo = parseInt(options.page || '1', 10) || 1
       this.titleText = options.title || ''
+      // 本地历史需要的元数据 (详情页带过来; 直播没有这些字段, 也不记历史)
+      this.authorText = options.author || ''
+      this.coverUrl = options.cover || ''
+      this.durTextOpt = options.durText || ''
       this.directUrl = options.url || ''
     },
 
@@ -524,6 +532,7 @@ export default {
       this.opened = true
       this.startPolling()
       try { log('播放器', '起播 t=+' + (Date.now() - this.t0) + 'ms 音频=' + (this.audioRoute || '未定') + ' play(0)=' + r) } catch (e) {}
+      this.recordHistory()
     },
 
     // ---------------- 音频输出 (蓝牙) ----------------
@@ -740,9 +749,27 @@ export default {
         }
       }
       this.curMs = ms
-      if (this.resumeOn && this.bvid && this.started) {
-        setProgress(this.bvid, Math.round(ms / 1000), Math.round(this.durMs / 1000))
+      // ★ 与 resumeOn 解耦: 断点续播管的是"要不要接着上次放", 本地历史管的是"看过什么".
+      //   以前两者共用一个 if, 关掉续播就一条记录都不留 —— 对历史来说是错的.
+      //   直播不记 (没有时长/进度语义).
+      if (this.bvid && this.started && !this.isLive) {
+        setProgress(this.bvid, Math.round(ms / 1000), Math.round(this.durMs / 1000), this.histMeta())
       }
+    },
+
+    // 本地历史的元数据 (只写本机: services/progress.js, 永不联网)
+    histMeta: function () {
+      return {
+        title: this.titleText || '',
+        author: this.authorText || '',
+        pic: this.coverUrl || '',
+        durText: this.durTextOpt || ''
+      }
+    },
+    // 起播时先落一条: 只要进过播放页就出现在历史里 (进度为 0, 不影响续播判断)
+    recordHistory: function () {
+      if (!this.bvid || this.isLive) return
+      try { setProgress(this.bvid, Math.round((this.posMs || 0) / 1000), Math.round(this.durMs / 1000), this.histMeta()) } catch (e) {}
     },
 
     // 首次进入 PLAYING 时把设置里的播放行为落到元素上 (只做一次)

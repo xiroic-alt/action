@@ -188,7 +188,15 @@ ok(/if \(this\.isLive\) \{ this\.appliedOnce = true; return \}/.test(player),
 const liveBranchAt = player.indexOf('if (this.isLive) {')
 ok(liveBranchAt > 0 && player.indexOf('getProgress(self.bvid)') > liveBranchAt,
   'player: 直播分支在读续播进度之前 return')
-ok(/if \(this\.resumeOn && this\.bvid && this\.started\)/.test(player), 'player: 续播写回仍限点播 (有 bvid 才写)')
+// ★ 0.9.73 改成两条独立的契约 (以前共用一个 if 是错的):
+//   历史记录: 只要点播且有 bvid 就写 —— **与 resumeOn 解耦** (关掉续播也要有历史);
+//   断点续播: 读取仍受 resumeOn 控制 (它是"要不要接着上次放"的开关)。
+ok(/if \(this\.bvid && this\.started && !this\.isLive\)/.test(player),
+  'player: 本地历史写回与 resumeOn 解耦 (点播有 bvid 就记)')
+ok(/if \(self\.resumeOn && !self\._resumeRead\)/.test(player), 'player: 断点续播读取仍受 resumeOn 控制')
+ok(/setProgress\(this\.bvid, Math\.round\(ms \/ 1000\), Math\.round\(this\.durMs \/ 1000\), this\.histMeta\(\)\)/.test(player),
+  'player: 写进度时一并落历史元数据 (标题/UP/封面)')
+ok(/this\.recordHistory\(\)/.test(player), 'player: 起播即落一条历史 (点开就退也有记录)')
 
 // ---- 音频输出路由 (蓝牙): 不调用 setAudioDeviceType 就永远只有扬声器 ----
 // ---- 视频页固定深色 + 控制条间距 ----

@@ -19,6 +19,7 @@
 
     "subreply": "pages/subreply/subreply.vue",
     "history": "pages/history/history.vue",
+    "localhistory": "pages/localhistory/localhistory.vue",
     "fav": "pages/fav/fav.vue",
     "toview": "pages/toview/toview.vue",
     "settings": "pages/settings/settings.vue",

@@ -191,8 +191,12 @@
           </div>
           <!-- 历史记录 / 收藏 / 稍后再看 入口 -->
           <div v-if="myInfo.isLogin" class="entry-row">
+            <!-- 本机记录(本地, 不上传) 与 历史记录(b 站云端) 是**两个页面**, 刻意不合并 -->
+            <div class="entry-btn" :style="T.inset" @click="openListPage('localhistory')">
+              <text class="entry-text" :style="T.t.title">本机记录</text>
+            </div>
             <div class="entry-btn" :style="T.inset" @click="openListPage('history')">
-              <text class="entry-text" :style="T.t.title">历史记录</text>
+              <text class="entry-text" :style="T.t.title">云端历史</text>
             </div>
             <div class="entry-btn" :style="T.inset" @click="openListPage('fav')">
               <text class="entry-text" :style="T.t.title">收藏</text>
@@ -272,7 +276,7 @@ const MI_D = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P47-nav-ring'
+const BUILD_TAG = 'P48-local-history'
 export default {
   name: 'index',
   components: { DynamicFeed, BackTop },
