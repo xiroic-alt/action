@@ -193,6 +193,7 @@
 <script>
 import { getDynamicFeed, getDynamicSpace, likeDynamic, GRID_COLS, badgeKind } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 import { log } from '../../services/log.js'
 import { prepareFeedCards } from '../../services/feed-layout.js'
 import { scrollTopMixin } from '../../services/scroll-top.js'
@@ -487,7 +488,7 @@ export default {
     openVideo(a) {
       if (!a || !a.bvid) return
       this.innerTap()
-      try { $falcon.navTo('page', { bvid: a.bvid, title: a.title }) } catch (e) {}
+      try { $falcon.navTo(nextDetailName(), { bvid: a.bvid, title: a.title }) } catch (e) {}
     },
     openPic(p) { this.innerTap(); if (p && p.full) this.ivOpen(p.full) },
     // 头像 / 昵称 -> UP 主页

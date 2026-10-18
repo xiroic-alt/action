@@ -86,6 +86,7 @@
 // 切回来仍在原来那一页, 继续上滑是续翻而不是重新拉首页.
 import { getMsgUnread } from '../../services/bili.js'
 import { getMsgList, getSessions, MSG_TABS } from '../../services/messages.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 import { tokens } from '../../services/theme.js'
 import { hasCookie } from '../../services/auth.js'
 import { scrollTopMixin } from '../../services/scroll-top.js'
@@ -216,7 +217,7 @@ export default {
       // 回复所在稿件: business_id=1 是视频评论, 有 uri 就能跳; 只有能解析出 bvid 才跳详情页
       const m = /BV[0-9A-Za-z]{10}/.exec(String(it.uri || ''))
       if (!m) return
-      try { $falcon.navTo('page', { bvid: m[0], title: it.title }) } catch (e) {}
+      try { $falcon.navTo(nextDetailName(), { bvid: m[0], title: it.title }) } catch (e) {}
     }
   }
 }

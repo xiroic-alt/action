@@ -50,6 +50,7 @@
 <script>
 import BackTop from '../../components/back-top.vue'
 import { scrollTopMixin } from '../../services/scroll-top.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 // 收藏页: 两级 (收藏夹列表 x/v3/fav/folder/created/list-all → 收藏夹内容 x/v3/fav/resource/list)
 // + 无限滑动 + 下拉刷新. mode: 'folders' | 'list'
 import { getFavFolders, getFavList , parseMessage } from '../../services/bili.js'
@@ -249,7 +250,7 @@ export default {
 
     openVideo(item) {
       if (!item.bvid) return
-      $falcon.navTo('page', { bvid: item.bvid, title: item.title })
+      $falcon.navTo(nextDetailName(), { bvid: item.bvid, title: item.title })
     },
 
     goLogin() {

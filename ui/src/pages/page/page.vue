@@ -377,6 +377,7 @@ import { scrollTopMixin } from '../../services/scroll-top.js'
 //        长文本展开 :key 重建修复 (lines 样式不随 class 更新) · 先进页面画完进入动画再发请求.
 // nextPage: 相关推荐点击后的跳转目标页副本名 (page->page2->...->page12->page 轮换栈)。
 import { createIME } from '../../services/ime.js'
+import { syncDetailCursor, prevOf } from '../../services/detail-ring.js'
 import {
   getVideoDetail, getPlayUrl, getRelatedVideos, getReplies, addReply,
   likeVideo, addCoin, dealFav, addToViewLater, delToViewLater, isInToView, getFavFolders,
@@ -768,6 +769,15 @@ export default {
     },
 
     onShow() {
+      // 把自己的位置告诉全局游标: 任何入口(UP 主页/动态/收藏/...)再跳详情时,
+      // 就会取"我的下一站"而不是我自己的名字 —— 否则同名页 navTo 会让本实例上浮
+      // 并沿用旧 options, 表现为"又回到最开始那支视频, 新视频进不去" (真机 2026-10-18).
+      try {
+        var _own = prevOf(this.nextPage || 'page2')
+        syncDetailCursor(_own)
+        // 诊断: 每次 onShow 打一行, 真机核对"我是谁/下一站是谁" (同名页 bug 的观察点)
+        log('详情', 'onShow 游标对齐 own=' + _own + ' next=' + (this.nextPage || 'page2') + ' bvid=' + (this.bvid || '-'))
+      } catch (e) {}
       if (this.$page && !this._newOptionsBound) {
         this._newOptionsBound = true
         const self = this
@@ -895,7 +905,9 @@ export default {
 
     // 推荐视频跳转到"下一份"详情页副本, 实现真正的页面叠加 (同名页只替换)
     openVideo(item) {
-      $falcon.navTo(this.nextPage || 'page2', { bvid: item.bvid, title: item.title })
+      var name = this.nextPage || 'page2'
+      try { syncDetailCursor(name) } catch (e) {}   // 游标跟上: 之后其它入口接着往下轮换
+      $falcon.navTo(name, { bvid: item.bvid, title: item.title })
     },
 
     // 进播放页: 立即 navTo, 不做任何前置异步.

@@ -62,6 +62,7 @@
 <script>
 import BackTop from '../../components/back-top.vue'
 import { scrollTopMixin } from '../../services/scroll-top.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 import { getUpInfo, getUpFans, getUpVideos , parseMessage, badgeKind, badgeLabel } from '../../services/bili.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
@@ -298,7 +299,7 @@ export default {
     },
 
     openVideo(item) {
-      $falcon.navTo('page', { bvid: item.bvid, title: item.title })
+      $falcon.navTo(nextDetailName(), { bvid: item.bvid, title: item.title })
     },
 
     // 进该 UP 的空间动态 (动态页带 mid 走 feed/space, 不加 mid 就是关注流)

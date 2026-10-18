@@ -252,6 +252,7 @@
 <script>
 import BackTop from '../../components/back-top.vue'
 import { scrollTopMixin } from '../../services/scroll-top.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 import { getDynamicDetail, getOpusDetail, getReplies, likeDynamic, likeReply, addReply, GRID_COLS, badgeKind, badgeLabel } from '../../services/bili.js'
 import { hasCookie } from '../../services/auth.js'
 import { createIME } from '../../services/ime.js'
@@ -703,7 +704,7 @@ export default {
 
     openVideo(a) {
       if (!a || !a.bvid) return
-      try { $falcon.navTo('page', { bvid: a.bvid, title: a.title }) } catch (e) {}
+      try { $falcon.navTo(nextDetailName(), { bvid: a.bvid, title: a.title }) } catch (e) {}
     },
     openPic(p) { if (p && p.full) this.ivOpen(p.full) },
 

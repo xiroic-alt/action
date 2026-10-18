@@ -234,10 +234,14 @@ ok(/comp = Math\.round\(comp\)/.test(player), 'player: 补偿只取整, 保留�
 ok(/isFinite\(comp\)\) comp = 200/.test(player), 'player: 设置缺省时兜底 200ms')
 ok(/execAsync\(SCAN_BT_CMD\)/.test(player) && /var SCAN_BT_CMD = /.test(player),
   'player: 蓝牙探测用 execAsync + 模块级命令常量 (同步 exec 冻主线程)')
-// 起播前定音频输出: play(0) 必须等 applyAudioRoute 的完成回调, 否则起播后再热切 sink
-ok(/applyAudioRoute\(\{ quick: true, cb: function \(\) \{ self\.startPlay\(gen\) \} \}\)/.test(player),
-  'player: 先定音频输出再 play (quick 探针 + 完成回调)')
-ok(/if \(o\.quick\) return null/.test(player), 'player: 起播前只跑快探针, 不被 connect 修复拖住')
+// ★★ 血泪约束 (真机炸过两次: 0.9.64 / 0.9.71): native 的 setAudioDeviceType 内部是
+//   unInstallAlsasink()/installAlsasink(); 管线未建时调用 -> "Could not open audio device
+//   for playback", 而且该错误是**全局**的, 之后连扬声器播放也一起挂.
+//   所以 setAudioDeviceType 只允许在 state=4 (playing=true, 管线已建) 时发.
+ok(!/applyAudioRoute\(\{/.test(player), 'player: play(0) 之前绝不调 applyAudioRoute (管线未建时会打坏音频设备)')
+ok(/if \(!this\.playing\) return/.test(player), 'player: applyAudioRoute 有 playing 硬守卫')
+ok(/if \(gen !== self\.generation \|\| !self\.\$page\) return\n        self\.startPlay\(gen\)/.test(player.replace(/\r/g,'')),
+  'player: 定时器只做 startPlay, 不掺音频切换')
 ok(/视频就绪 t=\+/.test(player) && /PLAYING t=\+/.test(player), 'player: 起播时间线日志 (取流/视频就绪/PLAYING 带 ms 偏移)')
 ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
 ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')

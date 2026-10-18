@@ -39,6 +39,7 @@
 <script>
 import BackTop from '../../components/back-top.vue'
 import { scrollTopMixin } from '../../services/scroll-top.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 // 历史记录页: x/web-interface/history/search (wbi) + 无限滑动 + 下拉刷新
 import { getHistoryList , parseMessage } from '../../services/bili.js'
 import { tokens } from '../../services/theme.js'
@@ -199,7 +200,7 @@ export default {
 
     openVideo(item) {
       if (!item.bvid) return
-      $falcon.navTo('page', { bvid: item.bvid, title: item.title })
+      $falcon.navTo(nextDetailName(), { bvid: item.bvid, title: item.title })
     },
 
     goLogin() {

@@ -234,6 +234,7 @@ import DynamicFeed from '../feed/feed.vue'
 import BackTop from '../../components/back-top.vue'
 import { scrollTopMixin } from '../../services/scroll-top.js'
 import { createIME } from '../../services/ime.js'
+import { nextDetailName } from '../../services/detail-ring.js'
 import { searchVideos, getPopular, getRecommend, getMyInfo , parseMessage, getHotSearch, getSearchTrending } from '../../services/bili.js'
 
 import { afterPaint } from '../../base-page.js'
@@ -271,7 +272,7 @@ const MI_D = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P46-preplay-audio'
+const BUILD_TAG = 'P47-nav-ring'
 export default {
   name: 'index',
   components: { DynamicFeed, BackTop },
@@ -792,7 +793,7 @@ export default {
 
     openVideo(item) {
       console.log('open video', item.bvid, item.title)
-      $falcon.navTo('page', { bvid: item.bvid, title: item.title })
+      $falcon.navTo(nextDetailName(), { bvid: item.bvid, title: item.title })
     },
     // 卡片内部点击(进 UP 主页)会冒泡到卡片本身: 用时间窗兜底 (本运行时没有 .stop 修饰符先例)
     innerTap() { this._innerTap = Date.now() },

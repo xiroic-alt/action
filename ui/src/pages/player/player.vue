@@ -500,14 +500,17 @@ export default {
       this.src = url
       this.armLiveWatchdog(gen)
       // src 绑定到元素属性后, 元素要等下一次属性 diff 才建管线; 稍后再 play(0) 起播.
-      // ★ 关键顺序: **先把音频输出定好, 再 play(0)** —— 反过来(先播再热切)会让音频分支
-      //   在起播后被拆掉重建, 那一秒里声音与画面不同步 (真机 0.9.68 日志实测).
+      // ★★ 绝对不要在 play(0) 之前调 setAudioDeviceType (0.9.71 的回归, 真机炸过两次):
+      //   native 的 WXGStreamer::setAudioDeviceType 内部是 unInstallAlsasink()/installAlsasink(),
+      //   管线还没建就去装卸 alsasink -> "Could not open audio device for playback",
+      //   而且是**全局错误**: 之后连扬声器播放也一起挂.
+      //   唯一安全时机 = state=4(PLAYING, 管线已建), 见 onEvtState.
       setTimer(this, 300, function () {
         if (gen !== self.generation || !self.$page) return
-        self.applyAudioRoute({ quick: true, cb: function () { self.startPlay(gen) } })
+        self.startPlay(gen)
       })
     },
-    // 真正起播 (音频输出已就位后才调)
+    // 真正起播 (音频路由在 state=4 时处理)
     startPlay: function (gen) {
       var self = this
       if (gen !== this.generation || !this.$page) return
@@ -526,21 +529,16 @@ export default {
     // ---------------- 音频输出 (蓝牙) ----------------
     // 判定当前有无已连接的蓝牙音频设备, 有就切过去. 命令一律 execAsync
     // (同步 exec 会冻死 QuickJS 主线程, 见 HANDOVER §10).
-    // ★ 0.9.71: 必须在**起播前**调用 (真机日志见下), 且带完成回调 —— play(0) 要等它.
-    //   真机 0.9.68 日志: 15:37:14 state=4(此刻管线用默认/扬声器 sink) -> 15:37:15 才切到蓝牙.
-    //   起播后再热切会把音频分支拆掉重建, 那一秒里声音与画面不是同时出现 —— 用户报的
-    //   "画面比声音延迟出现/声音延迟" 就发生在这个窗口. libfalcon 的 setAudioDeviceType 只是把
-    //   _audioDeviceType/_blueMac 存进全局, 装 sink 时再读 (二进制取证) -> 起播前设置正是它的用法.
-    //   quick=true: 只跑快的一级探针(~100ms), 免得被 timeout 15 的 connect 修复拖住起播;
-    //   一级没命中就照常起播, 交给 state=4 的完整探针(含链路层交叉验证+修复)兜底.
-    applyAudioRoute: function (opts) {
+    // ★★ 只在 state=4 (管线已 PLAYING) 调用. 这是硬约束, 不是偏好:
+    //   native 侧 setAudioDeviceType 内部 unInstallAlsasink()/installAlsasink(),
+    //   管线未建时调用 = "Could not open audio device for playback", 且该错误是全局的,
+    //   之后连扬声器播放也会一起挂 (0.9.64 与 0.9.71 两次真机回归都是这么来的).
+    applyAudioRoute: function () {
       var self = this
-      var o = opts || {}
-      var done = o.cb || function () {}
-      var fired = false
-      var finish = function () { if (!fired) { fired = true; try { done() } catch (e0) {} } }
-      if (this.audioProbed) { finish(); return }
-      if (!this.$refs.vv) { finish(); return }     // 元素没挂载: 留给 state=4 再试
+      // 守卫: 没有 PLAYING 过 / 元素不存在 -> 一个字节都不发给元素
+      if (!this.playing) return
+      if (!this.$refs.vv) return
+      if (this.audioProbed) return
       this.audioProbed = true
       if (!this._elProbed) { this._elProbed = true; this.probeVideoElement() }
       // 判据只看 bluetoothctl 的 "Connected: yes" —— 唯一"真的连着"的证据.
@@ -562,7 +560,6 @@ export default {
           .then(function (out) {
             var hit = /CONNECTED ([0-9A-Fa-f:]{17})/.exec(String(out || ''))
             if (hit) return hit[1]
-            if (o.quick) return null      // 起播前不跑链路层修复 (会被 timeout 拖住起播)
             // 二级判据: 链路层有 ACL(state 1) 的已配对设备
             return bilinet.execAsync('hcitool con 2>/dev/null | grep ACL').then(function (c) {
               var link = /([0-9A-Fa-f:]{17})/.exec(String(c || ''))
@@ -572,11 +569,10 @@ export default {
             })
           })
           .then(function (mac) {
-            if (!self.$page) { finish(); return }
+            if (!self.$page) return
             if (!mac) {
               self.audioRoute = 'speaker(默认)'
               try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
-              finish()
               return
             }
             // ★ 蓝牙音画补偿 (设置页 btaudioMs, 默认 200ms): 必须拼成 bluealsa 的 DELAY.
@@ -596,9 +592,8 @@ export default {
             var prof = getCfg('btAudioMode') === 'sco' ? ',PROFILE=sco' : ''
             var dev = mac + prof + (comp > 0 ? (',DELAY=' + (comp * 1000)) : '')
             self.setAudioOut(AUDIO_TYPE_BLUETOOTH, dev)
-            try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)' + (o.quick ? ' [起播前]' : '')) } catch (e3) {}
-            finish()
-          }).catch(function () { finish() })
+            try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)') } catch (e3) {}
+          }).catch(function () {})
       } catch (e2) {}
     },
     // 切换音频输出设备. 只有"已连接的蓝牙"会走到这里; 失败也只记日志 —— 原生换 sink 失败会
