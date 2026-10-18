@@ -31,8 +31,18 @@ function normUuid(s) {
   return String(s == null ? '' : s).replace(/-/g, '').toLowerCase()
 }
 
-function looksLikeUuid(s) {
-  return typeof s === 'string' && /^[0-9a-f]{32}$/i.test(normUuid(s))
+/**
+ * 判断某个值是不是"会话 UUID"而不是用户文本.
+ * 设备实证: textEditFinished 的第一个参数就是本次会话 UUID (去横线的 32 位 hex).
+ * 这里只过滤两种情况, 避免把用户输入的 32 位纯数字/十六进制文本误吞:
+ *   1) 归一化后等于本次会话 UUID
+ *   2) 带横线的标准 UUID 形态 (8-4-4-4-12)
+ */
+function isUuidArg(s, myUuid) {
+  if (typeof s !== 'string') return false
+  const n = normUuid(s)
+  if (myUuid !== '' && n === myUuid) return true
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)
 }
 
 function dbg(msg) {
@@ -97,6 +107,20 @@ export function createIME() {
       dbg('回调共 ' + args.length + ' 个参数')
 
       const myUuid = normUuid(uuid)
+
+      // 会话校验: 设备把本次会话 UUID 作为回调参数之一下发 (通常是参数[0]).
+      // 若回调携带了 UUID 且不是本次会话 -> 整条丢弃 (防止上一个会话的迟到回调写串).
+      let cbUuid = ''
+      for (let i = 0; i < args.length; i++) {
+        const a = args[i]
+        if (typeof a === 'string' && normUuid(a).length === 32) { cbUuid = normUuid(a); break }
+        if (a && typeof a === 'object' && typeof a.uuid === 'string') { cbUuid = normUuid(a.uuid); break }
+      }
+      if (cbUuid !== '' && myUuid !== '' && cbUuid !== myUuid) {
+        dbg('忽略其它会话的回调')
+        return
+      }
+
       // 先看有没有"带 text 键的对象", 有则以它为唯一文本来源 (裸串全部忽略)
       let text = null
       let confirmed = false
@@ -109,7 +133,7 @@ export function createIME() {
         if (!d || typeof d !== 'object') continue
         if (typeof d.text !== 'string') continue
         hasKeyed = true
-        if (d.text !== '' && !looksLikeUuid(d.text) && normUuid(d.text) !== myUuid) {
+        if (d.text !== '' && !isUuidArg(d.text, myUuid)) {
           if (text === null) text = d.text
           if (d.editConfirmed === true) confirmed = true
         }
@@ -120,7 +144,7 @@ export function createIME() {
         for (let i = 0; i < args.length; i++) {
           const d = args[i]
           if (typeof d !== 'string' || d === '') continue
-          if (looksLikeUuid(d) || normUuid(d) === myUuid) continue
+          if (isUuidArg(d, myUuid)) continue
           text = d
           break
         }

@@ -32,49 +32,6 @@ export async function nav() {
 }
 
 /** 扫码登录: 申请二维码 */
-export async function qrcodeGenerate() {
-  const body = await getJson(API + '/x/passport-login/web/qrcode/generate', { noError: true })
-  const d = (body && body.data) || {}
-  if (!d.url || !d.qrcode_key) throw new Error('二维码获取失败')
-  return { url: d.url, key: d.qrcode_key }
-}
-
-/**
- * 扫码登录: 轮询状态.
- * 成功时 Set-Cookie 在响应头里, 但 bilinet 只回 body —— 所以走 body 里的 url 参数
- * (官方 web qrcode/poll 在成功时返回 data.url, 里面带 SESSDATA 等参数).
- */
-export async function qrcodePoll(key) {
-  const body = await getJson(API + '/x/passport-login/web/qrcode/poll?qrcode_key=' + encodeURIComponent(key), { noError: true })
-  const d = (body && body.data) || {}
-  const code = Number(d.code)
-  // 0=成功 86101=未扫码 86090=已扫未确认 86038=已过期
-  if (code === 0) {
-    const params = {}
-    const url = String(d.url || '')
-    const qi = url.indexOf('?')
-    if (qi >= 0) {
-      const qs = url.substring(qi + 1).split('&')
-      for (let i = 0; i < qs.length; i++) {
-        const kv = qs[i].split('=')
-        params[kv[0]] = decodeURIComponent(kv[1] || '')
-      }
-    }
-    return {
-      state: 'ok',
-      cookie: {
-        sessdata: params.SESSDATA || '',
-        biliJct: params.bili_jct || '',
-        dedeUserId: params.DedeUserID || ''
-      }
-    }
-  }
-  if (code === 86101) return { state: 'waiting' }
-  if (code === 86090) return { state: 'scanned' }
-  if (code === 86038) return { state: 'expired' }
-  return { state: 'error', message: d.message || ('code=' + code) }
-}
-
 // ---------------- 首页内容 ----------------
 
 /**
@@ -483,6 +440,10 @@ export async function sponsorSegments(bvid) {
   return list
 }
 
+/** 兼容别名: 早期调用方用过 qrGenerate/qrPoll 这组名字 */
+export const qrGenerate = qrcodeGenerate
+export const qrPoll = qrcodePoll
+
 // ---------------- 消息 / 私信 (Web 链路) ----------------
 
 /** 未读汇总 (Web msgfeed) */
@@ -747,7 +708,7 @@ export async function hotKeywords(limit) {
 const PASSPORT = 'https://passport.bilibili.com'
 
 /** 扫码登录: 申请二维码 (passport 域名) */
-export async function qrGenerate() {
+export async function qrcodeGenerate() {
   const body = await getJson(PASSPORT + '/x/passport-login/web/qrcode/generate', { noError: true })
   const d = (body && body.data) || {}
   if (!d.url || !d.qrcode_key) throw new Error('二维码获取失败')
@@ -755,7 +716,7 @@ export async function qrGenerate() {
 }
 
 /** 扫码登录: 轮询状态 (passport 域名); 成功后 Cookie 在 data.url 的参数里 */
-export async function qrPoll(key) {
+export async function qrcodePoll(key) {
   const body = await getJson(PASSPORT + '/x/passport-login/web/qrcode/poll?qrcode_key=' + encodeURIComponent(key), { noError: true })
   const d = (body && body.data) || {}
   const code = Number(d.code)

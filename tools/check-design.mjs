@@ -72,7 +72,6 @@ eq(cv.w, 220, '封面宽按入参')
 eq(cv.h, Math.round(220 / (16 / 10)), '封面高 = 宽 / (16/10)')
 eq(tokens.coverSize(0).w, 1, '宽度为 0 时钳到 1 (避免 0 尺寸命中区)')
 
-console.log('CHECK-DESIGN PASSED (' + pass + ' 条断言: 几何/规格/8 种子 x 2 明暗对比度, 最差 ' + worst.toFixed(2) + ')')
 
 // ---------------- 存储规范 (miniapp 数据落盘规范) ----------------
 // 依据: 设备固件实测 —— 业务数据必须写 <appid>/data/, 它在覆盖安装时不被替换,
