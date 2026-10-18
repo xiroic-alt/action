@@ -365,7 +365,8 @@
         </div>
       </div>
     </div>
-    <BackTop :visible="topShown" :T="T" @activate="goTop" />
+    <!-- :lift 52 = 底部发评栏高 44 + 间隙 8, 否则回顶按钮会盖住「发送」 -->
+    <BackTop :visible="topShown" :T="T" :lift="52" @activate="goTop" />
   </div>
 </template>
 

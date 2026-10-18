@@ -53,6 +53,35 @@ if (w !== null) {
   ok(true, '按 flex 均分, ' + btnCount + ' 个入口可自适应')
 }
 
+// ---------- 1b. 回顶按钮不得压住底部发评栏 ----------
+// 事故: BackTop 原本 right:12 bottom:12 高 44px, 而底部发评栏也是 44px 高且贴底,
+//   于是「回到顶部」正好盖住「发送」(用户报的"回到顶部的按钮会挡住发送按钮").
+//   契约: BackTop 必须有 lift 参数, 且凡是有 .postbar 又用了 BackTop 的页面都必须传 lift>=44.
+const bt = read('components/back-top.vue')
+ok(/lift:\s*\{ type: Number/.test(bt), 'back-top: 有 lift 参数 (向上抬升)')
+ok(/bottom = \(12 \+ \(Number\(this\.lift\) \|\| 0\)\) \+ 'px'/.test(bt), 'back-top: bottom = 12 + lift')
+ok(/boxStyle\(\)/.test(bt) && !/:style="T\.accentR"/.test(bt), 'back-top: 只留一个 :style 绑定 (两个会被框架丢掉一个)')
+
+const hasPostbar = []
+function scanPostbar(dir) {
+  for (const f of fs.readdirSync(dir)) {
+    const p = dir + '/' + f
+    if (fs.statSync(p).isDirectory()) scanPostbar(p)
+    else if (/\.vue$/.test(f)) {
+      const s = fs.readFileSync(p, 'utf8')
+      if (/class="postbar"/.test(s) && /<BackTop/.test(s)) hasPostbar.push(p)
+    }
+  }
+}
+scanPostbar(fileURLToPath(SRC))
+ok(hasPostbar.length >= 3, '找到 ' + hasPostbar.length + ' 个"有发评栏又用回顶"的页面')
+for (const p of hasPostbar) {
+  const s = fs.readFileSync(p, 'utf8')
+  const m = /<BackTop[^>]*:lift="(\d+)"/.exec(s)
+  const rel = p.split(/[\\/]/).slice(-2).join('/')
+  ok(!!m && Number(m[1]) >= 44, rel + ': 回顶按钮传了 lift>=' + 44 + ' (否则压住发送)')
+}
+
 // ---------- 2. 单元素不得宽过逻辑屏 ----------
 let scanned = 0
 const files = []

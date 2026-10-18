@@ -104,7 +104,7 @@
         </div>
       </div>
     </div>
-    <BackTop :visible="topShown" :T="T" @activate="goTop" />
+    <BackTop :lift="52" :visible="topShown" :T="T" @activate="goTop" />
   </div>
 </template>
 
