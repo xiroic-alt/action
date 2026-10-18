@@ -53,6 +53,18 @@ if (w !== null) {
   ok(true, '按 flex 均分, ' + btnCount + ' 个入口可自适应')
 }
 
+// ---------- 1c. 居中容器里的行必须有显式宽度 ----------
+// 事故链 (0.9.75/0.9.76): .entry-btn 原为固定 width:200px, 5 个入口 -> 1120px 超屏;
+//   改成 flex:1 后行**失去固有宽度**, 而父容器 .mine-inner 是 align-items:center,
+//   本渲染器里这种行会塌成 0 宽 -> 整排按钮直接看不见.
+//   正确解: 行自己写死宽度 (848 = 960 屏 - 88 左导轨 - 两侧内边距), 子项 flex:1 均分.
+const inner = ruleOf(mine, 'mine-inner')
+ok(!!inner && /align-items:\s*center/.test(inner), '我的页 .mine-inner 是居中容器 (已知会塌宽)')
+for (const cls of ['stat-row', 'entry-row']) {
+  const rr = ruleOf(mine, cls)
+  ok(pxOf(rr, 'width') !== null, '我的页 .' + cls + ' 有显式宽度 (居中容器里没宽度会塌成 0 宽, 整行看不见)')
+}
+
 // ---------- 1b. 回顶按钮不得压住底部发评栏 ----------
 // 事故: BackTop 原本 right:12 bottom:12 高 44px, 而底部发评栏也是 44px 高且贴底,
 //   于是「回到顶部」正好盖住「发送」(用户报的"回到顶部的按钮会挡住发送按钮").

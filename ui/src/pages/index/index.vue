@@ -276,7 +276,7 @@ const MI_D = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P51-backtop-lift'
+const BUILD_TAG = 'P52-mine-width'
 export default {
   name: 'index',
   components: { DynamicFeed, BackTop },
@@ -1168,7 +1168,11 @@ export default {
   padding-top: 4px;
   padding-bottom: 20px;
 }
+/* ★ 必须写死宽度: 父容器 .mine-inner 是 align-items:center, 没宽度的行会塌成 0 宽,
+   整行(等级/硬币/B币 与 全部入口按钮)就"消失"了 —— 这是本渲染器的老毛病(见 HANDOVER).
+   960 屏 - 左侧导轨 88 = 872 可用; 两侧各留 12 内边距 -> 848. */
 .stat-row {
+  width: 848px;
   flex-direction: row;
   margin-top: 16px;
   margin-bottom: 4px;
@@ -1192,6 +1196,7 @@ export default {
      4 个按钮 896px 刚好放下, 加了第 5 个(本机记录)后 1120px -> **超出屏幕 160px**.
      改成 flex:1 均分: 按钮数量再变也不会撑破 (本渲染器支持 flex:1, 列表页 .meta 就在用). */
 .entry-row {
+  width: 848px;
   flex-direction: row;
   margin-top: 16px;
   margin-bottom: 4px;
