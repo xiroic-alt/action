@@ -73,6 +73,7 @@ jobs:
           node tools/check-mention.mjs
           node tools/check-nav.mjs
           node tools/check-localhistory.mjs
+          node tools/check-layout.mjs
 
       - name: Install aarch64 cross toolchain
         run: |

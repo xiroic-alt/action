@@ -276,7 +276,7 @@ const MI_D = {
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易踩"跑的还是旧包"的坑,
 // 有这行设备日志就能一眼确认当前跑的到底是哪一版
-const BUILD_TAG = 'P49-local-history-ui'
+const BUILD_TAG = 'P50-mine-layout'
 export default {
   name: 'index',
   components: { DynamicFeed, BackTop },
@@ -1187,24 +1187,29 @@ export default {
   color: #a8a8b0;
   margin-top: 4px;
 }
-/* 我的页入口: 历史记录 / 收藏 / 稍后再看 */
+/* 我的页入口: 本机记录 / 云端历史 / 收藏 / 稍后再看 / 我的关注
+   ★ 这里原来是固定 width:200px + 左右各 12px 外边距 = 每个占 224px:
+     4 个按钮 896px 刚好放下, 加了第 5 个(本机记录)后 1120px -> **超出屏幕 160px**.
+     改成 flex:1 均分: 按钮数量再变也不会撑破 (本渲染器支持 flex:1, 列表页 .meta 就在用). */
 .entry-row {
   flex-direction: row;
   margin-top: 16px;
   margin-bottom: 4px;
+  padding-left: 4px;
+  padding-right: 4px;
 }
 .entry-btn {
-  width: 200px;
+  flex: 1;
   height: 48px;
   border-radius: 24px;
   background-color: #141416;
   justify-content: center;
   align-items: center;
-  margin-left: 12px;
-  margin-right: 12px;
+  margin-left: 6px;
+  margin-right: 6px;
 }
 .entry-text {
-  font-size: 22px;
+  font-size: 20px;
   color: #ffffff;
 }
 .loadmore {
