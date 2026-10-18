@@ -492,6 +492,8 @@ export default {
       if (gen !== this.generation) return
       var self = this
       this.audioProbed = false   // 换源/换页后重新判定输出设备
+      // 直播的"还在动"计时起点: 不初始化的话 liveProgressAt=0 会让"停滞 12s"立刻成立
+      this.liveProgressAt = Date.now()
       this.started = false
       this.appliedOnce = false
       this.autoStarted = false
@@ -649,9 +651,14 @@ export default {
         // 现象: state 以 4->3->2->3->4 的循环每秒约 5 次反复, 用户看到的就是"画面出来 1s 就卡死".
         // 这不是我们代码造成的 (我们只在 state=3 时最多 1.5s 补一次 resume), 而是这条线路的
         // 分片在该设备上让原生反复重建管线. JS 侧唯一能做的自救 = 换下一条候选协议.
+        // ★ 只在"已经出过画面"之后才把抖动当故障 (2026-10-18 修正):
+        //   起播阶段 2/3/4 抖动是正常的预滚 + 缓冲过程, 原来的写法会让它在 5 秒内就判定失败
+        //   并把正在缓冲的线路换掉 —— 实测就是这样把有效的 HLS 线路白白丢掉的.
+        //   现在的判据: started=true 之后的抖动才算, 且要求确实长时间没有位置推进.
         if (nowMs - this.liveFlapWinAt > 3000) { this.liveFlapWinAt = nowMs; this.liveFlapN = 0 }
         this.liveFlapN++
-        if (this.liveFlapN > 8 && nowMs - this.liveFlapAt > 15000 && this.liveSrcTry < 2) {
+        var stalled = this.started && (nowMs - (this.liveProgressAt || 0) > 12000)
+        if (stalled && this.liveFlapN > 8 && nowMs - this.liveFlapAt > 15000 && this.liveSrcTry < 2) {
           var flapSeen = this.liveFlapN
           this.liveFlapAt = nowMs
           this.liveFlapN = 0

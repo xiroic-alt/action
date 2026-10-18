@@ -425,9 +425,22 @@ export async function searchLive(keyword, page) {
   return out
 }
 
-// 直播协议优先级: HLS(m3u8) 对"直播"最稳 (可断点重连), 其次 FLV.
+// 直播协议优先级 (2026-10-18 真机实测后重排, 原来的判断是错的):
+//
+// ★ 为什么把 FLV 提到第一位: 本机 GStreamer 的 HLS 直播路径**跑不动**.
+//   真机对照实验 (gst-launch, 同一场直播):
+//     HLS(m3u8 + 3s 分片): 缓冲在 90% 上下反复横跳 (93%->94%->...), 12~15s 内**出不了帧**,
+//                          同时不断重建 souphttpsrc; 应用里表现就是"卡在第 1 帧" +
+//                          state 2/3/4 每秒抖 5 次.
+//     FLV(单条连续流):      解码 10 秒写出 479,692,800 字节原始 YUV (≈35fps),
+//                          日志里出现 rga_api version 1.9.2 = 硬件解码器真的启用了.
+//   网络不是瓶颈: curl 实测该流 ~150-240KB/s (≈1.2-1.9Mbps), 完全够.
+//   也不是码率档位问题: 服务端**无视 qn** —— 请求 80/150/250/400 一律返回 current_qn=250.
+//   FLV 也不需要 Referer: 带/不带 Referer 都返回 http=200 (以前那条"FLV 必须带 Referer"
+//   的结论对当前 CDN 已不成立, 实测纠正).
+//
 // 编码只取 avc: 本机硬解只保证 H.264, hevc 档在部分机型会静默失败.
-var LIVE_PREF = [['http_hls', 'ts', 'avc'], ['http_hls', 'fmp4', 'avc'], ['http_stream', 'flv', 'avc']]
+var LIVE_PREF = [['http_stream', 'flv', 'avc'], ['http_hls', 'fmp4', 'avc'], ['http_hls', 'ts', 'avc']]
 
 /**
  * 取直播间播放地址

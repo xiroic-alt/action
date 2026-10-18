@@ -167,6 +167,7 @@ eq(filter([{ id: '5' }, { id: '6' }]).map((d) => d.id), ['5', '6'], '弹幕过�
 const player = readSrc('pages/player/player.vue')
 const cfg = readSrc('services/config.js')
 const pageSrc = readSrc('pages/page/page.vue')
+const biliSrc = readSrc('services/bili.js')
 const setv = readSrc('pages/settings/settings.vue')
 ok(/isLive\(\)\s*\{\s*return this\.mode === 'live'\s*\}/.test(player), 'player: isLive 由 options.mode 决定')
 ok(/\(options\.mode === 'live' \|\| rid > 0\) \? 'live' : ''/.test(player), 'player: applyOptions 用 mode=live 或 roomid 判定直播态')
@@ -424,6 +425,13 @@ ok(/liveProgressAt = Date.now\(\)[\s\S]{0,200}setTicker\(this, 6000/.test(player
 ok(/idle < 25000/.test(player), 'player: 只有连续静默 25s 才换线路 (不是固定超时)')
 ok(!/setTimer\(this, 12000, function \(\) \{\s*\n\s*self\.liveWatchdog = null/.test(player), 'player: 已去掉 12s 固定超时看门狗')
 ok(/getLiveRoomPlayUrl\(this\.roomid, this\.liveSrcTry\)/.test(player), 'player: 换线路靠线路序号')
+// 真机实测 (2026-10-18): 本机 HLS 直播路径 buffer 永远填不满 -> 卡第 1 帧 (12~15s 零帧);
+// FLV 单条连续流能硬解 (10s 写出 479,692,800 字节 YUV ≈35fps, 日志见 rga_api 1.9.2).
+// 网络没问题 (~150-240KB/s), 服务端也无视 qn (请求 80/150/250/400 都返回 250). 故 FLV 必须优先.
+ok(/var LIVE_PREF = \[\['http_stream', 'flv', 'avc'\]/.test(biliSrc),
+  'bili: 直播协议 FLV 优先 (HLS 在本机跑不动)')
+ok(/stalled && this\.liveFlapN > 8/.test(player),
+  'player: 抖动换线只在"出过画面且确实停滞"后触发 (起播抖动不算)')
 const bufFn = (player.match(/onEvtBuffer: function \(e\) \{[\s\S]*?\n    \},/) || [''])[0]
 ok(/if \(this\.isLive\) \{/.test(bufFn) && /缓冲中…/.test(bufFn), 'player: 直播只报"缓冲中…", 不报数字')
 ok(bufFn.indexOf("'缓冲中 ' + p + '%'") > bufFn.indexOf('this.isLive'),
