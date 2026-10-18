@@ -40,7 +40,7 @@ def token():
 
 
 def headers():
-    h = {'Accept': 'application/vnd.github+json', 'User-Agent': 'bilibilipan-ci'}
+    h = {'Accept': 'application/vnd.github+json', 'User-Agent': 'pilipro-ci'}
     t = token()
     if t:
         h['Authorization'] = 'Bearer ' + t

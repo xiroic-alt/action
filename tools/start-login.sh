@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bilibilipan 一键扫码登录 (Linux / macOS)
+# pilipro 一键扫码登录 (Linux / macOS)
 #
 # 用法:
 #   ./tools/start-login.sh

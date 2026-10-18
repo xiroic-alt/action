@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url'
 import { createRequire } from 'node:module'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const REPO = path.resolve(__dirname, '..', '..')                  // D:/share-files/AI/bilibilipan
+const REPO = path.resolve(__dirname, '..', '..')                  // D:/share-files/AI/pilipro
 const SRC = path.join(REPO, 'material-icons-svg', 'material-symbols', 'rounded')
 const OUT = path.join(__dirname, '..', 'ui', 'src', 'assets', 'mi')
 const DRY = process.argv.indexOf('--dry') >= 0

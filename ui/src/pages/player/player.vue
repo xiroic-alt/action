@@ -636,7 +636,7 @@ export default {
       if (!this.$page) return
       var self = this
       var s = e && typeof e.state !== 'undefined' ? e.state : -1
-      // console.warn 不进设备日志文件 (真机核对过: bilibili.log 里没有 [player] 行),
+      // console.warn 不进设备日志文件 (真机核对过: pilipro.log 里没有 [player] 行),
       // 直播链路的诊断只能靠 log(). 只在直播态打, 点播不刷屏.
       if (this.isLive && s !== this.liveLastState) {
         this.liveLastState = s
@@ -859,7 +859,7 @@ export default {
     //   于是这里**不能**用"10s 没画面就换线"的固定超时: 那会把本来能起播的流打断.
     //   改成周期检查 + 进度判据: 只要还有 bufferPercent/position 事件, 就说明管线在动,
     //   一直等; 只有**连续 25s 完全没有动静**才判定这条线路不通, 换下一条候选协议.
-    //   state 变化与换线都写进设备日志 (console.warn 不进 bilibili.log, 已核对).
+    //   state 变化与换线都写进设备日志 (console.warn 不进 pilipro.log, 已核对).
     armLiveWatchdog: function (gen) {
       this.disarmLiveWatchdog()
       if (!this.isLive) return

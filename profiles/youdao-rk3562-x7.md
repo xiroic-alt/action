@@ -28,7 +28,7 @@ input_method:
   证据: strings /etc/miniapp/jsapis/libjsapi_export.so 中确认上述符号
   global_text_edit: 待真机验证
 package:
-  appid: "8001812345678901"   # 已在设备 /userdisk 出现过的自有 appid
+  appid: "8009476000000001"   # 已在设备 /userdisk 出现过的自有 appid
   version: "0.1.0"
   start_page: index
 安装:
@@ -38,7 +38,7 @@ package:
 ```
 
 ## 已安装 appid 参考
-- `/userdisk` 下存在 `8001792669600001.0_2_6.amr`、`8001812345678901.0_0_3.amr`、
+- `/userdisk` 下存在 `8001792669600001.0_2_6.amr`、`8009476000000001.0_0_3.amr`、
   `bilibili_test.amr`、`bilibili_test2.amr`、`libjsapi_gstplayer.so`
 
 ## 已验证补充 (v0.1.2 / v0.1.3, 2026-08-28 真机)

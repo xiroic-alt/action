@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bilibilipan 一键启动 Cookie 同步服务 (Linux / macOS)
+# pilipro 一键启动 Cookie 同步服务 (Linux / macOS)
 #
 # 用法:
 #   ./tools/start-server.sh         # 默认端口 9527
@@ -33,7 +33,7 @@ fi
 # 3) 提示并启动
 echo "==> 使用 Python: $($PY --version)"
 echo "==> 启动 Cookie 同步服务, 端口 $PORT"
-echo "==> 笔端获取地址: http://<本机局域网 IP>:$PORT/bilibilipan/cookie"
+echo "==> 笔端获取地址: http://<本机局域网 IP>:$PORT/pilipro/cookie"
 echo "==> Ctrl+C 退出"
 echo ""
 exec "$PY" "$PY_SCRIPT" "$PORT"

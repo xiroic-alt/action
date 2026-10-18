@@ -6,7 +6,7 @@
 #   gh-ci.py download [latest|ID] [dest]   下载 run 产物 zip
 import sys, subprocess, os, json, time, urllib.request
 
-# 2026-10-01: 仓库已从 soarnext/bilibilipan 快进合并到 bot-xiro/action 的 miniapp 分支, 旧仓库已删除
+# 2026-10-01: 仓库已从 soarnext/pilipro 快进合并到 bot-xiro/action 的 miniapp 分支, 旧仓库已删除
 OWNER = 'bot-xiro'
 REPO = 'action'
 BRANCH = 'miniapp'
@@ -39,7 +39,7 @@ def token():
 
 
 def auth_headers(extra=None):
-    h = {'Accept': 'application/vnd.github+json', 'User-Agent': 'bilibilipan-ci'}
+    h = {'Accept': 'application/vnd.github+json', 'User-Agent': 'pilipro-ci'}
     t = token()
     if t:
         h['Authorization'] = 'Bearer ' + t
@@ -127,7 +127,7 @@ def download(run_id, dest):
                 try:
                     op2 = urllib.request.build_opener(
                         urllib.request.ProxyHandler({'http': PROXY, 'https': PROXY}))
-                    r = op2.open(urllib.request.Request(loc, headers={'User-Agent': 'bilibilipan-ci'}), timeout=300)
+                    r = op2.open(urllib.request.Request(loc, headers={'User-Agent': 'pilipro-ci'}), timeout=300)
                     data = r.read()
                     break
                 except Exception as e2:

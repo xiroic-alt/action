@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-bilibilipan · 浏览器登录态导入工具
+pilipro · 浏览器登录态导入工具
 =================================
 
 自动读取电脑上 Chrome / Edge 里**已经登录好的 B 站账号**, 取出
@@ -392,7 +392,7 @@ def interactive_login(exe, url=LOGIN_URL, timeout=300, log=print):
 
     返回 (cookies_dict, 说明)。
     """
-    profile = tempfile.mkdtemp(prefix='bilibilipan-browser-')
+    profile = tempfile.mkdtemp(prefix='pilipro-browser-')
     port = random.randint(20000, 40000)
     args = [exe,
             '--remote-debugging-port=%d' % port,
@@ -674,7 +674,7 @@ def main():
             port = int(a)
 
     print('=' * 62)
-    print('bilibilipan · 浏览器登录')
+    print('pilipro · 浏览器登录')
     print('=' * 62)
     if not IS_WIN:
         print('[!] 当前系统 %s 尚未支持, 请用手动方式。' % sys.platform)

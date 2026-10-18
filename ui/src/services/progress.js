@@ -1,4 +1,4 @@
-// 观看进度: /userdisk/xiro/progress.json  (与日志/配置同目录, HANDOVER §3)
+// 观看进度: /userdisk/pilipro/progress.json  (与日志/配置同目录, HANDOVER §3)
 //
 // 为什么要自建: 系统 storage JSAPI 形态不确定, 而 bilinet 的 readFile/writeFile 是
 // 已在生产用的路径 (config.js / log.js 都走它). 数据很小 (最多 80 条), 直接整份读写.
@@ -8,7 +8,7 @@
 import { bilinet } from './native.js'
 import { logDebug } from './log.js'
 
-const PATH = '/userdisk/xiro/progress.json'
+const PATH = '/userdisk/pilipro/progress.json'
 const MAX = 80
 
 let cache = null

@@ -443,7 +443,7 @@ public:
     //
     // 为什么需要: 系统 fs JSAPI 只暴露 readdir/stat/exists/readFile/mkdir/rm,
     // 没有写入接口, 且限定在应用 data 目录; 而需求要求日志写到
-    // /userdisk/xiro/bilibili.log、数据库放 /userdisk/xiro/, 这里直接用
+    // /userdisk/pilipro/pilipro.log、数据库放 /userdisk/pilipro/, 这里直接用
     // libc 打开绝对路径, 不受该限制.
     //
     // JS 侧:
@@ -565,10 +565,10 @@ public:
     }
 
     // ------------------------------------------------------------------
-    // v4: sqlite3 —— 登录内容落库 (/userdisk/xiro/bilibili.db)
+    // v4: sqlite3 —— 登录内容落库 (/userdisk/pilipro/pilipro.db)
     //
     // JS 侧:
-    //   const ok  = bilinet.dbOpen('/userdisk/xiro/bilibili.db')
+    //   const ok  = bilinet.dbOpen('/userdisk/pilipro/pilipro.db')
     //   const ok  = bilinet.dbExec('CREATE TABLE IF NOT EXISTS ...')
     //   const js  = bilinet.dbQuery('SELECT * FROM auth')   // JSON 数组字符串
     //   bilinet.dbClose()

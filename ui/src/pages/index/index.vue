@@ -346,7 +346,7 @@ export default {
       myLoading: false,
       // 我的 (版本号运行时从包管理器读取, 不硬编码)
       appVersion: '',
-      appid: '8001812345678901',
+      appid: '8009476000000001',
       storeHint: ''
     }
   },

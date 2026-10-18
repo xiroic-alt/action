@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-bilibilipan 扫码登录工具 (PC 端一键获取 Cookie)
+pilipro 扫码登录工具 (PC 端一键获取 Cookie)
 
 用法:
     python tools/qr-login.py
@@ -89,7 +89,7 @@ def save_cookies(sessdata, bili_jct, dedeuserid, raw=''):
 
 
 def main():
-    print('=== bilibilipan 扫码登录 ===')
+    print('=== pilipro 扫码登录 ===')
     print()
 
     # 1) 生成二维码

@@ -3,7 +3,7 @@ chcp 936 >nul
 setlocal
 
 rem ============================================================
-rem  bilibilipan 一键扫码登录 (Windows)
+rem  pilipro 一键扫码登录 (Windows)
 rem
 rem  流程: 浏览器打开二维码 -> 手机扫码 -> Cookie 自动写入
 rem  之后: 运行 start-server.bat, 笔端 App 可拉取 Cookie
@@ -31,7 +31,7 @@ if "%PY%"=="" (
 
 echo.
 echo ============================================================
-echo   bilibilipan 一键扫码登录
+echo   pilipro 一键扫码登录
 echo ============================================================
 echo   1. 浏览器会自动打开 B 站登录二维码
 echo   2. 用手机 B 站 App 扫码, 在手机上点确认登录

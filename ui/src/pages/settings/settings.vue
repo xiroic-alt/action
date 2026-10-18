@@ -77,7 +77,7 @@
         </div>
       </div>
 
-      <text class="foot" :style="T.t.tiny">bilibilipan · 有道词典笔 mini-app · 设置保存在 {{ cfgPath }}</text>
+      <text class="foot" :style="T.t.tiny">PiliPRO · 有道词典笔 mini-app · 设置保存在 {{ cfgPath }}</text>
     </scroller>
     <BackTop :visible="topShown" :T="T" @activate="goTop" />
   </div>
@@ -252,13 +252,13 @@ export default {
       this.T = tokens()
       this.cfg = loadConfig()
       try {
-        const info = pm.getPackageInfo('8001812345678901')
+        const info = pm.getPackageInfo('8009476000000001')
         if (info && info.version) this.version = info.version
       } catch (e) {}
     },
     aboutText(key) {
       if (key === 'version') return '版本 v' + this.version
-      if (key === 'appid') return 'appid 8001812345678901'
+      if (key === 'appid') return 'appid 8009476000000001'
       if (key === 'login') return '登录 ' + (hasCookie() ? ('uid ' + (getMid() || '?')) : '(未登录)')
       if (key === 'log') return logStatus()
       if (key === 'cfg') return '配置 ' + CFG_PATH

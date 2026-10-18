@@ -6,7 +6,7 @@ import { BasePage } from './base-page.js'
 
 // 构建标记: 每批改动换一次. install 不重启宿主时最容易"跑的还是旧包",
 // 有这行日志就能一眼确认当前跑的到底是哪一版 (index.vue 里也有一份, 这里进日志首行)
-const BUILD_TAG = 'P46-preplay-audio'
+const BUILD_TAG = 'PRO-1.0.0-pilipro'
 
 // 注册 bilinet 原生模块 (bili.js 的 httpGet 依赖它)
 import { bilinet } from './services/native.js'
@@ -19,7 +19,7 @@ try {
 // 启动即载入登录态到内存 (数据库 -> KV -> memory), 各页面同步读取
 import { initAuth } from './services/auth.js'
 
-// 运行日志: 落盘到 /userdisk/xiro/bilibili.log
+// 运行日志: 落盘到 /userdisk/pilipro/pilipro.log
 import { initLog, log, setLogLevel } from './services/log.js'
 import { getCfg } from './services/config.js'
 
@@ -34,15 +34,15 @@ class App extends $falcon.App {
    */
   onLaunch(options) {
     super.onLaunch(options)
-    // ★ 顺序不能反: initAuth() 里会 initStore() 打开 bilibili.db, 而设置也存同一个库.
+    // ★ 顺序不能反: initAuth() 里会 initStore() 打开 pilipro.db, 而设置也存同一个库.
     //   原来先 setLogLevel(getCfg('logLevel')) 再 initAuth() —— getCfg 在数据库打开**之前**
     //   就把配置读进来了, 于是走了"文件兜底"分支并缓存; 等数据库就绪时缓存已经填满,
     //   迁移逻辑再也没机会跑. 真机现象: kv 表建出来了却一行数据没有, cfg.json 一直留着.
-    // initAuth 里面会 initStore 开 bilibili.db; 设置也存同一个库, 所以它必须先跑
+    // initAuth 里面会 initStore 开 pilipro.db; 设置也存同一个库, 所以它必须先跑
     try { initAuth() } catch (e) {
       console.warn('[app] initAuth failed: ' + e)
     }
-    initLog(BUILD_TAG + ' appid=8001812345678901')
+    initLog(BUILD_TAG + ' appid=8009476000000001')
     setLogLevel(getCfg('logLevel'))
     // 设置页面基类,应用全局的$falcon.Page将被替换成此处指定的BasePage.
     $falcon.useDefaultBasePageClass(BasePage)

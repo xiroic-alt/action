@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bilibilipan 浏览器登录 —— 一键启动 (Linux / macOS)
+# pilipro 浏览器登录 —— 一键启动 (Linux / macOS)
 #
 # 默认打开一个独立的浏览器实例(临时用户目录), 在里面登录 B 站,
 # 登录成功后自动取回 Cookie 并写入 bilibili-cookie.json。

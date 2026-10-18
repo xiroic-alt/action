@@ -92,7 +92,7 @@ globalThis.__bilinet = {
     execCalls.push(cmd)
     // 被测 URL 现在写在 curl 配置文件里 (命令行放不下, 见 lines.js 的 512 字符说明),
     // 所以桩件要从磁盘读回来判断该返回哪一档结果.
-    const rc = disk.get('/userdisk/xiro/.curlrc') || ''
+    const rc = disk.get('/userdisk/pilipro/.curlrc') || ''
     if (rc.indexOf('BADSITE') >= 0) return Promise.resolve('code=403 ttfb=0.10 speed=0 size=150 total=0.5')
     if (rc.indexOf('SLOWSITE') >= 0) return Promise.resolve('code=206 ttfb=1.20 speed=262144 size=524288 total=2.1')
     if (rc.indexOf('url = ') < 0) return Promise.resolve('code=0 ttfb=0 speed=0 size=0 total=0')
@@ -222,7 +222,7 @@ eq(all.themeSeed, 'rose', '默认主题色')
 eq(all.themeMode, 'dark', '默认明暗')
 eq(all.navPos, 'left', '默认导航位置 = 左侧竖排')
 eq(all.btaudioMs, 200, '默认蓝牙补偿')
-eq(cfg.CFG_PATH, '/userdisk/xiro/bilibilipan.cfg.json', '配置路径: 与日志同在 /userdisk/xiro')
+eq(cfg.CFG_PATH, '/userdisk/pilipro/pilipro.cfg.json', '配置路径: 与日志同在 /userdisk/pilipro')
 
 cfg.setCfg('btaudioMs', 99999)
 eq(cfg.getCfg('btaudioMs'), 800, '超界整数被夹紧')
@@ -235,7 +235,7 @@ eq(cfg.getCfg('motion'), false, 'bool 归一化')
 
 // ★ 配置必须进数据库 (用户要求: 和登录信息一起存, 不要单独文件)
 const kvRaw = kvOf('settings')
-ok(typeof kvRaw === 'string' && kvRaw.length > 20, '配置已写进 bilibili.db 的 kv 表')
+ok(typeof kvRaw === 'string' && kvRaw.length > 20, '配置已写进 pilipro.db 的 kv 表')
 ok(kvRaw && (kvRaw.indexOf('"_v":2') >= 0 || kvRaw.indexOf('"_v": 2') >= 0), 'kv 里的配置带 schema 版本')
 ok(!disk.has(cfg.CFG_PATH), '数据库可用时不再落 cfg.json 文件')
 

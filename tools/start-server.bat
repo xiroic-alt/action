@@ -3,7 +3,7 @@ chcp 936 >nul
 setlocal
 
 rem ============================================================
-rem  bilibilipan 登录 / Cookie 同步服务 - 一键启动 (Windows)
+rem  pilipro 登录 / Cookie 同步服务 - 一键启动 (Windows)
 rem
 rem  用法:
 rem    tools\start-server.bat          默认端口 9527
@@ -52,7 +52,7 @@ if not exist "%PY_SCRIPT%" (
 rem ---- 3) 启动服务 ----
 echo.
 echo ============================================================
-echo   bilibilipan 登录 / Cookie 同步服务
+echo   pilipro 登录 / Cookie 同步服务
 echo ============================================================
 echo   端口             : %PORT%
 echo   登录页面         : http://127.0.0.1:%PORT%

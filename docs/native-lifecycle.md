@@ -10,7 +10,7 @@ AMR：543911 字节，SHA-256 为
 
 ## 复现与根因
 
-真实路径是短按设备返回键退出应用，看到桌面后点击 bilibilipan 图标重新进入。
+真实路径是短按设备返回键退出应用，看到桌面后点击 pilipro 图标重新进入。
 本次复现、覆盖安装、修复后验收期间 miniapp 宿主 PID 一直为 2629；未杀宿主进程。
 修复前该路径在首页显示 this object js call is disabled，文件、SQLite、HTTP 同时失败。
 
@@ -75,7 +75,7 @@ NATIVE-LIFECYCLE FAIL: reused disabled native instance across contexts。
 
 工作区根目录 ci-out/native-lifecycle/ 保存 baseline-app、desktop-cycle-1、
 reenter-cycle-1/2/3、settings-persisted-home、async-desktop、async-reentry、post-gc-hot 截图。
-工作区根目录 backup/bilibilipan-0.9.62-e417daa.amr 为固定校验产物；设备同名包位于
-/userdisk/xiro/backup/。同时保留改动前包及原 0.9.57 回滚包。
+工作区根目录 backup/pilipro-0.9.62-e417daa.amr 为固定校验产物；设备同名包位于
+/userdisk/pilipro/backup/。同时保留改动前包及原 0.9.57 回滚包。
 
 本记录仅覆盖 native 生命周期故障；其他页面和体验迭代不属于本包的验收声明。

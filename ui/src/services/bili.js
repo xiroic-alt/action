@@ -2550,7 +2550,7 @@ export async function fetchPcCookie(ip) {
   if (!hasHttp()) throw new Error('当前固件不支持 http 请求 (缺少 bilinet 模块)')
   const clean = String(ip || '').trim()
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(clean)) throw new Error('IP 格式不正确')
-  const url = 'http://' + clean + ':9527/bilibilipan/cookie'
+  const url = 'http://' + clean + ':9527/pilipro/cookie'
   const s = bilinet.httpGet(url, 5)
   console.log('[bili] PC cookie fetch ' + clean + ' -> ' + (s ? s.length : 0) + 'B')
   if (!s) throw new Error('连不上电脑 (' + clean + '), 请确认已运行 pc-cookie-server.py 且同一 WiFi')

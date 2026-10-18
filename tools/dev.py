@@ -157,10 +157,10 @@ if __name__ == '__main__':
             print('key: back | home')
     elif cmd == 'log':
         n = int(a[0]) if a else 60
-        print(sh('tail -n %d /userdisk/xiro/bilibili.log' % n))
+        print(sh('tail -n %d /userdisk/pilipro/pilipro.log' % n))
     elif cmd == 'start':
         # 注意: 页面参数不能带 '--' (真机实测: 会被当成页面名 "--history" -> 空页面黑屏)
-        print(sh('miniapp_cli start 8001812345678901' + ((' ' + a[0]) if a else '')))
+        print(sh('miniapp_cli start 8009476000000001' + ((' ' + a[0]) if a else '')))
     elif cmd == 'install':
         print(sh('miniapp_cli install ' + a[0]))
     else:

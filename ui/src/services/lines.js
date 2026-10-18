@@ -31,7 +31,7 @@ export var REFERER = 'https://www.bilibili.com'
 // curl 配置文件的落盘位置 + 换行常量.
 // 为什么用文件: native exec/execAsync 限 512 字符, 签名 URL 装不下 (见 probe() 注释).
 const NL = String.fromCharCode(10)
-export var RC_PATH = '/userdisk/xiro/.curlrc'
+export var RC_PATH = '/userdisk/pilipro/.curlrc'
 
 // ---------- 取流口 ----------
 // 本机内置 <video> 只吃单一 http(s) 源的 mp4 (durl), DASH 需要双源 -> 不提供.

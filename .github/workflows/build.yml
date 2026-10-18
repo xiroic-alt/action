@@ -1,13 +1,14 @@
 name: Build AMR
 
 # 存储策略 (账号 0.5GB Actions 配额, 私有仓库 artifact 全量计入):
+#   - 分支: main/miniapp = bilibilipan, pilipro = PiliPRO (两套 appid 的产物各自独立)
 #   - 产物 retention-days: 2 (默认 90 天会迅速吃满配额)
 #   - 每次构建后只保留同名产物最新 2 份 (Prune 步骤, 需 actions: write)
 #   - probe 探测应用只在 probe/** 变更时构建, 避免每次推送都产出一份
 #   - 同分支并发构建自动取消 (省 runner 分钟, 也少一份产物)
 on:
   push:
-    branches: [main, miniapp]
+    branches: [main, miniapp, pilipro]
   workflow_dispatch:
 
 concurrency:
@@ -145,7 +146,7 @@ jobs:
       - name: Upload AMR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: bilibilipan-amr
+          name: pilipro-amr
           path: ./ui/*.amr
           if-no-files-found: error
           retention-days: 2

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-bilibilipan 电脑端登录 / Cookie 同步服务 (配套词典笔 App「电脑同步」)
+pilipro 电脑端登录 / Cookie 同步服务 (配套词典笔 App「电脑同步」)
 
 用法 (电脑需与词典笔同一 WiFi 局域网):
   1. 电脑运行:  python pc-cookie-server.py            (默认端口 9527)
@@ -41,7 +41,7 @@ PAGE = """<!doctype html>
 <html lang="zh">
 <head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>bilibilipan 登录</title>
+<title>pilipro 登录</title>
 <style>
 *{box-sizing:border-box}
 body{font-family:-apple-system,"Segoe UI",Microsoft YaHei,sans-serif;background:#16181c;
@@ -81,7 +81,7 @@ code{background:#21242b;padding:1px 6px;border-radius:4px;color:#fb7299}
 .split>div:first-child{flex:1}
 </style></head>
 <body><div class="box">
-<h1>bilibilipan 登录</h1>
+<h1>pilipro 登录</h1>
 <p class="sub">把电脑上已登录的 B 站账号同步到词典笔</p>
 
 <div class="card">
@@ -486,7 +486,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         'stage': _login['stage']})
         elif self.path.startswith('/current'):
             self._json({'ok': True, 'raw': state['raw']})
-        elif self.path.startswith('/bilibilipan/cookie'):
+        elif self.path.startswith('/pilipro/cookie'):
             p = state['parsed']
             ok = bool(p.get('sessdata'))
             print('[<-] 笔端获取 Cookie (%s): %s' % (
@@ -551,10 +551,10 @@ def main(open_browser=None):
         open_browser = '--no-open' not in sys.argv
     load_state()
     ip = get_local_ip()
-    print('bilibilipan 登录 / Cookie 同步服务')
+    print('pilipro 登录 / Cookie 同步服务')
     print('  电脑登录页面: http://127.0.0.1:%d' % PORT)
     print('  词典笔输入 IP: %s  (笔端: 我的 → 登录 → 电脑同步)' % ip)
-    print('  笔端获取地址:  http://%s:%d/bilibilipan/cookie' % (ip, PORT))
+    print('  笔端获取地址:  http://%s:%d/pilipro/cookie' % (ip, PORT))
     print('  Ctrl+C 退出')
     if open_browser:
         threading.Timer(0.8, lambda: webbrowser.open(

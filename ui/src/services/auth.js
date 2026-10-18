@@ -5,7 +5,7 @@
 //      携带 DedeUserID/SESSDATA/bili_jct 参数, 无需解析 Set-Cookie 头.
 //   2. Cookie 导入: 用户从电脑浏览器复制 bilibili Cookie 字符串粘贴导入.
 //
-// 存储: 主存储是 /userdisk/xiro/bilibili.db (sqlite, 见 store.js);
+// 存储: 主存储是 /userdisk/pilipro/pilipro.db (sqlite, 见 store.js);
 // 同时保留 storage KV 作为副存储, 数据库不可用时仍能记住登录。
 // 内存是运行期唯一事实来源; 写入即同步持久化。
 
@@ -21,7 +21,7 @@ const memory = {
   loaded: false
 }
 
-const STORE_KEY = 'bilibilipan:auth:v1'
+const STORE_KEY = 'pilipro:auth:v1'
 
 function jsapiStorage() {
   try {
@@ -72,7 +72,7 @@ function apply(obj) {
 export function initAuth() {
   if (memory.loaded) return
   memory.loaded = true
-  // 1) 数据库 (/userdisk/xiro/bilibili.db) 优先
+  // 1) 数据库 (/userdisk/pilipro/pilipro.db) 优先
   let got = false
   try {
     const row = initStore()

@@ -1,10 +1,10 @@
-// 运行日志: 追加写入 /userdisk/xiro/bilibili.log  (与 config.js 的配置同目录, HANDOVER §3)
+// 运行日志: 追加写入 /userdisk/pilipro/pilipro.log  (与 config.js 的配置同目录, HANDOVER §3)
 //
 // 为什么不用系统 fs JSAPI: 它只提供 readdir/stat/exists/readFile/mkdir/rm, **没有写入接口**,
 // 且限定在应用 data 目录. 这里改用 bilinet 原生模块的 readFile/writeFile/mkdirs
 // (直接 libc 打开绝对路径), 不受该限制.
 //
-// 格式沿用设备 /userdisk/xiro/ 下其他应用的约定:  [09-12 22:03:15][模块] 内容
+// 格式沿用设备 /userdisk/pilipro/ 下其他应用的约定:  [09-12 22:03:15][模块] 内容
 //
 // ---- 本版四项优化 (用户要求: 清无用日志 + 优化日志提交) ----
 // 1) 分级 off/error/info/debug (设置页可选, 持久化在 config.logLevel, 默认 info).
@@ -12,16 +12,16 @@
 // 2) 批量落盘: 行先入内存队列, 200ms 或 24 行才 writeFile 一次. 旧实现每条日志一次
 //    open+write+close, 在这台设备上是实打实的 IO 开销, 批量后写入次数降一个数量级.
 // 3) 去重: 连续完全相同的行折叠成「xxx (重复 N 次)」.
-// 4) 轮转: 主文件超过 96KB 时整份搬到 bilibili.log.1, 主文件只留最近 400 行.
+// 4) 轮转: 主文件超过 96KB 时整份搬到 pilipro.log.1, 主文件只留最近 400 行.
 //    (旧实现是运行中超过 600 行就截断, 会周期性丢掉最早的现场)
 //
 // 安全: Cookie (SESSDATA / bili_jct / DedeUserID) 一律脱敏后再落盘.
 
 import { bilinet } from './native.js'
 
-const LOG_DIR = '/userdisk/xiro'
-const LOG_PATH = '/userdisk/xiro/bilibili.log'
-const PREV_PATH = '/userdisk/xiro/bilibili.log.1'
+const LOG_DIR = '/userdisk/pilipro'
+const LOG_PATH = '/userdisk/pilipro/pilipro.log'
+const PREV_PATH = '/userdisk/pilipro/pilipro.log.1'
 const KEEP_ON_BOOT = 200
 const KEEP_ON_ROTATE = 400
 const MAX_BYTES = 96 * 1024

@@ -1,6 +1,6 @@
-// 应用设置持久化: **bilibili.db 的 kv 表** (用户要求: 和登录信息一起存数据库)
+// 应用设置持久化: **pilipro.db 的 kv 表** (用户要求: 和登录信息一起存数据库)
 //
-// 路径约定 (HANDOVER §3 设备路径): 本应用的日志 / 数据库 / 配置统一放 /userdisk/xiro,
+// 路径约定 (HANDOVER §3 设备路径): 本应用的日志 / 数据库 / 配置统一放 /userdisk/pilipro,
 // 与 log.js(LOG_PATH) 同目录. 同目录还有另一个应用 (8001865309000001) 写的
 // status.json / wifi.log —— 不要重名, 不要动它们.
 //
@@ -18,12 +18,12 @@ import { bilinet } from './native.js'
 import { log } from './log.js'
 import { kvReady, kvGet, kvSet } from './store.js'
 
-export const CFG_PATH = '/userdisk/xiro/bilibilipan.cfg.json'
+export const CFG_PATH = '/userdisk/pilipro/pilipro.cfg.json'
 // 兼容别名: 0.9.57 之前的页面 (settings.vue) 用的是这个名字
 export const CONFIG_PATH = CFG_PATH
 // 旧原生播放器 (gstplayer) 读的纯文本音画补偿值. 保留写入以兼容设备上残留的旧包,
 // 新播放链路 (框架内置 <video>) 不读它.
-export const BT_PATH_CONST = '/userdisk/xiro/btaudio_ms'
+export const BT_PATH_CONST = '/userdisk/pilipro/btaudio_ms'
 
 var CFG_VERSION = 2
 // 配置在 kv 表里占一行: k='settings', v=整份 JSON.

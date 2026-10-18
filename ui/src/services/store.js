@@ -1,6 +1,6 @@
-// 登录内容持久化: /userdisk/xiro/bilibili.db (sqlite3)
+// 登录内容持久化: /userdisk/pilipro/pilipro.db (sqlite3)
 //
-// 为什么放 /userdisk/xiro/: 需求指定日志与数据库都落在这个目录
+// 为什么放 /userdisk/pilipro/: 需求指定日志与数据库都落在这个目录
 // (该目录下已有其它应用写的 status.json / wifi.log, 我们的文件名不与之冲突)。
 //
 // 为什么走 bilinet 原生模块: 系统 fs JSAPI 没有写入接口; 而 sqlite3 是否是
@@ -14,9 +14,9 @@
 
 import { bilinet } from './native.js'
 
-const DB_DIR = '/userdisk/xiro'
-const DB_PATH = '/userdisk/xiro/bilibili.db'
-const JSON_PATH = '/userdisk/xiro/bilibili-auth.json'
+const DB_DIR = '/userdisk/pilipro'
+const DB_PATH = '/userdisk/pilipro/pilipro.db'
+const JSON_PATH = '/userdisk/pilipro/pilipro-auth.json'
 
 let opened = false
 let failed = false
@@ -94,7 +94,7 @@ const SQL_LOG = 'CREATE TABLE IF NOT EXISTS login_log (' +
 
 // 应用设置: key-value 表.
 // 用户要求"设置和登录信息一起存数据库, 不要单独创建文件" —— 以前配置写在
-// /userdisk/xiro/bilibilipan.cfg.json, 现在整份配置以一行 JSON 存进这里.
+// /userdisk/pilipro/pilipro.cfg.json, 现在整份配置以一行 JSON 存进这里.
 // 保留 SQL 文本而不是结构化列: 配置项会随版本增删, 逐项建列每次加设置都要迁移.
 const SQL_KV = 'CREATE TABLE IF NOT EXISTS kv (' +
   'k TEXT PRIMARY KEY NOT NULL, ' +

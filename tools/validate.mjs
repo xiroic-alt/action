@@ -22,7 +22,7 @@ const fail = (m) => { console.log('BAD  ' + m); bad++ }
 const GLYPH = /[‹›▶⟳✓«»❚▾⌂]/
 // 语法检查的临时文件必须写到系统临时目录: CI 上没有 .local/ (它被 gitignore),
 // 写到仓库里会 ENOENT 直接让构建失败.
-const tmp = path.join(os.tmpdir(), 'bilibilipan-validate-check.mjs')
+const tmp = path.join(os.tmpdir(), 'pilipro-validate-check.mjs')
 for (const p of files) {
   const rel = path.basename(p)
   const src = fs.readFileSync(p, 'utf8')

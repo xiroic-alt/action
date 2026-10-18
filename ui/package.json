@@ -1,8 +1,8 @@
 {
-  "name": "bilibilipan",
-  "appid": "8001812345678901",
-  "version": "0.9.71",
-  "description": "哔哩哔哩客户端 for 有道词典笔 (Falcon mini-app)",
+  "name": "PiliPRO",
+  "appid": "8009476000000001",
+  "version": "1.0.0",
+  "description": "PiliPRO · 哔哩哔哩客户端 for 有道词典笔 (Falcon mini-app)",
   "icon": "app_icon.png",
   "quickjs": {
     "version": "20200705",

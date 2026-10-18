@@ -21,7 +21,7 @@ def api(path, method='GET', data=None, raw=False):
     req = urllib.request.Request('https://api.github.com' + path, method=method, data=body, headers={
         'Authorization': 'Bearer ' + token(),
         'Accept': 'application/vnd.github.raw' if raw else 'application/vnd.github+json',
-        'User-Agent': 'bilibilipan-ci',
+        'User-Agent': 'pilipro-ci',
         'Content-Type': 'application/json',
     })
     for i in range(4):
