@@ -1,12 +1,6 @@
-node_modules
+node_modules/
 *.amr
-dist
-.DS_Store
-__pycache__
-tools/__pycache__
-tools/bilibili-cookie.json
-*.pyc
-.local/
-.ghtok
-.falcon_/
+dist/
 ci-out/
+.local/
+*.log

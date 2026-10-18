@@ -1,138 +1,110 @@
-// 静态体检: 图标引用 / 事件处理函数 / script 语法 / 补丁标记混入 / 生命周期位置 / 九宫格列数
-// 由 .local/patch/validate.mjs 同步而来 (CI 只提交 tools/, 所以两份都要在)
+// 静态体检 #1: 语法 / 页面注册 / 资源引用 / 事件绑定 / 禁用 API
+//
+// 这台笔不能本地打包 (没有 aarch64 工具链), 所以语法错只能等云端 CI 才暴露.
+// 本门禁在烧 CI 之前把最廉价的错误拦掉.
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
+import vm from 'node:vm'
 import { fileURLToPath } from 'node:url'
-import os from 'node:os'
 
-// 路径自相对: 本地 (.local/patch 副本) 与 CI (tools/ 副本) 都能跑同一个文件
-const HERE = path.dirname(fileURLToPath(import.meta.url))
-const ROOT = path.join(HERE, '..', 'ui', 'src')
-const PAGES = ROOT + '/pages'
-const miDir = ROOT + '/assets/mi'
-const have = new Set(fs.readdirSync(miDir))
-const files = []
-for (const d of fs.readdirSync(PAGES)) {
-  const p = path.join(PAGES, d, d + '.vue')
-  if (fs.existsSync(p)) files.push(p)
-}
-let bad = 0
-const fail = (m) => { console.log('BAD  ' + m); bad++ }
-const GLYPH = /[‹›▶⟳✓«»❚▾⌂]/
-// 语法检查的临时文件必须写到系统临时目录: CI 上没有 .local/ (它被 gitignore),
-// 写到仓库里会 ENOENT 直接让构建失败.
-const tmp = path.join(os.tmpdir(), 'pilipro-validate-check.mjs')
-for (const p of files) {
-  const rel = path.basename(p)
-  const src = fs.readFileSync(p, 'utf8')
-  const tpl = (src.match(/<template>([\s\S]*?)<\/template>\s*\n\s*<script>/) || [null, src])[1]
-  src.split(/\r?\n/).forEach((ln, i) => { if (GLYPH.test(ln)) fail(rel + ':' + (i + 1) + ' 残留字符图标 -> ' + ln.trim().slice(0, 80)) })
-  // 源文件里绝不允许出现补丁文件的标记行 (0.9.58 教训: P1 补丁手滑写成 "--- FILE:",
-  // 后半段补丁文本被当成 NEW 写进 page.vue, 模板里因此长出一颗真实可点的「评论」入口)
-  src.split(/\r?\n/).forEach((ln, i) => { if (/^(?:===+|---) (?:FILE|OLD|NEW)\b/.test(ln.trim())) fail(rel + ':' + (i + 1) + ' 源文件混入补丁标记 -> ' + ln.trim().slice(0, 60)) })
-  let m
-  const reMI = /require\('\.\.\/\.\.\/assets\/mi\/([^']+)'\)/g
-  while ((m = reMI.exec(src)) !== null) if (!have.has(m[1])) fail(rel + ' 引用不存在的图标 ' + m[1])
-  if (!/const MI = \{/.test(src)) continue
-  if (/MI\./.test(tpl) && !/const MI = \{/.test(src)) fail(rel + ' 模板用了 MI 但脚本没定义')
-  const used = new Set()
-  const reEv = /@(?:click|load|scroll|touchstart|touchmove|touchend)="([A-Za-z_$][\w$]*)\s*\(/g
-  while ((m = reEv.exec(tpl)) !== null) used.add(m[1])
-  for (const fn of used) {
-    const re1 = new RegExp('(^|[\\s,{])' + fn + '\\s*\\(', 'm')
-    const re2 = new RegExp('(^|[\\s,{])' + fn + '\\s*:', 'm')
-    if (!re1.test(src) && !re2.test(src)) fail(rel + ' 事件处理函数未定义: ' + fn)
-  }
-  // <text> 里嵌 <span>/<image> 等子元素: 本机只有 <richtext> 支持内联子节点.
-  // 写错的后果不是"样式不对", 而是**整个应用进程被干掉** (0.9.62 lines 页实测:
-  // miniapp_cli start 后 start failed, App 从 memoryApp 里消失).
-  {
-    const reText = /<text\b[^>]*>([\s\S]*?)<\/text>/g
-    let tm
-    while ((tm = reText.exec(tpl)) !== null) {
-      if (/<(span|image|richtext)\b/.test(tm[1])) {
-        fail(rel + ' <text> 里嵌了内联子元素 (只有 <richtext> 支持): ' + tm[1].slice(0, 40))
-        break
-      }
-    }
-  }
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+let problems = 0
+const bad = (m) => { console.log('BAD  ' + m); problems++ }
 
-  // 模板里裸调"import 进来的函数"会在渲染期炸整页 (0.9.62 settings 页 Elm=0 的真因):
-  // Vue 模板只能访问**实例上的**属性 —— 方法/计算属性/data. 这里把每个模板调用名
-  // 拿出来, 如果它在 import 列表里出现, 就判失败.
-  const imported = new Set()
-  const reImp = /import\s+(?:\*\s+as\s+([\w$]+)|\{([^}]*)\}|([\w$]+))\s+from/g
-  let im
-  while ((im = reImp.exec(src)) !== null) {
-    if (im[1]) imported.add(im[1])
-    if (im[2]) im[2].split(',').forEach((x) => { const n = x.split(' as ').pop().trim(); if (n) imported.add(n) })
-    if (im[3]) imported.add(im[3])
-  }
-  const called = new Set()
-  const reCall = /[:@][\w:.-]+="\s*([A-Za-z_$][\w$]*)\s*\(/g
-  let cm
-  while ((cm = reCall.exec(tpl)) !== null) called.add(cm[1])
-  for (const fn of called) {
-    if (imported.has(fn)) fail(rel + ' 模板里裸调 import 进来的 ' + fn + '() —— 必须包成 methods 里的方法')
-  }
-
-  const sm = src.match(/<script>([\s\S]*?)<\/script>/)
-  if (!sm) { fail(rel + ' 缺少 script 块'); continue }
-  fs.writeFileSync(tmp, sm[1], 'utf8')
-  try { execFileSync(process.execPath, ['--check', tmp], { stdio: 'pipe' }) } catch (e) { fail(rel + ' script 语法错误: ' + String(e.stderr).slice(0, 300)) }
-}
-for (const f of files.concat([ROOT + '/app.json'])) {
-  const s = fs.readFileSync(f, 'utf8')
-  if (/from 'imageviewer'/.test(s)) fail(path.basename(f) + ' 仍引用 imageviewer')
-  if (/navTo\('comment'/.test(s)) fail(path.basename(f) + " 仍 navTo('comment')")
-}
-// 全量扫一遍 ui/src: 任何源文件含补丁标记都算失败 (上面只覆盖 pages/)
-;(function walk (dir) {
+function walk(dir, out) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === 'node_modules' || e.name.startsWith('.')) continue
     const p = path.join(dir, e.name)
-    if (e.isDirectory()) { walk(p); continue }
-    if (!/\.(vue|js)$/.test(e.name)) continue
-    const s = fs.readFileSync(p, 'utf8').split(/\r?\n/)
-    for (let i = 0; i < s.length; i++) if (/^(?:===+|---) (?:FILE|OLD|NEW)\b/.test(s[i].trim())) fail(path.relative(ROOT, p) + ':' + (i + 1) + ' 源文件混入补丁标记')
+    if (e.isDirectory()) walk(p, out)
+    else out.push(p)
   }
-})(ROOT)   // ROOT 本身就是 ui/src
-// 组件结构体检 (0.9.61 踩过): 一次补丁把 up.vue 的 "methods: {" 整个换成了 "computed: {",
-// 于是全部方法变成计算属性 —— onShow 被当 getter 执行(日志照打), 然后 this.beginLoad()
-// 调 undefined 抛错, 框架把页面弹掉, 现象是「点进去立刻退出/只放关闭动画」.
-// node --check 查不出这种错(语法合法), 所以在这里断言:
-for (const f of files) {
+  return out
+}
+
+const files = walk(path.join(ROOT, 'src'), [])
+const jsFiles = files.filter((f) => f.endsWith('.js'))
+const vueFiles = files.filter((f) => f.endsWith('.vue'))
+
+// ---- 1. JS / Vue script 语法 (用 vm.Script 做真实的 ESM 语法解析) ----
+// 注意: SourceTextModule 需要 --experimental-vm-modules, 所以改用 "把 import/export 换成空" 的
+// 语法探针: 只验语法结构, 不验模块链接. 链接错误由 check-core 的真实 import 覆盖.
+function syntaxOk(src, label) {
+  const probe = src
+    .replace(/^\s*import\s+[^;\n]*from\s*['"][^'"]+['"]\s*;?/gm, '')
+    .replace(/^\s*import\s+['"][^'"]+['"]\s*;?/gm, '')
+    .replace(/^\s*export\s+default\s+/gm, 'const __d = ')
+    .replace(/^\s*export\s+(async\s+)?function\s/gm, '$1function ')
+    .replace(/^\s*export\s+(const|let|var|class)\s/gm, '$1 ')
+    // export { a, b } from 'x' / export * from 'x' —— 整行去掉 (re-export 是模块链接, 不是语句)
+    .replace(/^\s*export\s*\{[^}]*\}\s*from\s*['"][^'"]+['"]\s*;?/gm, '')
+    .replace(/^\s*export\s*\*\s*from\s*['"][^'"]+['"]\s*;?/gm, '')
+    .replace(/^\s*export\s*\{[^}]*\}\s*;?/gm, '')
+  try { new vm.Script(probe, { filename: label }); return true } catch (e) {
+    bad(label + ' 语法错误: ' + e.message)
+    return false
+  }
+}
+for (const f of jsFiles) syntaxOk(fs.readFileSync(f, 'utf8'), path.relative(ROOT, f))
+
+// ---- 2. 页面注册 ----
+const appJson = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'app.json'), 'utf8'))
+for (const [name, rel] of Object.entries(appJson.pages || {})) {
+  if (!fs.existsSync(path.join(ROOT, 'src', rel))) bad('app.json 注册的页面不存在: ' + name + ' -> ' + rel)
+}
+
+// ---- 3. require 资源 ----
+const pngNames = new Set()
+const requireRe = /require\(['"]([^'"]+\.(?:png|jpg|jpeg|svg))['"]\)/g
+for (const f of [...jsFiles, ...vueFiles]) {
   const src = fs.readFileSync(f, 'utf8')
-  const rel2 = path.relative(ROOT, f).replace(/\\/g, '/')
-  if (!/methods:\s*\{/.test(src)) { fail(rel2 + ' 缺少 methods: { 块 (方法会被当成计算属性)'); continue }
-  const mi = src.search(/methods:\s*\{/)
-  for (const life of ['onShow(', 'onUnload(', 'onNewOptions(']) {
-    const li = src.indexOf(life)
-    if (li >= 0 && li < mi) fail(rel2 + ' 的 ' + life + ' 出现在 methods 之外 (生命周期不会被调用)')
+  let m
+  while ((m = requireRe.exec(src)) !== null) {
+    pngNames.add(m[1])
+    if (!fs.existsSync(path.resolve(path.dirname(f), m[1]))) bad(path.relative(ROOT, f) + ' 资源不存在: ' + m[1])
   }
 }
-// 九宫格列数必须来自共享常量 (0.9.59 踩过: GRID_CELL 从 288 改到 200, 而页面里的
-// chunk(pics, 3) 列数还是硬编码 3 -> 3 列 × 200px 只占 618px, 右边一大片空白)
-for (const rel of ['pages/feed/feed.vue', 'pages/dyn/dyn.vue']) {
-  const f = ROOT + '/' + rel
-  if (!fs.existsSync(f)) { fail(rel + ' 不存在'); continue }
-  const s = fs.readFileSync(f, 'utf8')
-  if (!/GRID_COLS/.test(s)) fail(rel + ' 未使用共享的 GRID_COLS (九宫格列数会与 GRID_CELL 漂移)')
-}
-// ---- 详情页副本环: 副本必须是生成器输出, 且每个环位都在 app.json 里登记 ----
-// 背景: 固件对同名页 navTo 只替换不入栈, 所以"详情套详情"要靠换页面名 (见
-// ui/src/services/detail-ring.js). 副本文件是**生成产物** —— 手改一份就漂移,
-// 这条门禁负责在烧 CI 之前拦住.
-try {
-  execFileSync(process.execPath, [path.join(HERE, 'gen-detail-ring.mjs'), '--check'], { stdio: 'pipe', encoding: 'utf8' })
-  const ringSrc = fs.readFileSync(ROOT + '/services/detail-ring.js', 'utf8')
-  const ring = (ringSrc.match(/'page[0-9]*'/g) || []).map((s) => s.split(String.fromCharCode(39)).join(''))
-  const appJson = JSON.parse(fs.readFileSync(path.join(HERE, '..', 'ui', 'src', 'app.json'), 'utf8'))
-  for (const nm of ring) {
-    if (!appJson.pages || appJson.pages[nm] === undefined) fail('详情环位 ' + nm + ' 没有在 app.json 里登记')
+
+// ---- 4. Vue: script 语法 + 事件绑定 + 图标引用 ----
+for (const f of vueFiles) {
+  const src = fs.readFileSync(f, 'utf8')
+  const s = src.indexOf('<script>')
+  const e = src.indexOf('</script>')
+  if (s < 0) bad(path.relative(ROOT, f) + ' 缺 <script>')
+  const script = (s >= 0 && e > s) ? src.slice(s + 8, e) : ''
+  if (script) syntaxOk(script, path.relative(ROOT, f) + ' <script>')
+  const tpl = src.slice(0, src.indexOf('<template>') >= 0 ? src.indexOf('</template>') : 0)
+
+  // 事件处理函数必须在 script 里出现 (methods/computed/data 任一)
+  const handlers = new Set()
+  const evRe = /@(?:click|touchstart|touchend|touchmove|scroll|change|changing|state|info|position|complete|error|reselect|select|open|avatar|search)\s*=\s*"([^"(]+)\(?/g
+  let m
+  while ((m = evRe.exec(tpl)) !== null) handlers.add(m[1].trim())
+  for (const h of handlers) {
+    if (!h || h.startsWith('$')) continue
+    const re = new RegExp('(?:^|[\\s{,])' + h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*[:(]', 'm')
+    if (!re.test(script)) bad(path.relative(ROOT, f) + ' 事件函数未定义: ' + h)
   }
-  if (ring.length < 2) fail('详情环至少要两个环位, 否则详情套详情仍然入不了栈')
-} catch (e) {
-  fail('详情页副本与生成器输出不一致 (跑 node tools/gen-detail-ring.mjs) -> ' + String(e.stdout || e.message || e).slice(0, 160))
 }
-console.log(bad === 0 ? 'VALIDATE PASSED (' + files.length + ' pages, ' + have.size + ' icons)' : bad + ' 个问题')
+
+// ---- 5. 禁用 API (Falcon 不是浏览器) ----
+// 只检查**运行时**代码; 注释里提到这些词是正常的说明
+const FORBIDDEN = [
+  [/\bdocument\.\w/, 'document (Falcon 没有浏览器 DOM)'],
+  [/\bwindow\.\w/, 'window (Falcon 没有浏览器 window)'],
+  [/(?<![.\w])localStorage\b/, 'localStorage (用 core/store.js)'],
+  [/(?<![.\w])fetch\(/, 'fetch (用 core/net.js)'],
+  [/\bXMLHttpRequest\b/, 'XMLHttpRequest (用 core/net.js)']
+]
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+}
+for (const f of [...jsFiles, ...vueFiles]) {
+  const raw = fs.readFileSync(f, 'utf8')
+  const src = stripComments(raw)
+  for (const [re, label] of FORBIDDEN) if (re.test(src)) bad(path.relative(ROOT, f) + ' 用了禁用的 ' + label)
+}
+
+console.log(problems === 0
+  ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
+  : problems + ' 个问题')
+process.exit(problems ? 1 : 0)

@@ -1,14 +1,15 @@
 name: Build AMR
 
-# 存储策略 (账号 0.5GB Actions 配额, 私有仓库 artifact 全量计入):
-#   - 分支: main/miniapp = bilibilipan, pilipro = PiliPRO (两套 appid 的产物各自独立)
-#   - 产物 retention-days: 2 (默认 90 天会迅速吃满配额)
-#   - 每次构建后只保留同名产物最新 2 份 (Prune 步骤, 需 actions: write)
-#   - probe 探测应用只在 probe/** 变更时构建, 避免每次推送都产出一份
-#   - 同分支并发构建自动取消 (省 runner 分钟, 也少一份产物)
+# PiliPRO —— 有道词典笔 Falcon mini-app (全量重构版)
+#
+# 存储策略 (私有仓库 Actions 配额紧张):
+#   - 产物 retention-days: 2
+#   - 同名产物只保留最新 2 份 (Prune 步骤)
+#   - 同分支并发构建自动取消
+#   - 分支: pilipro = PiliPRO (appid 8009476000000001)
 on:
   push:
-    branches: [main, miniapp, pilipro]
+    branches: [pilipro]
   workflow_dispatch:
 
 concurrency:
@@ -20,62 +21,25 @@ permissions:
   actions: write
 
 jobs:
-  changes:
-    # 判断本次是否真的动了 probe/ (或手动触发), 决定要不要跑 probe 任务
-    runs-on: ubuntu-22.04
-    outputs:
-      probe: ${{ steps.filter.outputs.probe }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - id: filter
-        name: Detect probe changes
-        run: |
-          set -euo pipefail
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "probe=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git diff --name-only HEAD^ HEAD 2>/dev/null | grep -qE '^(probe/|\.github/workflows/build\.yml)'; then
-            echo "probe=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "probe=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build:
     # ubuntu-22.04: GCC 11.4 (GLIBCXX_3.4.29) + glibc 2.35,
     # 低于设备 libstdc++/libc 上限, 产物可直接加载
-    # (ubuntu-latest=24.04 的 GCC13/glibc2.38 会超设备运行时版本)
+    # (ubuntu-latest = 24.04 的 GCC13/glibc2.38 会超设备运行时版本)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
 
-      # ★ 静态闸门放最前面、用 Node 24:
-      #   tools/check-ui.mjs 用 node:sqlite 做真 SQLite 桩件 (配置持久化的回归靠它),
-      #   这个内置模块 Node 22.5 才有; tools/validate.mjs 也依赖 22.7+ 的模块语法探测.
-      #   闸门零依赖, 放最前面最省时间.
-      - name: Setup Node.js 24 (静态闸门)
+      # 静态门禁放最前面: 零依赖、最省时间, 能把"语法/资源/绑定"类错误挡在交叉编译之前.
+      - name: Setup Node.js 24 (静态门禁)
         uses: actions/setup-node@v4
         with:
           node-version: 24
 
-      - name: Static checks (validate + offline regression)
+      - name: Static checks
         run: |
-          node tools/gen-detail-ring.mjs --check
           node tools/validate.mjs
-          node tools/check-ui.mjs
-          node tools/check-native-lifecycle.mjs
-          node tools/check-request-gate.mjs
-          node tools/check-feed-scroll.mjs
-          node tools/check-live.mjs
-          node tools/check-messages.mjs
-          node tools/check-bindings.mjs
-          node tools/check-mention.mjs
-          # PiliPRO 衍生功能门禁 (弹幕/字幕/BV-av 识别与 SponsorBlock)
-          node tools/check-danmaku.mjs
-          node tools/check-subtitle.mjs
-          node tools/check-pilipro-extras.mjs
+          node --import ./tools/globals.mjs --import ./tools/register-stub.mjs tools/check-design.mjs
+          node --import ./tools/globals.mjs --import ./tools/register-stub.mjs tools/check-core.mjs
 
       - name: Install aarch64 cross toolchain
         run: |
@@ -97,52 +61,33 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release \
             native/bilinet
           cmake --build build/native --config Release --parallel $(nproc)
-          mkdir -p ui/libs
-          cp -f build/native/libjsapi_bilinet.so ui/libs/libjsapi_bilinet.so
-          file ui/libs/libjsapi_bilinet.so
-          aarch64-linux-gnu-readelf -h ui/libs/libjsapi_bilinet.so | grep -E 'Class|Machine'
-          aarch64-linux-gnu-nm -D ui/libs/libjsapi_bilinet.so | grep custom_init_jsapis
+          mkdir -p libs
+          cp -f build/native/libjsapi_bilinet.so libs/libjsapi_bilinet.so
+          file libs/libjsapi_bilinet.so
+          aarch64-linux-gnu-readelf -h libs/libjsapi_bilinet.so | grep -E 'Class|Machine'
 
-      # gstplayer (自建 libjsapi_gstplayer.so + gstplayerd 子进程) 已整棵移除:
-      #   播放页迁到框架内置 <video> 元素后 (HANDOVER §27) 它零引用.
-      # ★ 2026-10-17: 这里原本还留着"Install aarch64 GStreamer dev (multiarch)"整段,
-      #   纯属该模块的遗留. 现在 native/ 下只剩 bilinet, CMakeLists 里 target_link_libraries
-      #   只有 dl pthread (全仓库对 glib/gstreamer 零引用), 所以这段安装没有任何消费者.
-      #   留着不但白花时间, 还会因为上游 ports.ubuntu.com 的 arm64 依赖链断裂
-      #   (libx11-dev:arm64 / libudev1:arm64 装不上 -> "held broken packages", exit 100)
-      #   把整条构建打断 —— 2026-10-17 的 CI 失败就是这个, 与业务代码无关.
-
-      - name: Install dependencies
-        run: |
-          npm install -g pnpm@10.12.4
-          pnpm install -C ./ui
-
-      # 图片查看器模块 (libjsapi_imageviewer.so) 不再打包:
-      #   查看器早已改成 CSS transform 方案 (不落盘/不重复解码), ui/src 全仓库
-      #   对 imageviewer 只剩两处注释, app.json 的 external 里也没有它 -> 零引用.
-      #   移除省 6.9MB(raw) / 2.4MB(zip).
       - name: Strip native artifacts
         run: |
-          # Release 构建带 -g, 真机 ELF 段实测 .debug 占 .so 的 92% (7.67MB 里 7.05MB).
-          # --strip-debug 只删调试段, 保留 .dynsym 导出符号 -> 模块加载不受影响,
-          # 装机体积与解压占用同步下降 (0.5GB artifact 配额也轻松).
-          for f in ui/libs/libjsapi_bilinet.so; do
-            aarch64-linux-gnu-strip --strip-debug "$f"
-          done
-          # 红线: strip 只许删调试段, 不许动 .dynsym —— 导出符号没了模块就加载不起来.
-          # 两条都必须命中, 命中不到即让构建失败 (装机前拦住, 别到设备上才发现).
-          aarch64-linux-gnu-nm -D ui/libs/libjsapi_bilinet.so | grep -q custom_init_jsapis
-          ls -l ui/libs/
+          # Release 构建带 -g, .debug 段能占 .so 的 90%+.
+          # --strip-debug 只删调试段, 保留 .dynsym -> 模块加载不受影响.
+          aarch64-linux-gnu-strip --strip-debug libs/libjsapi_bilinet.so
+          # 红线: 导出符号没了模块就加载不起来, 必须命中
+          aarch64-linux-gnu-nm -D libs/libjsapi_bilinet.so | grep -q custom_init_jsapis
+          ls -l libs/
+
       # 打包链路 (aiot-cli -> webpack-dev-server -> spdy -> process.binding http_parser)
-      # 在 Node 22 上就崩 (http_parser 已移除), 所以**打包必须退回 Node 18**;
-      # 而静态闸门要 node:sqlite 又必须 22.5+. 两段各用各的版本, setup-node 调两次即可.
+      # 在 Node 22 上会崩 (http_parser 已移除), 所以打包必须退回 Node 18;
+      # 静态门禁要 node:sqlite 之类的新 API 又必须 22.5+, 两段各用各的版本.
       - name: Setup Node.js 18 (打包链路)
         uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      - name: Build AMR (production quickjs)
-        run: pnpm -C ui package
+      - name: Install deps + Build AMR (production quickjs)
+        run: |
+          npm install -g pnpm@10.12.4
+          pnpm install
+          pnpm run package
 
       - name: Collect AMR
         run: find . -name '*.amr' -type f
@@ -151,89 +96,18 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pilipro-amr
-          path: ./ui/*.amr
+          path: ./*.amr
           if-no-files-found: error
           retention-days: 2
 
-      - name: Prune old artifacts (0.5GB quota)
+      - name: Prune old artifacts
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -uo pipefail
-          # 同名产物只保留最新 2 份 (含本次), 其余立刻删除, 避免默认 90 天留存吃满配额
-          # 清理失败不影响构建结果 (配额问题不该让产物作废)
           ids=$(gh api "/repos/${{ github.repository }}/actions/artifacts?per_page=100" \
                   --jq '.artifacts | group_by(.name) | map(sort_by(.created_at) | reverse | .[2:]) | flatten | .[].id' || true)
           for id in $ids; do
             gh api -X DELETE "/repos/${{ github.repository }}/actions/artifacts/$id" \
               && echo "pruned artifact $id" || echo "prune failed: $id"
           done
-          echo "剩余产物:"
-          gh api "/repos/${{ github.repository }}/actions/artifacts?per_page=100" \
-            --jq '.artifacts[] | "  \(.name) \(.size_in_bytes/1048576|floor)MB \(.created_at)"' || true
-
-  # 独立探测 app videoprobe (appid 8001812345678999):
-  # 跟随 skill media-kms.md 从零实现, 不复用主工程代码, 用于分层/方向可行性确认.
-  # 仅在 probe/** 变更或手动触发时构建 (省额度, 也少一份产物).
-  probe:
-    needs: changes
-    if: needs.changes.outputs.probe == 'true'
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install toolchain + aarch64 gstreamer dev
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu g++-aarch64-linux-gnu cmake make
-          sudo dpkg --add-architecture arm64
-          sudo rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list
-          printf '%s\n' \
-            'deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy main' \
-            'deb [arch=amd64] http://archive.ubuntu.com/ubuntu jammy-updates main' | sudo tee /etc/apt/sources.list.d/amd64.list
-          printf '%s\n' \
-            'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse' \
-            'deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse' | sudo tee /etc/apt/sources.list.d/arm64.list
-          sudo apt-get update
-          # libunwind-dev:arm64 是 libgstreamer1.0-dev:arm64 的硬依赖, 缺了会 broken packages
-          sudo apt-get install -y --no-install-recommends libunwind-dev:arm64 libglib2.0-dev:arm64 libgstreamer1.0-dev:arm64 libgstreamer-plugins-base1.0-dev:arm64
-          sudo rm -rf /var/lib/apt/lists/*
-
-      - name: Cross-compile videoprobe native (aarch64)
-        env:
-          PKG_CONFIG_PATH: /usr/lib/aarch64-linux-gnu/pkgconfig
-          PKG_CONFIG_LIBDIR: /usr/lib/aarch64-linux-gnu/pkgconfig
-        run: |
-          cmake -B build/probe \
-            -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc \
-            -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ \
-            -DCMAKE_SYSTEM_NAME=Linux \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
-            -DCMAKE_BUILD_TYPE=Release \
-            probe
-          cmake --build build/probe --config Release --parallel $(nproc)
-          mkdir -p probe/ui/libs
-          cp -f build/probe/libjsapi_videoprobe.so probe/ui/libs/libjsapi_videoprobe.so
-          cp -f build/probe/videoprobed probe/ui/libs/videoprobed
-          chmod +x probe/ui/libs/videoprobed
-          file probe/ui/libs/libjsapi_videoprobe.so probe/ui/libs/videoprobed
-          aarch64-linux-gnu-nm -D probe/ui/libs/libjsapi_videoprobe.so | grep custom_init_jsapis
-
-      - name: Setup Node.js 18
-        uses: actions/setup-node@v4
-        # probe 也是 aiot-cli 打包, 同样必须 Node 18 (见上: http_parser)
-        with: { node-version: 18 }
-
-      - name: Build probe AMR
-        run: |
-          npm install -g pnpm@10.12.4
-          pnpm install -C probe/ui
-          pnpm -C probe/ui package
-
-      - name: Upload probe AMR
-        uses: actions/upload-artifact@v4
-        with:
-          name: videoprobe-amr
-          path: ./probe/ui/*.amr
-          if-no-files-found: error
-          retention-days: 2

@@ -1,0 +1,21 @@
+{
+  "pages": {
+    "index": "pages/index/index.vue",
+    "search": "pages/search/search.vue",
+    "video": "pages/video/video.vue",
+    "play": "pages/play/play.vue",
+    "mine": "pages/mine/mine.vue",
+    "login": "pages/login/login.vue",
+    "settings": "pages/settings/settings.vue"
+  },
+  "options": {
+    "external": [
+      "bilinet",
+      "brightness"
+    ]
+  },
+  "props": {
+    "supportCleanUp": true,
+    "cleanUpThreshold": 30
+  }
+}

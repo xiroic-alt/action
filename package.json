@@ -1,0 +1,31 @@
+{
+  "name": "PiliPRO",
+  "appid": "8009476000000001",
+  "version": "1.0.0",
+  "description": "PiliPRO · 哔哩哔哩客户端 for 有道词典笔 (Falcon mini-app, 全量重构)",
+  "icon": "app_icon.png",
+  "quickjs": {
+    "version": "20200705",
+    "bigNum": false
+  },
+  "single-js-bundle": false,
+  "scripts": {
+    "build": "aiot-cli -p",
+    "build:dev": "aiot-cli",
+    "package": "aiot-cli -c -q -p",
+    "gate:validate": "node tools/validate.mjs",
+    "gate:design": "node --import ./tools/globals.mjs --import ./tools/register-stub.mjs tools/check-design.mjs",
+    "gate:core": "node --import ./tools/globals.mjs --import ./tools/register-stub.mjs tools/check-core.mjs"
+  },
+  "keywords": [
+    "iot",
+    "miniapp",
+    "bilibili",
+    "pilipro"
+  ],
+  "devDependencies": {
+    "aiot-vue-cli": "^1.0.32"
+  },
+  "dependencies": {},
+  "packageManager": "pnpm@10.12.4"
+}
