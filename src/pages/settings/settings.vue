@@ -68,6 +68,12 @@
             <text v-else class="rval" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ r.value || '' }}</text>
           </div>
 
+          <!-- 表情预览: 用于上机确认 emoji 字体是否生效 (装了字体才会出现彩色 emoji) -->
+          <div v-if="curGroup.id === 'emoji'" class="eprev"
+               :style="{ flexDirection: 'row', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap' }">
+            <RichText :text="emojiPreview" :size="17" :color="U.c.onSurface" :lines="0" :drop-emoji="false" />
+          </div>
+
           <!-- 主题色板: 全部取自 design/tokens.js 的 SEEDS, 点选写回 themeSeed -->
           <div v-if="curGroup.id === 'appearance'" class="seeds" :style="{ flexDirection: 'row', flexWrap: 'wrap', marginTop: '6px' }">
             <div v-for="s in seeds" :key="s.id" class="seed" :style="seedOuter(s)" @click="onSeed(s)">
@@ -104,6 +110,7 @@ import { appId, dataDir, logPath } from '../../core/paths.js'
 import { createIME } from '../../services/ime.js'
 import * as sysFont from '../../services/system-font.js'
 import * as audio from '../../services/audio.js'
+import RichText from '../../components/rich-text.vue'
 
 const MI = {
   back: require('../../assets/mi/back_26_w.png'),
@@ -199,8 +206,11 @@ const BASE_GROUPS = [
 
 export default {
   name: 'settings',
+  components: { RichText },
   data() {
     return {
+      // 表情预览: 覆盖中文混排/肤色/ZWJ 组合/星形与箭头 (设备字体缺的那些)
+      emojiPreview: '中文混排 😀👍 组合 👨‍👩‍👧 爱心 ❤️ 星 ⭐ 箭头 → 手势 🎉 音符 🎵',
       _btPower: null,
       _btList: [],
       U: ui(),
