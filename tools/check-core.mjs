@@ -171,4 +171,14 @@ for (const c of stubMod.calls) {
   if (c[0] === 'dbOpen') ok(typeof c[1] === 'string' && /\.db$/.test(c[1]), 'dbOpen 路径是 .db 字符串: ' + c[1])
 }
 
-console.log('CHECK-CORE PASSED (' + pass + ' 条断言: MD5/wbi/格式化/BV/弹幕/字幕/清晰度/路径类型)')
+
+// ---------------- 封面 URL 幂等 (真机踩过: 重复拼裁切参数 -> 图片不显示) ----------------
+const fmt = await import(U('services/format.js'))
+const raw = 'https://i0.hdslb.com/bfs/archive/abc.jpg'
+const once = fmt.thumb(raw, 480, 300)
+eq(once, raw + '@480w_300h_1c.jpg', '首次拼裁切参数')
+eq(fmt.thumb(once, 556, 347), once, '已带参数时不再重复拼 (幂等)')
+eq(fmt.thumb(fmt.thumb(raw, 320, 200), 640, 400), raw + '@320w_200h_1c.jpg', '连续调用两次结果不变')
+ok(once.indexOf('@') === once.lastIndexOf('@'), '结果里只有一个 @ 参数段')
+
+console.log('CHECK-CORE PASSED (' + pass + ' 条断言: MD5/wbi/格式化/BV/弹幕/字幕/清晰度/路径类型/封面URL)')

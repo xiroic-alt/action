@@ -70,6 +70,10 @@ export function normalizeUrl(u) {
 export function thumb(url, w, h) {
   const u = normalizeUrl(url)
   if (!u) return ''
+  // ★ 幂等: 已经带过 @..w..h 裁切参数就直接返回.
+  //   否则同一个 URL 会被拼两次 (...jpg@480w_300h_1c.jpg@556w_347h_1c.jpg),
+  //   真机上图片静默不显示, 排查成本很高.
+  if (u.indexOf('@') >= 0) return u
   const ww = Math.max(1, Math.round(Number(w) || 480))
   const hh = h ? Math.max(1, Math.round(Number(h))) : 0
   return u + '@' + ww + 'w' + (hh ? '_' + hh + 'h' : '') + '_1c.jpg'
