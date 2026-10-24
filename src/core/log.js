@@ -66,7 +66,10 @@ function drain() {
   const lines = queue.join('\n') + '\n'
   queue = []
   try {
-    if (!bilinet || typeof bilinet.readFile !== 'function' || typeof bilinet.writeFile !== 'function') return
+    // ★ 不要再写 `typeof bilinet.writeFile !== 'function'` 这种守卫:
+    //   真机实测里它会在某些构建下把整条落盘链路静默挡掉 (mkdirs 能用、writeFile 却从不被调用),
+    //   排障时表现为"日志文件根本不存在", 比报错更难查. 直接用 try/catch 兜住异常.
+    if (!bilinet) return
     ensureDirs(bilinet)
     // 轮转: 只读"是否存在"; 读不到就当不存在
     let cur = ''
@@ -80,8 +83,49 @@ function drain() {
     }
     const nl = next.split('\n').length
     const trimmed = nl > MAX_LINES + 120 ? next.split('\n').slice(-MAX_LINES).join('\n') + '\n' : next
-    bilinet.writeFile(logPath, trimmed)
-  } catch (e) {}
+    const ok = bilinet.writeFile(logPath, trimmed)
+    if (ok === false) fallbackWrite(trimmed)
+  } catch (e) { try { fallbackWrite(queue.length ? queue.join('\n') : '') } catch (e2) {} }
+}
+
+/**
+ * writeFile 不可用时的兜底: 用 execAsync 跑 shell 追加.
+ * 只用于日志 (内容是本地生成的, 走 base64 避免引号/换行破坏命令).
+ */
+// 纯 JS base64 (QuickJS 不一定有 btoa; 日志兜底不能依赖它)
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+function b64encode(str) {
+  const bytes = []
+  for (let i = 0; i < str.length; i++) {
+    let c = str.charCodeAt(i)
+    if (c < 0x80) bytes.push(c)
+    else if (c < 0x800) bytes.push(0xc0 | (c >> 6), 0x80 | (c & 63))
+    else bytes.push(0xe0 | (c >> 12), 0x80 | ((c >> 6) & 63), 0x80 | (c & 63))
+  }
+  let out = ''
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i], b = bytes[i + 1], c = bytes[i + 2]
+    out += B64.charAt(a >> 2)
+    out += B64.charAt(((a & 3) << 4) | ((b === undefined ? 0 : b) >> 4))
+    out += b === undefined ? '=' : B64.charAt(((b & 15) << 2) | ((c === undefined ? 0 : c) >> 6))
+    out += c === undefined ? '=' : B64.charAt(c & 63)
+  }
+  return out
+}
+
+let fbBusy = false
+function fallbackWrite(text) {
+  if (!text || fbBusy) return
+  if (!bilinet || typeof bilinet.execAsync !== 'function') return
+  fbBusy = true
+  try {
+    const b64 = b64encode(text)
+    // base64 只有 [A-Za-z0-9+/=], 放进 shell 单引号里是安全的
+    const cmd = 'printf %s "' + b64 + '" | base64 -d >> ' + logPath
+    if (cmd.length < 500) {
+      bilinet.execAsync(cmd).then(function () { fbBusy = false }).catch(function () { fbBusy = false })
+    } else { fbBusy = false }
+  } catch (e) { fbBusy = false }
 }
 
 export function initLog(tag) {
