@@ -17,9 +17,21 @@ import { runFeatureInits } from './features/index.js'
 
 const BUILD_TAG = 'PiliPRO-0.1.0001'
 
+// ★ 基类方法不保证都存在: 真机日志出现过
+//   "TypeError: cannot read property 'onDestroy' of undefined"
+//   —— $falcon.App 上没有 onDestroy 时, super.onDestroy() 直接炸.
+//   所以所有 super 调用都必须先判存在.
+function superCall(self, name, arg) {
+  try {
+    const proto = Object.getPrototypeOf(Object.getPrototypeOf(self))
+    if (proto && typeof proto[name] === 'function') return proto[name].call(self, arg)
+  } catch (e) {}
+  return undefined
+}
+
 class App extends $falcon.App {
   onLaunch(options) {
-    super.onLaunch(options)
+    superCall(this, 'onLaunch', options)
     installConsoleBridge()
     initLog(BUILD_TAG + ' appid=8009476000000001')
     try { initStore() } catch (e) { log('应用', '存储初始化异常: ' + e) }
@@ -29,9 +41,9 @@ class App extends $falcon.App {
     log('应用', '启动完成 · ' + storeStatus())
     $falcon.useDefaultBasePageClass(BasePage)
   }
-  onShow() { super.onShow() }
-  onHide() { super.onHide() }
-  onDestroy() { super.onDestroy() }
+  onShow() { superCall(this, 'onShow') }
+  onHide() { superCall(this, 'onHide') }
+  onDestroy() { superCall(this, 'onDestroy') }
 }
 
 export default App
