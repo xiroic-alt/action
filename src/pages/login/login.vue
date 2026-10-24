@@ -487,4 +487,5 @@ function buildRuns(rows, size, mod) {
 .qm-s { margin-top: 6px; }
 .qm-ic { }
 .qr-ph { }
+.mode { flex-direction: row; align-items: center; }
 </style>

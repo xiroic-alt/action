@@ -648,14 +648,40 @@ function darkOfHex(hex) {
 </script>
 
 <style scoped>
+/* 设置页样式 —— 每条规则都必须有"盒子"属性:
+   设备框架里 class 未定义 = 元素没有盒模型 = 0 尺寸 = 用户看不到 (实测踩过).
+   所以这里即使有内联 :style, 每个类也要给出宽高/布局基线. */
 .page { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; }
-.head { flex-direction: row; align-items: center; }
-.body { flex-direction: row; }
-.gnav { }
-.grow { flex-direction: row; align-items: center; }
-.rows { }
-.rl { flex-direction: column; }
-.row { }
-.rtext { }
+.head { flex-direction: row; align-items: center; height: 44px; width: 960px; }
+.hit { width: 44px; height: 44px; justify-content: center; align-items: center; }
+.hic { width: 24px; height: 24px; }
+.ttl { font-size: 16px; font-weight: bold; margin-left: 4px; }
+.body { flex-direction: row; width: 960px; height: 222px; }
+.gnav { width: 296px; height: 222px; }
+.gl { flex-direction: column; width: 296px; padding-top: 4px; padding-bottom: 8px; }
+.grow { flex-direction: row; align-items: center; height: 44px; margin-left: 8px; margin-right: 8px; padding-left: 10px; padding-right: 10px; }
+.gt { font-size: 15px; }
+.sep { width: 1px; height: 222px; }
+.rows { flex: 1; height: 222px; }
+.rl { flex-direction: column; padding-left: 14px; padding-right: 12px; padding-bottom: 12px; }
+.rtitle { font-size: 16px; font-weight: bold; margin-top: 8px; margin-bottom: 4px; }
+.row { flex-direction: row; align-items: center; min-height: 44px; padding-top: 6px; padding-bottom: 6px; }
+.rtext { flex: 1; flex-direction: column; }
+.rlabel { font-size: 15px; }
+.rdesc { font-size: 11px; margin-top: 2px; }
+/* 右侧控件: 44px 命中区是硬要求 (笔的最小触摸尺寸) */
+.ctl { width: 56px; height: 44px; flex-direction: row; justify-content: center; align-items: center; }
+/* 开关: 药丸 40x22 + 圆点 18, 只用 transform 位移 (框架 transition 只支持 transform) */
+.sw { width: 40px; height: 22px; border-radius: 11px; flex-direction: row; align-items: center; padding-left: 2px; padding-right: 2px; }
+.knob { width: 18px; height: 18px; border-radius: 9px; background-color: #ffffff; }
+.ct { font-size: 13px; }
+.cic { width: 16px; height: 16px; margin-left: 2px; }
+.rval { font-size: 12px; }
+.eprev { flex-direction: row; align-items: center; flex-wrap: wrap; margin-top: 8px; width: 560px; }
+.seeds { flex-direction: row; flex-wrap: wrap; margin-top: 6px; width: 560px; }
+.seed { width: 44px; height: 44px; justify-content: center; align-items: center; }
+.seedin { width: 30px; height: 30px; border-radius: 15px; justify-content: center; align-items: center; }
+.sck { width: 18px; height: 18px; }
 .tip { }
+.tipt { font-size: 13px; }
 </style>

@@ -329,6 +329,7 @@ export default {
     // ---------------- 装载 ----------------
     async load() {
       const gen = ++this._gen
+      log('详情', '开始加载 gen=' + gen)
       if (this.bvid === '') { this.titleText = '缺少视频参数'; return }
       try {
         const d = await videoDetail(this.bvid)

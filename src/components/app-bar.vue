@@ -63,4 +63,8 @@ export default {
 .ttl { }
 .actions { flex-direction: row; align-items: center; }
 .act { justify-content: center; align-items: center; }
+/* 图标类必须显式给盒子: 框架里 class 未定义 = 0 尺寸 = 图标不显示 */
+.bic { width: 24px; height: 24px; }
+.lic { width: 22px; height: 22px; }
+.aic { width: 22px; height: 22px; }
 </style>

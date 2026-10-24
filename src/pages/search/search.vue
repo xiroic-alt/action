@@ -265,6 +265,7 @@ export default {
     },
 
     async loadResults(reset) {
+      log('搜索', '开始加载 p' + this.page + ' kw=' + this.kw)
       const gen = ++this._gen
       if (reset) { this.page = 1; this.status = '' }
       this.loading = true
@@ -389,4 +390,5 @@ export default {
 .foot { width: 100%; justify-content: center; align-items: center; padding-top: 4px; padding-bottom: 12px; }
 .more { padding-left: 24px; padding-right: 24px; justify-content: center; align-items: center; }
 .moret { }
+.cic { width: 16px; height: 16px; }
 </style>

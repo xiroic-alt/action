@@ -143,6 +143,9 @@ export default {
   name: 'mine',
   data() {
     return {
+      // ★ 世代守卫必须声明在 data 里: 否则 ++undefined = NaN, 而 NaN !== NaN 恒真,
+      //   结果被判定为"过期"直接丢弃, 页面永远停在加载中 (项目历史踩过这个坑)
+      _gen: 0,
       U: ui(),
       nav: 'mine',
       user: null,               // services/api.js nav() 的结果
@@ -441,4 +444,44 @@ export default {
 .cover { position: relative; overflow: hidden; }
 .rinfo { }
 .tip { }
+
+/* ---- 补齐缺失的样式类 ----
+   设备框架里 class 未定义 = 元素没有盒模型 = 0 尺寸 = 用户看不到
+   (本页曾被这条坑到: 设置页/我的页只有空白). 内联 :style 只管具体取值,
+   这里的类负责把"盒子"立起来. */
+.hit { width: 44px; height: 44px; justify-content: center; align-items: center; }
+.hic { width: 24px; height: 24px; }
+.avimg { width: 44px; height: 44px; border-radius: 22px; }
+.avic { width: 26px; height: 26px; }
+.name { font-size: 16px; font-weight: bold; }
+.subrow { flex-direction: row; align-items: center; }
+.lv { height: 18px; flex-direction: row; justify-content: center; align-items: center; }
+.lvt { font-size: 11px; }
+.coinrow { flex-direction: row; align-items: center; }
+.coinic { width: 14px; height: 14px; }
+.coint { font-size: 11px; }
+.hright { flex-direction: row; align-items: center; }
+.vip { height: 24px; flex-direction: row; justify-content: center; align-items: center; }
+.vipt { font-size: 11px; }
+.setbtn { width: 64px; height: 44px; justify-content: center; align-items: center; }
+.sett { font-size: 13px; }
+.tabbar { flex-direction: row; align-items: center; height: 46px; }
+.tab { flex-direction: row; align-items: center; height: 34px; padding-left: 10px; padding-right: 10px; }
+.tabic { width: 18px; height: 18px; }
+.tabt { font-size: 13px; margin-left: 4px; }
+.foldert { font-size: 15px; }
+.hintt { font-size: 14px; }
+.loginbtn { width: 140px; height: 44px; justify-content: center; align-items: center; }
+.loginbtt { font-size: 15px; }
+.list { flex-direction: column; }
+.cimg { height: 100%; }
+.dur { flex-direction: row; justify-content: center; align-items: center; }
+.durt { font-size: 11px; }
+.rtitle { font-size: 15px; }
+.rsub { font-size: 12px; }
+.foot { flex-direction: row; justify-content: center; align-items: center; }
+.more { flex-direction: row; justify-content: center; align-items: center; }
+.moret { font-size: 13px; }
+.tipt { font-size: 13px; }
+
 </style>

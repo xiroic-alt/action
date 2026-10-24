@@ -104,6 +104,23 @@ for (const f of [...jsFiles, ...vueFiles]) {
   for (const [re, label] of FORBIDDEN) if (re.test(src)) bad(path.relative(ROOT, f) + ' 用了禁用的 ' + label)
 }
 
+// ---- 样式类完整性 (真机踩过: class 不在 <style> 里 = 0 尺寸 = 用户看不到) ----
+for (const f of vueFiles) {
+  const t = fs.readFileSync(f, 'utf8')
+  const cut = t.indexOf('<script>')
+  const tpl = cut > 0 ? t.slice(0, cut) : t
+  const styleIdx = t.indexOf('<style')
+  const style = styleIdx >= 0 ? t.slice(styleIdx) : ''
+  const used = new Set()
+  for (const m of tpl.matchAll(/class="([^"]*)"/g)) {
+    for (const c of m[1].split(/\s+/)) if (c && /^[A-Za-z_][\w-]*$/.test(c)) used.add(c)
+  }
+  const defined = new Set()
+  for (const m of style.matchAll(/\.([A-Za-z_][\w-]*)/g)) defined.add(m[1])
+  const missing = [...used].filter((c) => !defined.has(c))
+  if (missing.length) bad(path.relative(ROOT, f) + ' 样式类未定义 (元素会 0 尺寸/不可见): ' + missing.join(','))
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

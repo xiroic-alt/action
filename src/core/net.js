@@ -17,6 +17,37 @@ import { logDebug, logError } from './log.js'
 import { cookieHeader, hasCookie } from './auth.js'
 import { getCfg } from './config.js'
 
+/**
+ * 看门狗: 原生 httpGetAsync 是 Promise, 但真机上出现过"请求发出、Promise 不 settle"
+ * (框架日志有 createPromiseId 却没有后续回调), 页面就会永远停在"加载中".
+ * 这里给它套一层超时竞速, 保证调用方一定能拿到结果或错误.
+ * setTimeout 不可用时退化为原样等待 (原生自己有 curl --max-time).
+ */
+function withWatchdog(promise, seconds, what) {
+  if (typeof setTimeout !== 'function') return promise
+  return new Promise(function (resolve, reject) {
+    let done = false
+    const timer = setTimeout(function () {
+      if (done) return
+      done = true
+      const e = new Error(what + ' 超时 (' + seconds + 's)')
+      e.kind = 'net'
+      reject(e)
+    }, Math.max(3000, seconds * 1000 + 3000))
+    promise.then(function (v) {
+      if (done) return
+      done = true
+      try { clearTimeout(timer) } catch (e) {}
+      resolve(v)
+    }, function (err) {
+      if (done) return
+      done = true
+      try { clearTimeout(timer) } catch (e) {}
+      reject(err)
+    })
+  })
+}
+
 function hasAsync() {
   return !!(bilinet && typeof bilinet.httpGetAsync === 'function' && typeof bilinet.httpPostAsync === 'function')
 }
@@ -66,7 +97,7 @@ export async function getJson(url, opts) {
   const headers = authHeaders(o.headers)
   let body
   try {
-    if (hasAsync()) body = await bilinet.httpGetAsync(url, to, headers)
+    if (hasAsync()) body = await withWatchdog(bilinet.httpGetAsync(url, to, headers), to, 'GET ' + cleanUrl(url).substring(0, 60))
     else if (hasSync()) body = bilinet.httpGet(url, to, headers)
     else { const e = new Error('当前固件不支持 http 请求'); e.kind = 'net'; throw e }
   } catch (e) {
@@ -97,7 +128,7 @@ export async function postForm(url, data, opts) {
   const headers = authHeaders(extra)
   let body
   try {
-    if (hasAsync()) body = await bilinet.httpPostAsync(url, data, to, headers)
+    if (hasAsync()) body = await withWatchdog(bilinet.httpPostAsync(url, data, to, headers), to, 'POST ' + url.substring(0, 60))
     else if (hasSync()) body = bilinet.httpPost(url, data, to, headers)
     else { const e = new Error('当前固件不支持 http 请求'); e.kind = 'net'; throw e }
   } catch (e) {
@@ -125,7 +156,7 @@ export async function getText(url, opts) {
   const headers = authHeaders(o.headers)
   let body
   try {
-    if (hasAsync()) body = await bilinet.httpGetAsync(url, to, headers)
+    if (hasAsync()) body = await withWatchdog(bilinet.httpGetAsync(url, to, headers), to, 'GET ' + url.substring(0, 60))
     else if (hasSync()) body = bilinet.httpGet(url, to, headers)
     else { const e = new Error('当前固件不支持 http 请求'); e.kind = 'net'; throw e }
   } catch (e) {

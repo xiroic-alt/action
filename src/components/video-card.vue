@@ -62,4 +62,5 @@ export default {
 .subrow { flex-direction: row; align-items: center; margin-top: 2px; }
 .awname { flex: 1; }
 .dm { margin-left: 6px; }
+.mt2 { margin-left: 6px; }
 </style>

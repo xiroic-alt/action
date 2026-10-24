@@ -15,7 +15,10 @@
       </div>
 
       <scroller class="body" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll">
-        <div v-if="loading && items.length === 0" class="hint">
+        <div v-if="status !== '' && items.length === 0" class="hint">
+      <text class="hintt" :style="U.t.weak">{{ status }}</text>
+    </div>
+    <div v-else-if="loading && items.length === 0" class="hint">
           <text class="hintt" :style="U.t.weak">加载中…</text>
         </div>
         <div v-else-if="status !== '' && items.length === 0" class="hint">
@@ -122,6 +125,7 @@ export default {
       const gen = ++this._gen
       if (reset) { this.page = 1; this.status = '' }
       this.loading = true
+      log('首页', '开始加载 ' + this.tab + ' p' + this.page + ' gen=' + gen)
       try {
         if (this.tab === 'rcmd') {
           const list = await recommend(12, this.page)
@@ -147,7 +151,7 @@ export default {
       } catch (e) {
         if (gen !== this._gen) return
         this.status = (e && e.message ? e.message : String(e))
-        log('首页', '加载失败: ' + this.status)
+        log('首页', '加载失败[' + ((e && e.kind) || 'unknown') + ']: ' + this.status)
       } finally {
         if (gen === this._gen) this.loading = false
       }

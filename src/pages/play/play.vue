@@ -824,4 +824,6 @@ export default {
         background-color: rgba(0,0,0,0.78); border-radius: 10px; }
 .at { }
 .ratet { }
+.bic { width: 22px; height: 22px; }
+.cic { width: 26px; height: 26px; }
 </style>

@@ -98,4 +98,8 @@ export default {
 .dest { width: 64px; height: 58px; justify-content: center; align-items: center; margin-top: 2px; margin-bottom: 2px; }
 .ind { position: absolute; left: 0px; top: 0px; width: 64px; height: 58px; }
 .dlab { margin-top: 1px; }
+.avimg { width: 44px; height: 44px; border-radius: 22px; }
+.avic { width: 24px; height: 24px; }
+.sic { width: 22px; height: 22px; }
+.dic { width: 26px; height: 26px; }
 </style>
