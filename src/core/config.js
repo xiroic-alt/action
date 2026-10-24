@@ -28,6 +28,10 @@ const SPEC = {
   defaultRate: [1, 'enum', [0.5, 0.75, 1, 1.25, 1.5, 2]],
   // 默认清晰度 (qn). 80 = 1080P, 是目标设备的解码上限 (见 services/api.js DEVICE_MAX_QN)
   defaultQuality: [80, 'int', [16, 80]],
+  // 音频输出: auto = 有已连接的蓝牙就自动切过去, 否则扬声器
+  audioRoute: ['auto', 'enum', ['auto', 'speaker', 'bluetooth']],
+  // 起播时抢占音频: 系统没有音频焦点 API, 用全局 stopVideoPlayer 停掉别的播放 (见 services/audio.js)
+  audioPreempt: [true, 'bool'],
   autoQuality: [false, 'bool'],
   resumePlay: [true, 'bool'],
   skipIntroSec: [0, 'int', [0, 300]],

@@ -102,6 +102,8 @@ import { clearSearchHistory, getSearchHistory } from '../../core/store.js'
 import { setLogLevel, log } from '../../core/log.js'
 import { appId, dataDir, logPath } from '../../core/paths.js'
 import { createIME } from '../../services/ime.js'
+import * as sysFont from '../../services/system-font.js'
+import * as audio from '../../services/audio.js'
 
 const MI = {
   back: require('../../assets/mi/back_26_w.png'),
@@ -145,6 +147,27 @@ const BASE_GROUPS = [
     ]
   },
   {
+    id: 'audio',
+    title: '音频',
+    rows: [
+      { k: 'audioRoute', t: 'choice', label: '输出设备', opts: [['auto', '自动'], ['speaker', '扬声器'], ['bluetooth', '蓝牙']] },
+      { k: 'audioPreempt', t: 'switch', label: '自动抢占音频', desc: '起播时停掉其它应用的播放 (系统无音频焦点 API, 用全局停止实现)' },
+      { k: 'btScan', t: 'action', label: '已连接蓝牙', desc: '点右侧刷新', actText: '刷新' },
+      { t: 'text', label: '蓝牙状态', value: '' }
+    ]
+  },
+  {
+    id: 'emoji',
+    title: '表情字体',
+    rows: [
+      { t: 'text', label: '说明', value: '系统字体无 emoji 字形' },
+      { k: 'emojiInstall', t: 'action', label: '安装 emoji 字体', desc: '绑定挂载, 不改只读分区', actText: '安装' },
+      { k: 'emojiRemove', t: 'action', label: '卸载 emoji 字体', desc: '恢复系统原样', actText: '卸载', danger: true },
+      { k: 'emojiRestart', t: 'action', label: '重启应用生效', desc: '框架启动时读字体表', actText: '重启' },
+      { t: 'text', label: '当前状态', value: '' }
+    ]
+  },
+  {
     id: 'net',
     title: '网络',
     rows: [
@@ -178,6 +201,8 @@ export default {
   name: 'settings',
   data() {
     return {
+      _btPower: null,
+      _btList: [],
       U: ui(),
       S: SCREEN,
       vals: {},
@@ -255,6 +280,24 @@ export default {
           if (r.label === '日志路径') r.value = safeCall(logPath) || '(未知)'
           if (r.label === '数据目录') r.value = safeCall(dataDir) || '(未知)'
           if (r.label === 'appid') r.value = safeCall(appId) || APPID
+        }
+      }
+      const emoji = this.groupById('emoji')
+      if (emoji) {
+        for (let i = 0; i < emoji.rows.length; i++) {
+          const r = emoji.rows[i]
+          if (r.label === '当前状态') r.value = this.emojiStatusText()
+          if (r.k === 'emojiInstall' || r.k === 'emojiRemove') {
+            const st = sysFont.status()
+            r.desc = st.mounted ? '绑定挂载, 不改只读分区' : '安装后所有应用的 emoji 都能显示'
+          }
+        }
+      }
+      const audioG = this.groupById('audio')
+      if (audioG) {
+        for (let i = 0; i < audioG.rows.length; i++) {
+          const r = audioG.rows[i]
+          if (r.label === '蓝牙状态') r.value = this.btStatusText()
         }
       }
       const data = this.groupById('data')
@@ -341,7 +384,56 @@ export default {
       this.apply('themeSeed', s.id)
       this.showTip('主题色: ' + s.name)
     },
+    // ---- 表情字体: 一键安装 / 卸载 / 重启 ----
+    async emojiInstall() {
+      this.showTip('正在安装…')
+      const r = await sysFont.install()
+      this.showTip(r.msg)
+      this.refreshGroup()
+      log('设置', 'emoji 字体安装: ' + r.msg)
+    },
+    async emojiRemove() {
+      this.showTip('正在卸载…')
+      const r = await sysFont.remove()
+      this.showTip(r.msg)
+      this.refreshGroup()
+      log('设置', 'emoji 字体卸载: ' + r.msg)
+    },
+    emojiRestart() {
+      if (sysFont.restartApp()) { return }
+      this.showTip('当前固件不支持自动重启, 请手动重开应用')
+    },
+    emojiStatusText() {
+      const st = sysFont.status()
+      if (!st.available) return '不可用 (缺 execAsync)'
+      if (!st.fontBundled) return '安装包缺字体'
+      return st.mounted ? '已安装 (重启后生效)' : '未安装'
+    },
+
+    // ---- 音频: 蓝牙枚举 / 路由 ----
+    async btScan() {
+      this.showTip('正在扫描蓝牙…')
+      const [power, list] = await Promise.all([audio.btPowerState(), audio.btDevices()])
+      this._btPower = power
+      this._btList = list
+      this.refreshGroup()
+      this.showTip(list.length ? ('找到 ' + list.length + ' 个已连接设备') : (power === 'off' ? '蓝牙未开启' : '没有已连接的蓝牙设备'))
+      log('设置', '蓝牙扫描: power=' + power + ' devices=' + list.length)
+    },
+    btStatusText() {
+      const power = this._btPower
+      if (power == null) return '未扫描'
+      if (power === 'off') return '未开启'
+      const list = this._btList || []
+      if (!list.length) return '已开启, 无连接设备'
+      return list.map(function (d) { return d.name }).join(' / ').slice(0, 40)
+    },
+
     runAction(r) {
+      if (r.k === 'emojiInstall') { this.emojiInstall(); return }
+      if (r.k === 'emojiRemove') { this.emojiRemove(); return }
+      if (r.k === 'emojiRestart') { this.emojiRestart(); return }
+      if (r.k === 'btScan') { this.btScan(); return }
       if (r.k === 'clearSearchHist') {
         try { clearSearchHistory() } catch (e) {}
         this.refreshGroup()

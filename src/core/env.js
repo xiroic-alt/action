@@ -9,7 +9,7 @@
 //   合成触摸映射: touchX = displayY + 107, touchY = 959 - displayX (斜率 1, 位移可直接用差值)
 
 import { SCREEN } from '../design/tokens.js'
-import { native, nativeStatus } from '../services/native.js'
+import { bilinet, nativeStatus } from '../services/native.js'
 
 const PROFILE = {
   id: 'youdao-melon-rk3562',
@@ -50,9 +50,7 @@ export function touchToDisplay(tx, ty) {
  */
 export function capabilities() {
   if (caps) return caps
-  // ★ 必须查**真实模块**, 不能查 services/native.js 导出的 Proxy ——
-  //   那个 Proxy 在模块缺失时返回空实现 (也是函数), 会让能力探测全部误报为"可用".
-  const b = native()
+  const b = bilinet
   const st = nativeStatus()
   const has = function (k) { return !!(b && typeof b[k] === 'function') }
   caps = {

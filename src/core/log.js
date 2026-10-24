@@ -41,9 +41,14 @@ function emit(tag, msg, lv) {
   flushRepeat()
   lastLine = line
   queue.push(line)
+  // ★ 必须判断 setTimeout 是否存在: 真机上启动期只有 3-5 行日志,
+  //   如果没有 setTimeout 兜底, 队列永远到不了 20 行阈值 -> 日志文件根本不生成,
+  //   排障时就像"应用什么都没干" (这个坑实际踩过).
   if (queue.length >= 20) drain()
-  else if (!timer && typeof setTimeout === 'function') {
-    timer = setTimeout(drain, 200)
+  else if (typeof setTimeout === 'function') {
+    if (!timer) timer = setTimeout(drain, 200)
+  } else {
+    drain()
   }
 }
 
@@ -80,10 +85,14 @@ function drain() {
 }
 
 export function initLog(tag) {
-  emit('应用', tag)
   ensureDirs(bilinet)
+  emit('应用', tag)
+  drain()          // 立刻落盘: 启动这一行是最重要的排障锚点, 不能等批量
   return logPath
 }
+
+/** 立刻把队列写盘 (页面隐藏/退出前调用, 避免丢最后几行) */
+export function flushLog() { try { drain() } catch (e) {} }
 
 export function setLogLevel(v) {
   level = LV[v] == null ? 3 : LV[v]

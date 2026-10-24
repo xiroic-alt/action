@@ -44,6 +44,11 @@
       </div>
     </div>
 
+    <!-- 音频提示 (切换结果/自动选择结果) -->
+    <div v-if="audioMsg !== ''" class="atip">
+      <text class="at" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: '#ffffff' }">{{ audioMsg }}</text>
+    </div>
+
     <!-- 中央状态 -->
     <div v-if="statusText !== ''" class="center">
       <text class="st" :style="{ fontSize: U.f.body + 'px', color: '#ffffff' }">{{ statusText }}</text>
@@ -69,6 +74,9 @@
       </div>
       <text v-if="isLive" class="time" :style="{ fontSize: U.f.caption + 'px', color: '#ffffff' }">已播 {{ liveElapsedText }}</text>
       <text v-else class="time" :style="{ fontSize: U.f.caption + 'px', color: '#ffffff' }">{{ curText }} / {{ durText }}</text>
+      <div class="cbtn rate" @click="toggleAudioOut">
+        <text class="ratet" :style="{ fontSize: U.f.caption + 'px', color: audioMode === 'bluetooth' ? U.c.primary : '#ffffff' }">{{ btLabel || '音频' }}</text>
+      </div>
       <div v-if="!isLive" class="cbtn rate" @click="toggleQualityMenu">
         <text class="ratet" :style="{ fontSize: U.f.caption + 'px', color: '#ffffff' }">{{ qualityText || '画质' }}</text>
       </div>
@@ -92,6 +100,7 @@ import { getCfg, setCfg } from '../../core/config.js'
 import { log, logDebug } from '../../core/log.js'
 import { videoDetail, playUrl, danmakuXml, subtitleBody, sponsorSegments, liveRoomPlayUrl } from '../../services/api.js'
 import { shouldSkip } from '../../services/sponsorblock.js'
+import * as audio from '../../services/audio.js'
 import { getProgress, setProgress } from '../../core/store.js'
 import { parseDanmakuXml, mergeDanmaku, filterDanmaku, buildTracks, visibleAt, colorHex } from '../../services/danmaku.js'
 import { pickCue, parseSubtitleJson } from '../../services/subtitle.js'
@@ -159,6 +168,8 @@ export default {
       subCues: null, subCues2: null, subMain: '', subSecond: '',
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
+      // 音频输出
+      btDevices: [], btLabel: '', audioMode: 'speaker', audioMsg: '',
       // 内部
       _gen: 0, _poll: null, _hide: null, _resumeRead: false, _applied: false
     }
@@ -267,6 +278,8 @@ export default {
           this._resumeRead = true
           this._resumeAt = getProgress(this.bvid)
         }
+        await this.prepareAudio()
+        if (gen !== this._gen) return
         this.playStream(p.url, gen)
         // 弹幕 / 字幕 / 赞助片段 (都不阻塞起播)
         this.loadDanmaku(cid)
@@ -312,6 +325,75 @@ export default {
       setTimeout(function () { if (gen === self._gen) self.loadLive(gen) }, 1500)
     },
 
+    // ---------------- 音频仲裁与路由 ----------------
+    // 系统**没有音频焦点 API** (libfalcon / jsapi 都没有 requestAudioFocus 之类),
+    // 但有两样可用: ① $falcon.stopVideoPlayer() 全局停止播放器 (系统自己用 _videoplayer_mutex 做互斥)
+    //              ② 播放器元素的 setAudioDeviceType (实时改 ALSA sink, 不用重起播)
+    // 所以"抢占"= 起播前先全局停一次; "实时切换"= 播放中直接调 setAudioDeviceType.
+    async prepareAudio() {
+      // 1) 抢占: 停掉其它应用/页面正在播的内容
+      if (getCfg('audioPreempt') !== false) {
+        try {
+          if (typeof $falcon !== 'undefined' && $falcon && typeof $falcon.stopVideoPlayer === 'function') {
+            $falcon.stopVideoPlayer()
+            log('音频', '已请求全局停止其它播放 (抢占)')
+          }
+        } catch (e) { log('音频', '抢占失败: ' + e) }
+      }
+      // 2) 解析输出设备
+      const want = String(getCfg('audioRoute') || 'auto')
+      const list = await audio.btDevices()
+      this.btDevices = list
+      if (want === 'bluetooth') {
+        if (!list.length) { this.audioMode = 'speaker'; this.audioMsg = '没有已连接蓝牙, 用扬声器' }
+        else { this.audioMode = 'bluetooth'; this.audioMsg = '蓝牙 ' + list[0].name }
+      } else if (want === 'auto') {
+        if (list.length) { this.audioMode = 'bluetooth'; this.audioMsg = '自动·蓝牙 ' + list[0].name }
+        else { this.audioMode = 'speaker'; this.audioMsg = '' }
+      } else {
+        this.audioMode = 'speaker'; this.audioMsg = ''
+      }
+      this.btLabel = this.audioMode === 'bluetooth' ? '蓝牙' : '扬声器'
+      log('音频', '输出=' + this.audioMode + ' ' + this.audioMsg + ' 已连接蓝牙=' + list.length)
+      return this.audioMode
+    },
+    /** 把当前音频路由真正下发给播放器元素 (起播后调用) */
+    applyAudioNow() {
+      const mac = this.audioMode === 'bluetooth' && this.btDevices.length ? this.btDevices[0].mac : ''
+      const r = audio.applyAudioRoute(this.video, this.audioMode, mac)
+      if (!r.ok) {
+        this.audioMsg = r.msg
+        // 蓝牙失败就退回扬声器, 不让用户面对无声
+        if (this.audioMode === 'bluetooth') {
+          this.audioMode = 'speaker'
+          this.btLabel = '扬声器'
+          audio.applyAudioRoute(this.video, 'speaker', '')
+        }
+      }
+      return r
+    },
+    /** 播放中点一下切换 扬声器 <-> 蓝牙 (实时, 不重起播) */
+    async toggleAudioOut() {
+      if (this.audioMode === 'bluetooth') {
+        this.audioMode = 'speaker'
+      } else {
+        const list = this.btDevices.length ? this.btDevices : await audio.btDevices()
+        this.btDevices = list
+        if (!list.length) { this.showTipLocal('没有已连接的蓝牙设备'); return }
+        this.audioMode = 'bluetooth'
+      }
+      this.btLabel = this.audioMode === 'bluetooth' ? '蓝牙' : '扬声器'
+      const r = this.applyAudioNow()
+      this.showTipLocal(r.ok ? ('已切到' + this.btLabel) : r.msg)
+      log('音频', '实时切换 -> ' + this.audioMode + ' ' + r.msg)
+    },
+    showTipLocal(t) {
+      this.audioMsg = t
+      const self = this
+      if (this._audioTipT) { try { clearTimeout(this._audioTipT) } catch (e) {} }
+      this._audioTipT = setTimeout(function () { if (self.audioMsg === t) self.audioMsg = '' }, 1800)
+    },
+
     playStream(url, gen) {
       if (gen !== this._gen) return
       this.statusText = '缓冲中…'
@@ -350,6 +432,8 @@ export default {
         this.startPoll()
         if (!this._applied) {
           this._applied = true
+          // 起播成功后再下发音频路由: 元素此时才真的持有 ALSA sink
+          this.applyAudioNow()
           if (this.rate !== 1) this.elem('setRate', this.rate)
           const at = (this._resumeAt || 0) > 0 ? this._resumeAt : (Number(getCfg('skipIntroSec')) || 0)
           if (at > 0) { this.elem('seekto', at); this.curMs = at * 1000; this.posMs = at * 1000; this.posAt = Date.now() }
@@ -735,5 +819,9 @@ export default {
 .qitem { height: 32px; flex-direction: row; align-items: center; justify-content: center; margin-bottom: 4px; }
 .qit { }
 .qdev { margin-left: 6px; }
+/* 音频提示: 控制条上方居中 */
+.atip { position: absolute; left: 340px; bottom: 62px; width: 280px; height: 30px; justify-content: center; align-items: center;
+        background-color: rgba(0,0,0,0.78); border-radius: 10px; }
+.at { }
 .ratet { }
 </style>

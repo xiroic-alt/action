@@ -103,6 +103,8 @@ jobs:
           # .so 与 manifest 都必须存在
           unzip -l "$amr" | grep -q 'libjsapi_bilinet.so' || { echo "::error::AMR 缺少 libjsapi_bilinet.so —— 装到设备上必然白屏"; exit 1; }
           unzip -l "$amr" | grep -q 'manifest.json' || { echo "::error::AMR 缺少 manifest.json"; exit 1; }
+          # emoji 字体必须随包 (设置页的"安装表情字体"要读它)
+          unzip -l "$amr" | grep -q 'Twemoji.ttf' || { echo "::error::AMR 缺少 libs/Twemoji.ttf"; exit 1; }
           # manifest 的版本与 appid 必须与 package.json 一致 (防止打包器缓存旧值)
           unzip -p "$amr" manifest.json | python3 -c "import json,sys; m=json.load(sys.stdin); p=json.load(open('package.json')); assert m['appid']==p['appid'], 'appid 不一致'; print('appid OK:', m['appid']); print('version:', m['version'])"
           echo "原生模块与 manifest 校验通过"
