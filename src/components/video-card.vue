@@ -43,7 +43,8 @@ export default {
     picWS() { return this.picW + 'px' },
     cardWS() { return this.w + 'px' },
     // 卡片总高 = 封面 + 文字区 (标题 2 行 + 副信息). 给死高度网格才整齐.
-    cardHS() { return (this.coverH + 54) + 'px' }
+    // 文字区实测: 标题 2 行(~44) + 副信息(~14) + 上下内边距(14) ≈ 72
+    cardHS() { return (this.coverH + 72) + 'px' }
   },
   methods: {
     /**

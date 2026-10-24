@@ -50,7 +50,9 @@ import { log } from '../../core/log.js'
 // ★ 内容宽 = 屏宽 - 侧栏 - 安全边距. 这里必须用 SPEC.safeSpace:
 //   SCREEN 里没有 safeSpace 这个键, 写错会得到 NaN, 卡片宽度就永远停在默认值.
 const CONTENT_W = SCREEN.width - SCREEN.navRail - SPEC.safeSpace
-const COL = 3
+// 列数: 笔屏 960x266 极扁, 3 列时封面高 174px + 文字区会超出可视区,
+// 4 列封面 129px, 封面+文字 201px, 正好放进 220px 内容区并留出滚动余量.
+const COL = 4
 
 export default {
   components: { NavRail, VideoCard },
