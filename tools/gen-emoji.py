@@ -36,6 +36,40 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from emoji_list import EMOJI  # noqa: E402
 
 
+def render_one_png(font, ch, size):
+    """按指定边长渲染单个 emoji, 居中留 1px 边距"""
+    big = size * 2
+    im = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    ok = False
+    try:
+        d.text((0, 0), ch, font=font, embedded_color=True)
+        ok = True
+    except Exception:
+        try:
+            d.text((0, 0), ch, font=font)
+            ok = True
+        except Exception:
+            ok = False
+    if not ok:
+        return None
+    bbox = im.getbbox()
+    if not bbox:
+        return None
+    cropped = im.crop(bbox)
+    w, h = cropped.size
+    scale = min(1.0, (size - 2) / float(max(w, h)))
+    if scale < 1.0:
+        cropped = cropped.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
+    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    canvas.paste(cropped, ((size - cropped.size[0]) // 2, (size - cropped.size[1]) // 2), cropped)
+    # PNG8 量化: emoji 是扁平色块, 64 色几乎无损, 体积再降一半
+    try:
+        return canvas.quantize(colors=64, method=Image.FASTOCTREE, dither=Image.NONE).convert("RGBA")
+    except Exception:
+        return canvas
+
+
 def render_cell(font, ch):
     """把一个 emoji 渲染成 CELL x CELL 的 RGBA 小图 (居中, 等视觉大小)"""
     im = Image.new("RGBA", (SIZE * 2, SIZE * 2), (0, 0, 0, 0))
@@ -67,6 +101,7 @@ def render_cell(font, ch):
 
 def main():
     check_only = "--check" in sys.argv
+    png_mode = "--pngs" in sys.argv
     os.makedirs(OUT, exist_ok=True)
     atlas_path = os.path.join(OUT, "atlas.png")
     idx_path = os.path.join(OUT, "index.json")
@@ -77,6 +112,35 @@ def main():
             return 1
         idx = json.load(open(idx_path, encoding="utf-8"))
         print("图集就绪, 索引 %d 条" % len(idx))
+        return 0
+
+    if png_mode:
+        # 独立 PNG 模式: 设备上 emoji 字体不可用 (框架按内部 family 名匹配且启动时缓存),
+        # 只能用 <image> 显示. 24px 足够 (界面显示 14-18px), 单张约 600B.
+        PNG = os.path.join(OUT, "png")
+        os.makedirs(PNG, exist_ok=True)
+        font = ImageFont.truetype(FONT, 24)
+        idx = {}
+        made = 0
+        for ch in EMOJI:
+            key = "-".join("%04X" % ord(c) for c in ch)
+            if key in idx: continue
+            img = render_cell(font, ch) if SIZE == 24 else None
+            # render_cell 用的是全局 SIZE, 这里临时按 24 渲染
+            img = render_one_png(font, ch, 24)
+            if img is None: continue
+            fn = key + ".png"
+            try:
+                q = img.quantize(colors=64, method=Image.FASTOCTREE, dither=Image.NONE)
+                q.save(os.path.join(PNG, fn), "PNG", optimize=True)
+            except Exception:
+                img.save(os.path.join(PNG, fn), "PNG", optimize=True)
+            idx[key] = fn
+            made += 1
+        with open(os.path.join(OUT, "png-index.json"), "w", encoding="utf-8") as f:
+            json.dump(idx, f, ensure_ascii=False, separators=(",", ":"))
+        total = sum(os.path.getsize(os.path.join(PNG, v)) for v in idx.values())
+        print("PNG 模式: %d 张, 共 %.0f KB, 均 %.0f B" % (made, total/1024, total/max(1,made)))
         return 0
 
     font = ImageFont.truetype(FONT, SIZE)
