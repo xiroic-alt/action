@@ -145,7 +145,7 @@ export default {
     return {
       // ★ 世代守卫必须声明在 data 里: 否则 ++undefined = NaN, 而 NaN !== NaN 恒真,
       //   结果被判定为"过期"直接丢弃, 页面永远停在加载中 (项目历史踩过这个坑)
-      _gen: 0,
+      genSeq: 0,
       U: ui(),
       nav: 'mine',
       user: null,               // services/api.js nav() 的结果
@@ -208,8 +208,8 @@ export default {
     // ---- 生命周期: 项目约定只有 onShow / onPageUnload 被转发 ----
     mounted() {
       // 私有键不进 data (Vue2 不代理以 _ 开头的键), 在 mounted 里显式初始化:
-      // 世代计数必须真的是数字, 否则 ++this._gen 得到 NaN, 守卫会永远判"过期".
-      this._gen = 0
+      // 世代计数必须真的是数字, 否则 ++this.genSeq 得到 NaN, 守卫会永远判"过期".
+      this.genSeq = 0
       this._started = false
       this._tipTimer = null
       this._started = true
@@ -222,48 +222,48 @@ export default {
       this.recheck()
     },
     onPageUnload() {
-      this._gen++
+      this.genSeq++
       if (this._tipTimer) { clearTimeout(this._tipTimer); this._tipTimer = null }
     },
 
     // ---- 数据 ----
     async refresh() {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       this.loading = true
       this.status = ''
       try {
         const me = await nav()
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.user = me
         this.face = me.face || ''
         if (!me.isLogin) { this.items = []; return }
         await this.loadTab(gen)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.status = (e && e.message ? e.message : String(e))
       } finally {
-        if (gen === this._gen) this.loading = false
+        if (gen === this.genSeq) this.loading = false
       }
     },
     async loadCurrent() {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       this.loading = true
       this.status = ''
       if (!this.isLogin) { this.items = []; this.loading = false; return }
       try {
         await this.loadTab(gen)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.status = (e && e.message ? e.message : String(e))
       } finally {
-        if (gen === this._gen) this.loading = false
+        if (gen === this.genSeq) this.loading = false
       }
     },
     async recheck() {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       try {
         const me = await nav()
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         const was = this.user ? this.user.isLogin : false
         this.user = me
         this.face = me.face || ''
@@ -274,14 +274,14 @@ export default {
       if (this.tab === 'fav') {
         if (this.favLevel === 'folders') {
           const r = await favFoldersAll()
-          if (gen !== this._gen) return
+          if (gen !== this.genSeq) return
           this.items = r.list.map(this.folderRow)
           this.status = r.list.length ? '' : '还没有收藏夹'
           return
         }
         const page = this.items.length ? (this.favPage + 1) : 1
         const r = await favResources(this.folderId, page)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.favPage = page
         const add = this.decorate(r.list)
         this.items = page === 1 ? add : this.items.concat(add)
@@ -293,7 +293,7 @@ export default {
         if (this.items.length && !this.cursor.max) { this.status = '没有更多了'; return }
         if (!this.items.length) this.cursor = { max: 0, view_at: 0 }
         const r = await historyCursor(this.cursor.max, this.cursor.view_at)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.cursor = r.cursor
         this.items = this.items.concat(this.decorate(r.list))
         if (!this.items.length) this.status = '暂无观看历史'
@@ -303,7 +303,7 @@ export default {
       // 稍后再看: 一次拉全, 没有分页
       if (this.items.length) { this.status = '没有更多了'; return }
       const list = await toViewList()
-      if (gen !== this._gen) return
+      if (gen !== this.genSeq) return
       this.items = this.decorate(list)
       this.status = list.length ? '' : '稍后再看是空的'
     },

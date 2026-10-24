@@ -73,7 +73,7 @@ export default {
       status: '',
       face: '',
       cardW: 200,
-      _gen: 0
+      genSeq: 0
     }
   },
   mounted() {
@@ -87,7 +87,7 @@ export default {
       this.U = ui()
       if (this.items.length === 0) this.load(true)
     },
-    onPageUnload() { this._gen++ },
+    onPageUnload() { this.genSeq++ },
 
     onNav(id) {
       if (id === 'mine') this.onMine()
@@ -122,38 +122,38 @@ export default {
     },
 
     async load(reset) {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       if (reset) { this.page = 1; this.status = '' }
       this.loading = true
       log('首页', '开始加载 ' + this.tab + ' p' + this.page + ' gen=' + gen)
       try {
         if (this.tab === 'rcmd') {
           const list = await recommend(12, this.page)
-          if (gen !== this._gen) return
+          if (gen !== this.genSeq) return
           this.items = reset ? list : this.items.concat(list)
           if (!list.length) this.status = '没有更多了'
         } else if (this.tab === 'hot') {
           const list = await popular(this.page)
-          if (gen !== this._gen) return
+          if (gen !== this.genSeq) return
           this.items = reset ? list : this.items.concat(list)
         } else if (this.tab === 'bangumi') {
           const list = await bangumiList()
-          if (gen !== this._gen) return
+          if (gen !== this.genSeq) return
           this.items = list
           if (!list.length) this.status = '暂无番剧数据'
         } else {
           const list = await liveList(this.page)
-          if (gen !== this._gen) return
+          if (gen !== this.genSeq) return
           this.items = reset ? list : this.items.concat(list)
           if (!list.length) this.status = '暂无直播'
         }
         log('首页', '装载 ' + this.items.length + ' 条 (' + this.tab + ' p' + this.page + ')')
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.status = (e && e.message ? e.message : String(e))
         log('首页', '加载失败[' + ((e && e.kind) || 'unknown') + ']: ' + this.status)
       } finally {
-        if (gen === this._gen) this.loading = false
+        if (gen === this.genSeq) this.loading = false
       }
     },
     loadMore() {

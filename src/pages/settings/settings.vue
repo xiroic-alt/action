@@ -211,8 +211,8 @@ export default {
     return {
       // 表情预览: 覆盖中文混排/肤色/ZWJ 组合/星形与箭头 (设备字体缺的那些)
       emojiPreview: '中文混排 😀👍 组合 👨‍👩‍👧 爱心 ❤️ 星 ⭐ 箭头 → 手势 🎉 音符 🎵',
-      _btPower: null,
-      _btList: [],
+      btPower: null,
+      btList: [],
       U: ui(),
       S: SCREEN,
       vals: {},
@@ -424,17 +424,17 @@ export default {
     async btScan() {
       this.showTip('正在扫描蓝牙…')
       const [power, list] = await Promise.all([audio.btPowerState(), audio.btDevices()])
-      this._btPower = power
-      this._btList = list
+      this.btPower = power
+      this.btList = list
       this.refreshGroup()
       this.showTip(list.length ? ('找到 ' + list.length + ' 个已连接设备') : (power === 'off' ? '蓝牙未开启' : '没有已连接的蓝牙设备'))
       log('设置', '蓝牙扫描: power=' + power + ' devices=' + list.length)
     },
     btStatusText() {
-      const power = this._btPower
+      const power = this.btPower
       if (power == null) return '未扫描'
       if (power === 'off') return '未开启'
-      const list = this._btList || []
+      const list = this.btList || []
       if (!list.length) return '已开启, 无连接设备'
       return list.map(function (d) { return d.name }).join(' / ').slice(0, 40)
     },

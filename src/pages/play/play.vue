@@ -171,7 +171,7 @@ export default {
       // 音频输出
       btDevices: [], btLabel: '', audioMode: 'speaker', audioMsg: '',
       // 内部
-      _gen: 0, _poll: null, _hide: null, _resumeRead: false, _applied: false
+      genSeq: 0, _poll: null, _hide: null, _resumeRead: false, _applied: false
     }
   },
   computed: {
@@ -223,7 +223,7 @@ export default {
   methods: {
     onShow() { this.U = ui() },
     onPageUnload() {
-      this._gen++
+      this.genSeq++
       this.stopPoll()
       this.cancelHide()
       if (this._hide) { clearTimeout(this._hide); this._hide = null }
@@ -245,7 +245,7 @@ export default {
     },
 
     async load() {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       // 直播: 不走详情/弹幕 XML/字幕, 直接取流; 无进度条与续播语义
       if (this.isLive) {
         if (!this.roomid) { this.statusText = '缺少直播间号'; return }
@@ -255,7 +255,7 @@ export default {
       if (!this.bvid) { this.statusText = '缺少视频参数'; return }
       try {
         const d = await videoDetail(this.bvid)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         if (!this.titleText) this.titleText = d.title
         const cid = d.cid
         if (!cid) throw new Error('未取到 cid')
@@ -270,7 +270,7 @@ export default {
           log('播放', 'web 口取流失败, 退回 H5 口')
           p = await playUrl(this.bvid, cid, { source: 'html5', qn: wantQn })
         }
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.applyQualities(p)
         if (p.duration > 0) this.durMs = p.duration
         // 断点续播
@@ -279,14 +279,14 @@ export default {
           this._resumeAt = getProgress(this.bvid)
         }
         await this.prepareAudio()
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.playStream(p.url, gen)
         // 弹幕 / 字幕 / 赞助片段 (都不阻塞起播)
         this.loadDanmaku(cid)
         this.loadSubtitles(d, gen)
         this.loadSponsor(gen)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.statusText = (e && e.message ? e.message : String(e)).substring(0, 60)
         this.playing = false
         log('播放', '加载失败: ' + this.statusText)
@@ -299,12 +299,12 @@ export default {
       this.statusText = '连接直播中…'
       try {
         const p = await liveRoomPlayUrl(this.roomid, this.liveSrcTry)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.titleText = this.titleText || ('直播间 ' + this.roomid)
         this.liveStartedAt = Date.now()
         this.playStream(p.url, gen)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.statusText = (e && e.message ? e.message : String(e)).substring(0, 50)
         log('播放', '直播取流失败: ' + this.statusText)
       }
@@ -320,9 +320,9 @@ export default {
       this.stopPoll()
       this.playing = false
       this.statusText = '重连中 (第 ' + this.liveReconnect + ' 次)…'
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       const self = this
-      setTimeout(function () { if (gen === self._gen) self.loadLive(gen) }, 1500)
+      setTimeout(function () { if (gen === self.genSeq) self.loadLive(gen) }, 1500)
     },
 
     // ---------------- 音频仲裁与路由 ----------------
@@ -395,7 +395,7 @@ export default {
     },
 
     playStream(url, gen) {
-      if (gen !== this._gen) return
+      if (gen !== this.genSeq) return
       this.statusText = '缓冲中…'
       this.src = url
       this.started = false
@@ -403,7 +403,7 @@ export default {
       const self = this
       // src 绑定后元素要等下一次属性 diff 才建管线, 稍后再 play(0)
       setTimeout(function () {
-        if (gen !== self._gen) return
+        if (gen !== self.genSeq) return
         self.elem('play', 0)
         self.opened = true
         self.startPoll()
@@ -572,21 +572,21 @@ export default {
     },
     // 重新取流并回到指定秒
     async reloadAt(sec) {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       this.statusText = '切换中…'
       this.stopPoll()
       try {
         const d = await videoDetail(this.bvid)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         const p = await playUrl(this.bvid, d.cid, { source: 'web', qn: this.curQn })
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.applyQualities(p)
         this._resumeAt = sec     // 复用续播通道: 起播后 seek 到原位
         this._resumeRead = true
         this._applied = false
         this.playStream(p.url, gen)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.statusText = (e && e.message ? e.message : String(e)).substring(0, 50)
       }
     },
@@ -629,10 +629,10 @@ export default {
       if (!id || id === this.dmCid) return
       this.dmCid = id
       if (!this.dmOn) return
-      const gen = this._gen
+      const gen = this.genSeq
       try {
         const xml = await danmakuXml(id)
-        if (gen !== this._gen || !xml) return
+        if (gen !== this.genSeq || !xml) return
         this.buildDanmaku(xml)
       } catch (e) { logDebug('播放', '弹幕加载失败: ' + (e && e.message ? e.message : e)) }
     },
@@ -725,14 +725,14 @@ export default {
       for (let i = 1; i < subs.length; i++) if (subs[i].lan !== main.lan) { second = subs[i]; break }
       try {
         const raw = await subtitleBody(main.url)
-        if (gen !== this._gen || !raw) return
+        if (gen !== this.genSeq || !raw) return
         this.subCues = parseSubtitleJson(raw)
         log('播放', '字幕 ' + main.lan + ' ' + this.subCues.length + ' 条')
       } catch (e) {}
       if (second) {
         try {
           const raw2 = await subtitleBody(second.url)
-          if (gen !== this._gen || !raw2) return
+          if (gen !== this.genSeq || !raw2) return
           this.subCues2 = parseSubtitleJson(raw2)
         } catch (e) {}
       }
@@ -759,7 +759,7 @@ export default {
       if (getCfg('sbEnable') === false) return
       try {
         const list = await sponsorSegments(this.bvid)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.sbSegs = list || []
         if (this.sbSegs.length) log('播放', 'SponsorBlock 片段 ' + this.sbSegs.length + ' 个')
       } catch (e) { this.sbSegs = [] }

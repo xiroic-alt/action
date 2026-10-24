@@ -162,9 +162,8 @@ export default {
       history: [],
       trending: [],
       tloading: false,
-      _gen: 0,
-      _ime: null,
-      _unloaded: false
+      genSeq: 0,
+      imeSession: null,
     }
   },
   computed: {
@@ -186,8 +185,8 @@ export default {
     },
     onPageUnload() {
       this._unloaded = true
-      this._gen++
-      if (this._ime) { try { this._ime.destroy() } catch (e) {} this._ime = null }
+      this.genSeq++
+      if (this.imeSession) { try { this.imeSession.destroy() } catch (e) {} this.imeSession = null }
     },
 
     onBack() {
@@ -199,10 +198,10 @@ export default {
     // ---------------- 输入 ----------------
     async openInput() {
       if (this._unloaded) return
-      if (!this._ime) this._ime = createIME()
+      if (!this.imeSession) this.imeSession = createIME()
       let text = null
       try {
-        text = await this._ime.open({ text: this.kw, placeholder: '搜索视频 / BV·av 号直达', maxlength: 64 })
+        text = await this.imeSession.open({ text: this.kw, placeholder: '搜索视频 / BV·av 号直达', maxlength: 64 })
       } catch (e) {
         log('搜索', '输入法不可用: ' + (e && e.message ? e.message : e))
         return
@@ -217,7 +216,7 @@ export default {
       this.searched = false
       this.results = []
       this.status = ''
-      this._gen++
+      this.genSeq++
       this.loading = false
     },
 
@@ -266,12 +265,12 @@ export default {
 
     async loadResults(reset) {
       log('搜索', '开始加载 p' + this.page + ' kw=' + this.kw)
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       if (reset) { this.page = 1; this.status = '' }
       this.loading = true
       try {
         const r = await searchVideo(this.kw, this.page)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         const list = r.list || []
         this.results = reset ? list : this.results.concat(list)
         const lastPage = r.numPages > 0 ? this.page >= r.numPages : list.length === 0
@@ -280,13 +279,13 @@ export default {
         else this.status = ''
         log('搜索', '"' + this.kw + '" 第 ' + this.page + ' 页 -> ' + this.results.length + ' 条')
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         const msg = e && e.message ? e.message : String(e)
         if (reset) this.status = msg
         else this.status = '加载失败: ' + msg
         log('搜索', '失败: ' + msg)
       } finally {
-        if (gen === this._gen) this.loading = false
+        if (gen === this.genSeq) this.loading = false
       }
     },
 
@@ -303,18 +302,18 @@ export default {
     },
 
     async loadTrending() {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       this.tloading = true
       try {
         const list = await hotKeywords(14)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.trending = list || []
         log('搜索', '热搜 ' + this.trending.length + ' 条')
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.trending = []
       } finally {
-        if (gen === this._gen) this.tloading = false
+        if (gen === this.genSeq) this.tloading = false
       }
     },
 

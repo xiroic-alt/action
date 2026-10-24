@@ -121,11 +121,10 @@ export default {
       pcOk: false,
       fetching: false,
       account: null,
-      _gen: 0,        // 二维码/轮询世代
-      _accGen: 0,     // 账号校验世代 (与二维码分开, 免得互相作废)
-      _poll: null,
-      _ime: null,
-      _unloaded: false
+      genSeq: 0,        // 二维码/轮询世代
+      accGen: 0,     // 账号校验世代 (与二维码分开, 免得互相作废)
+      pollTimer: null,
+      imeSession: null,
     }
   },
   computed: {
@@ -185,10 +184,10 @@ export default {
     },
     onPageUnload() {
       this._unloaded = true
-      this._gen++
-      this._accGen++
+      this.genSeq++
+      this.accGen++
       this.stopPoll()
-      if (this._ime) { try { this._ime.destroy() } catch (e) {} this._ime = null }
+      if (this.imeSession) { try { this.imeSession.destroy() } catch (e) {} this.imeSession = null }
     },
 
     goBack() {
@@ -215,19 +214,19 @@ export default {
       this.qr = null
       this.qrRuns = []
       this.qrcodeKey = ''
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       const self = this
       // 首帧之后再做网络请求 (同步 http 会阻塞 JS 线程)
       setTimeout(function () {
         qrGenerate().then(function (r) {
-          if (self._unloaded || gen !== self._gen) return
+          if (self._unloaded || gen !== self.genSeq) return
           self.qrcodeKey = r.key
           self.qrAt = Date.now()
           self.buildQr(r.url)
           self.pollState = self.qr === null ? 'error' : 'waiting'
           if (self.pollState === 'waiting') self.startPoll()
         }).catch(function (e) {
-          if (self._unloaded || gen !== self._gen) return
+          if (self._unloaded || gen !== self.genSeq) return
           self.qrErr = e && e.message ? e.message : String(e)
           self.pollState = 'error'
           self.pollError = '生成失败: ' + self.qrErr
@@ -262,11 +261,11 @@ export default {
     startPoll() {
       this.stopPoll()
       const self = this
-      this._poll = setInterval(function () { self.pollOnce() }, POLL_MS)
+      this.pollTimer = setInterval(function () { self.pollOnce() }, POLL_MS)
     },
 
     stopPoll() {
-      if (this._poll != null) { clearInterval(this._poll); this._poll = null }
+      if (this.pollTimer != null) { clearInterval(this.pollTimer); this.pollTimer = null }
     },
 
     async pollOnce() {
@@ -277,10 +276,10 @@ export default {
         this.stopPoll()
         return
       }
-      const gen = this._gen
+      const gen = this.genSeq
       try {
         const r = await qrPoll(this.qrcodeKey)
-        if (this._unloaded || gen !== this._gen) return
+        if (this._unloaded || gen !== this.genSeq) return
         if (r.state === 'ok') {
           this.stopPoll()
           const ok = saveLogin({ sessdata: r.cookie.sessdata, biliJct: r.cookie.biliJct, dedeUserId: r.cookie.dedeUserId })
@@ -311,10 +310,10 @@ export default {
     // ---------------- 电脑同步 ----------------
     async inputIp() {
       if (this._unloaded) return
-      if (!this._ime) this._ime = createIME()
+      if (!this.imeSession) this.imeSession = createIME()
       let text = null
       try {
-        text = await this._ime.open({
+        text = await this.imeSession.open({
           text: this.pcIp,
           placeholder: '电脑局域网 IP, 如 192.168.1.100',
           maxlength: 15,
@@ -334,20 +333,20 @@ export default {
     async fetchFromPc() {
       if (this.fetching) return
       if (this.pcIp === '') { this.pcOk = false; this.pcStatus = '请先输入电脑 IP'; return }
-      const gen = this._gen
+      const gen = this.genSeq
       this.fetching = true
       this.pcOk = false
       this.pcStatus = '正在从电脑获取…'
       try {
         const c = await fetchPcCookie(this.pcIp)
-        if (this._unloaded || gen !== this._gen) return
+        if (this._unloaded || gen !== this.genSeq) return
         if (!saveLogin({ sessdata: c.sessdata, biliJct: c.biliJct, dedeUserId: c.dedeUserId })) {
           this.pcStatus = 'Cookie 缺少 SESSDATA, 保存失败'
           return
         }
         this.pcStatus = '已获取, 校验登录态…'
         const info = await nav()
-        if (this._unloaded || gen !== this._gen) return
+        if (this._unloaded || gen !== this.genSeq) return
         if (info.isLogin) {
           updateProfile(info)
           this.account = authState()
@@ -358,23 +357,23 @@ export default {
           this.pcStatus = 'Cookie 无效或已过期 (isLogin=false)'
         }
       } catch (e) {
-        if (this._unloaded || gen !== this._gen) return
+        if (this._unloaded || gen !== this.genSeq) return
         this.pcStatus = e && e.message ? e.message : String(e)
         this.pcOk = false
       } finally {
-        if (gen === this._gen) this.fetching = false
+        if (gen === this.genSeq) this.fetching = false
       }
     },
 
     // ---------------- 账号 ----------------
     /** 进页面就校验一次本地登录态 (nav), 有昵称就显示在顶栏右侧 */
     async syncAccount() {
-      const gen = ++this._accGen
+      const gen = ++this.accGen
       const s = authState()
       if (s && s.sessdata) { this.account = s }
       try {
         const info = await nav()
-        if (this._unloaded || gen !== this._accGen) return
+        if (this._unloaded || gen !== this.accGen) return
         if (info.isLogin) {
           updateProfile(info)
           this.account = authState()
@@ -387,7 +386,7 @@ export default {
     },
 
     doLogout() {
-      this._accGen++
+      this.accGen++
       clearLogin()
       this.account = null
       this.pcStatus = ''

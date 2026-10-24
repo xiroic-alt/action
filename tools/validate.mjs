@@ -121,6 +121,18 @@ for (const f of vueFiles) {
   if (missing.length) bad(path.relative(ROOT, f) + ' 样式类未定义 (元素会 0 尺寸/不可见): ' + missing.join(','))
 }
 
+// ---- Vue2 data 键命名 (真机踩过: _gen 未代理 -> ++undefined = NaN -> 页面永远卡加载) ----
+// Vue 2 不会把 data 里以 _ 或 $ 开头的键代理到 this 上, 读写都是 undefined.
+for (const f of vueFiles) {
+  const t = fs.readFileSync(f, 'utf8')
+  const di = t.indexOf('data()')
+  if (di < 0) continue
+  const block = t.slice(di, di + 2500)
+  for (const m of block.matchAll(/^\s{6}([_$]\w+)\s*:/gm)) {
+    bad(path.relative(ROOT, f) + ' data() 里有 ' + m[1] + ' —— Vue2 不代理 _/$ 开头的键, this.' + m[1] + ' 恒为 undefined')
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

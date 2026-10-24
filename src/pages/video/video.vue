@@ -250,11 +250,11 @@ export default {
       descOpen: false,
       detailOpen: false,
       tip: '',
-      // 世代守卫: 页面级装载用 ++this._gen, 动作类请求只读当前值做过期判断
-      _gen: 0,
-      _cmtGen: 0,
-      _tipTimer: null,
-      _busy: { like: false, coin: false, fav: false, follow: false }
+      // 世代守卫: 页面级装载用 ++this.genSeq, 动作类请求只读当前值做过期判断
+      genSeq: 0,
+      cmtGen: 0,
+      tipTimer: null,
+      busyLock: { like: false, coin: false, fav: false, follow: false }
     }
   },
   computed: {
@@ -321,19 +321,19 @@ export default {
     // 框架只转发这两个生命周期
     onShow() { this.U = ui() },
     onPageUnload() {
-      this._gen++
-      this._cmtGen++
-      if (this._tipTimer != null) { clearTimeout(this._tipTimer); this._tipTimer = null }
+      this.genSeq++
+      this.cmtGen++
+      if (this.tipTimer != null) { clearTimeout(this.tipTimer); this.tipTimer = null }
     },
 
     // ---------------- 装载 ----------------
     async load() {
-      const gen = ++this._gen
+      const gen = ++this.genSeq
       log('详情', '开始加载 gen=' + gen)
       if (this.bvid === '') { this.titleText = '缺少视频参数'; return }
       try {
         const d = await videoDetail(this.bvid)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.aid = d.aid
         this.titleText = d.title
         this.descText = d.desc
@@ -359,7 +359,7 @@ export default {
         if (getCfg('autoLoadComments') === false) this.cmtIdle = true
         else this.loadComments(true)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.titleText = '加载失败'
         this.descText = (e && e.message ? e.message : String(e))
         log('详情', '加载失败: ' + this.descText)
@@ -371,13 +371,13 @@ export default {
       if (!this.mid) return
       try {
         const u = await userCard(this.mid)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.up = { fansRaw: u.fansRaw, fansText: u.fansText }
         this.following = !!u.following
         if (u.name !== '') this.upName = u.name
         if (u.face !== '') this.faceUrl = u.face
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         log('详情', 'UP 名片失败: ' + (e && e.message ? e.message : e))
       }
     },
@@ -387,7 +387,7 @@ export default {
       if (!this.aid || !hasCookie()) return
       try {
         const list = await favFolders(this.aid)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         let def = 0
         for (let i = 0; i < list.length; i++) {
           if (def === 0) def = list[i].id
@@ -395,7 +395,7 @@ export default {
         }
         this.favFolderId = def
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         log('详情', '收藏夹失败: ' + (e && e.message ? e.message : e))
       }
     },
@@ -409,17 +409,17 @@ export default {
     },
 
     async doLike() {
-      if (this._busy.like || !this.aid) return
+      if (this.busyLock.like || !this.aid) return
       if (!hasCookie()) { this.showTip('请先登录再点赞'); return }
-      this._busy.like = true
-      const gen = this._gen
+      this.busyLock.like = true
+      const gen = this.genSeq
       const was = this.liked
       const prev = this.cnt.like
       this.liked = !was
       this.cnt.like = Math.max(0, prev + (this.liked ? 1 : -1))
       try {
         const r = await like(this.aid, this.liked)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         // 接口的 action 字段是权威状态 (1 已赞 / 0 未赞), 有就按它收敛
         const act = (r && r.data && r.data.action != null) ? Number(r.data.action) : null
         if (act !== null) {
@@ -428,43 +428,43 @@ export default {
           this.liked = now
         }
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.liked = was
         this.cnt.like = prev
         this.showTip(e && e.message ? e.message : '点赞失败')
       } finally {
-        if (gen === this._gen) this._busy.like = false
+        if (gen === this.genSeq) this.busyLock.like = false
       }
     },
 
     async doCoin() {
-      if (this._busy.coin || !this.aid) return
+      if (this.busyLock.coin || !this.aid) return
       if (!hasCookie()) { this.showTip('请先登录再投币'); return }
       if (this.coined) { this.showTip('已投过币'); return }
-      this._busy.coin = true
-      const gen = this._gen
+      this.busyLock.coin = true
+      const gen = this.genSeq
       const prev = this.cnt.coin
       this.coined = true
       this.cnt.coin = prev + 1
       try {
         await coin(this.aid, 1, false)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.coined = false
         this.cnt.coin = prev
         this.showTip(e && e.message ? e.message : '投币失败')
       } finally {
-        if (gen === this._gen) this._busy.coin = false
+        if (gen === this.genSeq) this.busyLock.coin = false
       }
     },
 
     async doFav() {
-      if (this._busy.fav || !this.aid) return
+      if (this.busyLock.fav || !this.aid) return
       if (!hasCookie()) { this.showTip('请先登录再收藏'); return }
       if (!this.favFolderId) { this.showTip('没有可用收藏夹'); return }
-      this._busy.fav = true
-      const gen = this._gen
+      this.busyLock.fav = true
+      const gen = this.genSeq
       const was = this.faved
       const prev = this.cnt.fav
       const fid = this.favFolderId
@@ -473,22 +473,22 @@ export default {
       try {
         if (was) await fav(this.aid, '', fid)
         else await fav(this.aid, fid, '')
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.faved = was
         this.cnt.fav = prev
         this.showTip(e && e.message ? e.message : '收藏失败')
       } finally {
-        if (gen === this._gen) this._busy.fav = false
+        if (gen === this.genSeq) this.busyLock.fav = false
       }
     },
 
     async toggleFollow() {
-      if (this._busy.follow || !this.mid) return
+      if (this.busyLock.follow || !this.mid) return
       if (!hasCookie()) { this.showTip('请先登录再关注'); return }
-      this._busy.follow = true
-      const gen = this._gen
+      this.busyLock.follow = true
+      const gen = this.genSeq
       const was = this.following
       const prevFans = this.up.fansRaw
       this.following = !was
@@ -496,16 +496,16 @@ export default {
       this.up.fansText = playCount(this.up.fansRaw)
       try {
         await relationModify(this.mid, this.following ? 1 : 2)
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         log('详情', (this.following ? '关注' : '取关') + ' mid=' + this.mid)
       } catch (e) {
-        if (gen !== this._gen) return
+        if (gen !== this.genSeq) return
         this.following = was
         this.up.fansRaw = prevFans
         this.up.fansText = playCount(prevFans)
         this.showTip(e && e.message ? e.message : '关注失败')
       } finally {
-        if (gen === this._gen) this._busy.follow = false
+        if (gen === this.genSeq) this.busyLock.follow = false
       }
     },
 
@@ -523,12 +523,12 @@ export default {
     async loadComments(reset) {
       if (!this.aid) return
       if (this.loadingCmt && !reset) return
-      const gen = ++this._cmtGen
+      const gen = ++this.cmtGen
       this.loadingCmt = true
       if (reset) { this.page = 1; this.hasMore = true; this.cmtStatus = '' }
       try {
         const r = await replies(this.aid, this.page, this.sort, 1)
-        if (gen !== this._cmtGen) return
+        if (gen !== this.cmtGen) return
         const list = (r.list || []).map(prepReply)
         this.comments = reset ? list : this.comments.concat(list)
         if (r.total > 0) this.replyTotal = r.total
@@ -536,11 +536,11 @@ export default {
         if (!this.hasMore && this.comments.length === 0) this.cmtStatus = '还没有评论'
         log('详情', '评论 ' + this.comments.length + '/' + r.total + ' (' + this.sort + ' p' + this.page + ')')
       } catch (e) {
-        if (gen !== this._cmtGen) return
+        if (gen !== this.cmtGen) return
         this.cmtStatus = (e && e.message ? e.message : String(e))
         log('详情', '评论失败: ' + this.cmtStatus)
       } finally {
-        if (gen === this._cmtGen) this.loadingCmt = false
+        if (gen === this.cmtGen) this.loadingCmt = false
       }
     },
     onScroll(e) {
@@ -613,16 +613,16 @@ export default {
     closeDetail() { this.detailOpen = false },
     showTip(msg) {
       this.tip = String(msg || '').substring(0, 40)
-      if (this._tipTimer != null) clearTimeout(this._tipTimer)
+      if (this.tipTimer != null) clearTimeout(this.tipTimer)
       const self = this
-      this._tipTimer = setTimeout(function () {
-        self._tipTimer = null
+      this.tipTimer = setTimeout(function () {
+        self.tipTimer = null
         self.tip = ''
       }, 1800)
     },
     hideTip() {
       this.tip = ''
-      if (this._tipTimer != null) { clearTimeout(this._tipTimer); this._tipTimer = null }
+      if (this.tipTimer != null) { clearTimeout(this.tipTimer); this.tipTimer = null }
     }
   }
 }
