@@ -133,6 +133,33 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- 设计 token 键存在性 (真机踩过: SCREEN.safeSpace 不存在 -> 宽度算成 NaN -> 卡片宽度永远默认值) ----
+{
+  const tk = fs.readFileSync(path.join(ROOT, 'src/design/tokens.js'), 'utf8')
+  const keysOf = (name) => {
+    const m = tk.match(new RegExp('(?:const|export const)\\s+' + name + '\\s*=\\s*\\{([\\s\\S]*?)\\}'))
+    if (!m) return null
+    const out = new Set()
+    for (const kv of m[1].matchAll(/([A-Za-z_$][\w$]*)\s*:/g)) out.add(kv[1])
+    return out
+  }
+  const sets = { SCREEN: keysOf('SCREEN'), SPEC: keysOf('SPEC'), SPACE: keysOf('SPACE'), TYPE: keysOf('TYPE') }
+  for (const [fname, set] of Object.entries(sets)) {
+    if (!set) continue
+    for (const f of [...jsFiles, ...vueFiles]) {
+      const t = fs.readFileSync(f, 'utf8')
+      // 只查真正从 design/tokens.js 导入该名字的文件 (项目里 config.js 有同名的 SPEC, 会误报)
+      const imp = t.match(/import\s*\{([^}]*)\}\s*from\s*'[^']*design\/tokens\.js'/)
+      if (!imp) continue
+      const imported = imp[1].split(',').map((s) => s.trim().split(/\s+as\s+/).pop())
+      if (imported.indexOf(fname) < 0) continue
+      for (const m of t.matchAll(new RegExp('\\b' + fname + '\\.([A-Za-z_$][\\w$]*)', 'g'))) {
+        if (!set.has(m[1])) bad(path.relative(ROOT, f) + ' ' + fname + '.' + m[1] + ' 不是 tokens.js 里的键 (会得到 undefined/NaN)')
+      }
+    }
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

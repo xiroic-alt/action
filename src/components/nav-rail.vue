@@ -9,7 +9,7 @@
     <div class="lead">
       <div class="av" :style="{ width: '44px', height: '44px', borderRadius: U.rad.chip + 'px', backgroundColor: U.c.surfaceContainerHighest }" @click="onAvatar">
         <image v-if="face !== ''" class="avimg" :src="face" :style="{ width: '44px', height: '44px', borderRadius: U.rad.chip + 'px' }"></image>
-        <image v-else class="avic" :src="MIc.mine" :style="{ width: '24px', height: '24px' }"></image>
+        <image v-else class="avic" :src="MIc.mine" :style="{ width: '26px', height: '26px' }"></image>
       </div>
       <div class="sbtn" :style="{ width: '44px', height: '44px', borderRadius: U.rad.chip + 'px', backgroundColor: U.c.surfaceContainerHighest }" @click="onSearch">
         <image class="sic" :src="MIc.search" :style="{ width: '22px', height: '22px' }"></image>
@@ -17,10 +17,13 @@
     </div>
 
     <div class="group">
-      <div v-for="it in items" :key="it.id" class="dest" @click="pick(it)">
-        <div v-if="it.id === current" class="ind" :style="{ backgroundColor: U.c.primaryContainer, borderRadius: U.rad.chip + 'px' }"></div>
-        <image class="dic" :src="ic(it)" :style="{ width: '26px', height: '26px' }"></image>
-        <text v-if="it.id === current" class="dlab" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurface }">{{ it.label }}</text>
+      <!-- 选中态: 圆角矩形作为 .dest 的绝对定位子元素.
+           ★ .dest 必须有 position: relative, 否则绝对定位会相对外层容器,
+             圆角矩形被裁掉一半 (真机截图就是这个现象). -->
+      <div v-for="it in items" :key="it.id" class="dest" :style="destStyle(it)" @click="pick(it)">
+        <div v-if="it.id === current" class="ind" :style="indStyle()"></div>
+        <image class="dic" :src="ic(it)" :style="{ width: '24px', height: '24px' }"></image>
+        <text v-if="it.id === current" class="dlab" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onPrimaryContainer }">{{ it.label }}</text>
       </div>
     </div>
   </div>
@@ -82,6 +85,16 @@ export default {
       if (it.id === this.current) { this.$emit('reselect', it.id); return }
       this.$emit('select', it.id)
     },
+    destStyle(it) {
+      // 未选中保持透明 (Material NavigationRail 原貌: 只有选中项有 indicator)
+      return { backgroundColor: 'transparent', borderRadius: this.U.rad.chip + 'px' }
+    },
+    indStyle() {
+      return {
+        backgroundColor: this.U.c.primaryContainer,
+        borderRadius: this.U.rad.chip + 'px'
+      }
+    },
     onAvatar() { this.$emit('avatar') },
     onSearch() { this.$emit('search') }
   }
@@ -91,12 +104,15 @@ export default {
 <style scoped>
 .rail { height: 266px; flex-direction: column; align-items: center; }
 .lead { flex-direction: column; align-items: center; margin-top: 8px; }
+/* 头像/搜索按钮: 用比侧栏底色亮一档的容器, 否则在深色下几乎看不见 */
 .av { justify-content: center; align-items: center; margin-bottom: 8px; overflow: hidden; }
 .sbtn { justify-content: center; align-items: center; }
 .group { flex: 1; flex-direction: column; align-items: center; justify-content: center; }
-/* 命中区必须显式尺寸 (本机只挂 padding 的 div 命中区为 0) */
-.dest { width: 64px; height: 58px; justify-content: center; align-items: center; margin-top: 2px; margin-bottom: 2px; }
-.ind { position: absolute; left: 0px; top: 0px; width: 64px; height: 58px; }
+/* 命中区必须显式尺寸 (本机只挂 padding 的 div 命中区为 0);
+   position: relative 是选中态圆角矩形的定位上下文, 缺了就会被裁切 */
+.dest { position: relative; width: 64px; height: 56px; flex-direction: column;
+        justify-content: center; align-items: center; margin-top: 2px; margin-bottom: 2px; }
+.ind { position: absolute; left: 0px; top: 0px; width: 64px; height: 56px; }
 .dlab { margin-top: 1px; }
 .avimg { width: 44px; height: 44px; border-radius: 22px; }
 .avic { width: 24px; height: 24px; }

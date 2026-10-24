@@ -43,11 +43,13 @@
 import NavRail from '../../components/nav-rail.vue'
 import VideoCard from '../../components/video-card.vue'
 import { ui } from '../../design/ui.js'
-import { SCREEN } from '../../design/tokens.js'
+import { SCREEN, SPEC } from '../../design/tokens.js'
 import { recommend, popular, bangumiList, liveList } from '../../services/api.js'
 import { log } from '../../core/log.js'
 
-const CONTENT_W = SCREEN.width - SCREEN.navRail - SCREEN.safeSpace
+// ★ 内容宽 = 屏宽 - 侧栏 - 安全边距. 这里必须用 SPEC.safeSpace:
+//   SCREEN 里没有 safeSpace 这个键, 写错会得到 NaN, 卡片宽度就永远停在默认值.
+const CONTENT_W = SCREEN.width - SCREEN.navRail - SPEC.safeSpace
 const COL = 3
 
 export default {
@@ -86,7 +88,7 @@ export default {
     },
     /** 卡片宽度: mounted 在设备上不保证被转发, 所以 onShow 也调一次 */
     layout() {
-      const inner = CONTENT_W - SCREEN.safeSpace
+      const inner = CONTENT_W - SPEC.safeSpace
       const w = Math.floor((inner - (COL - 1) * this.U.sp.sm) / COL)
       if (w > 0 && w !== this.cardW) this.cardW = w
     },

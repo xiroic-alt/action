@@ -2,9 +2,9 @@
   <!-- 视频卡片 —— PiliNara 同款:
        Style.cardSpace=8 / mdRadius=10 / aspectRatio=16:10 / 标题最多 2 行
        播放量 + 时长药丸盖在封面右下, 与上游首页卡片一致 -->
-  <div class="card" :style="{ width: cardW, backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }" @click="onTap">
-    <div class="cover" :style="{ width: cardW, height: coverH, borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }">
-      <image v-if="v.pic" class="coverimg" :src="thumb(v.pic, picW)" :style="{ width: picW, height: coverH, borderRadius: U.rad.card + 'px' }" resize="cover"></image>
+  <div class="card" :style="{ width: cardWS, backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }" @click="onTap">
+    <div class="cover" :style="{ width: cardWS, height: coverHS, borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }">
+      <image v-if="v.pic" class="coverimg" :src="thumb(v.pic, picW)" :style="{ width: picWS, height: coverHS, borderRadius: U.rad.card + 'px' }" resize="cover"></image>
       <div class="meta" v-if="U.den.showStat !== false">
         <text class="mt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.playText }}</text>
         <text class="mt2" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.durationText }}</text>
@@ -34,10 +34,14 @@ export default {
     return { U: ui(), RATIO: SPEC.coverRatio }
   },
   computed: {
-    // ★ 必须返回带 px 的字符串: 框架的 style 不吃裸数字 (真机上表现为高度 0 -> 封面不显示)
-    coverH() { return Math.round(this.w / this.RATIO) + 'px' },
-    picW() { return Math.round(this.w * 2) + 'px' },
-    cardW() { return this.w + 'px' }
+    // ★ 两套值, 别混用:
+    //   coverH / picW 是**数字** (picW 要拼进图片 URL 的 @..w 参数)
+    //   *S 结尾的是给 style 用的**带 px 字符串** (框架的 style 不吃裸数字, 否则盒子塌成 0)
+    coverH() { return Math.round(this.w / this.RATIO) },
+    picW() { return Math.round(this.w * 2) },
+    coverHS() { return this.coverH + 'px' },
+    picWS() { return this.picW + 'px' },
+    cardWS() { return this.w + 'px' }
   },
   methods: {
     thumb(url, w) {
@@ -53,7 +57,7 @@ export default {
 </script>
 
 <style scoped>
-.card { height: 100%; flex-direction: column; }
+.card { flex-direction: column; overflow: hidden; }
 .cover { position: relative; overflow: hidden; }
 .coverimg { }
 .meta { position: absolute; right: 6px; bottom: 6px; flex-direction: row; align-items: center;
