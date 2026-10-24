@@ -2,8 +2,8 @@
   <!-- 视频卡片 —— PiliNara 同款:
        Style.cardSpace=8 / mdRadius=10 / aspectRatio=16:10 / 标题最多 2 行
        播放量 + 时长药丸盖在封面右下, 与上游首页卡片一致 -->
-  <div class="card" :style="{ width: w, backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }" @click="onTap">
-    <div class="cover" :style="{ width: w, height: coverH, borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }">
+  <div class="card" :style="{ width: cardW, backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }" @click="onTap">
+    <div class="cover" :style="{ width: cardW, height: coverH, borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }">
       <image v-if="v.pic" class="coverimg" :src="thumb(v.pic, picW)" :style="{ width: picW, height: coverH, borderRadius: U.rad.card + 'px' }" resize="cover"></image>
       <div class="meta" v-if="U.den.showStat !== false">
         <text class="mt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.playText }}</text>
@@ -34,8 +34,10 @@ export default {
     return { U: ui(), RATIO: SPEC.coverRatio }
   },
   computed: {
-    coverH() { return Math.round(this.w / this.RATIO) },
-    picW() { return Math.round(this.w * 2) }  // 2x 像素密度, 顺带过 @..w.jpg 裁切
+    // ★ 必须返回带 px 的字符串: 框架的 style 不吃裸数字 (真机上表现为高度 0 -> 封面不显示)
+    coverH() { return Math.round(this.w / this.RATIO) + 'px' },
+    picW() { return Math.round(this.w * 2) + 'px' },
+    cardW() { return this.w + 'px' }
   },
   methods: {
     thumb(url, w) {

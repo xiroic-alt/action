@@ -15,10 +15,7 @@
       </div>
 
       <scroller class="body" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll">
-        <div v-if="status !== '' && items.length === 0" class="hint">
-      <text class="hintt" :style="U.t.weak">{{ status }}</text>
-    </div>
-    <div v-else-if="loading && items.length === 0" class="hint">
+        <div v-if="loading && items.length === 0 && status === ''" class="hint">
           <text class="hintt" :style="U.t.weak">加载中…</text>
         </div>
         <div v-else-if="status !== '' && items.length === 0" class="hint">
@@ -26,7 +23,7 @@
         </div>
         <div v-else class="grid">
           <div v-for="(v, i) in items" :key="v.bvid + '_' + i" class="cell"
-               :style="{ marginRight: U.sp.sm + 'px', marginBottom: U.sp.sm + 'px' }">
+               :style="{ width: cardW + 'px', marginRight: U.sp.sm + 'px', marginBottom: U.sp.sm + 'px' }">
             <VideoCard :v="v" :w="cardW" @open="openVideo"></VideoCard>
           </div>
         </div>
@@ -77,15 +74,21 @@ export default {
     }
   },
   mounted() {
-    const inner = CONTENT_W - SCREEN.safeSpace
-    this.cardW = Math.floor((inner - (COL - 1) * this.U.sp.sm) / COL)
+    this.layout()
     this.load(true)
   },
   methods: {
     // 组件里只有 onShow 会被框架转发 (设备框架行为)
     onShow() {
       this.U = ui()
+      this.layout()
       if (this.items.length === 0) this.load(true)
+    },
+    /** 卡片宽度: mounted 在设备上不保证被转发, 所以 onShow 也调一次 */
+    layout() {
+      const inner = CONTENT_W - SCREEN.safeSpace
+      const w = Math.floor((inner - (COL - 1) * this.U.sp.sm) / COL)
+      if (w > 0 && w !== this.cardW) this.cardW = w
     },
     onPageUnload() { this.genSeq++ },
 
