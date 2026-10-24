@@ -204,6 +204,43 @@ const BASE_GROUPS = [
   }
 ]
 
+/**
+ * 组装分组 (模块级纯函数).
+ * ★ 必须在 data() 里就能算出来: 框架对"直接启动到某个非默认页"的情况
+ *   不保证调用 onShow, 如果 groups 只在 onShow 里构建, 页面就只剩空壳
+ *   (真机表现: 设置页没有任何文字和开关).
+ */
+function makeGroups() {
+  const out = []
+  for (let i = 0; i < BASE_GROUPS.length; i++) out.push(cloneGroupPure(BASE_GROUPS[i]))
+  const fg = (typeof settingsGroups === 'function' ? settingsGroups() : null) || []
+  for (let i = 0; i < fg.length; i++) {
+    out.push(cloneGroupPure({ id: fg[i].id, title: fg[i].title, rows: fg[i].rows || [] }))
+  }
+  return out
+}
+
+/** 行的浅拷贝 (功能分组注册的行对象是共享的, 不能就地改) */
+function cloneGroupPure(g) {
+  const rows = []
+  for (let i = 0; i < ((g && g.rows) || []).length; i++) {
+    const r = g.rows[i]
+    const o = {}
+    for (const k in r) if (r.hasOwnProperty(k)) o[k] = r[k]
+    if (o.t === undefined) o.t = 'switch'
+    rows.push(o)
+  }
+  return { id: g.id, title: g.title, rows: rows }
+}
+
+function makeSeeds() {
+  const out = []
+  for (let i = 0; i < SEEDS.length; i++) {
+    out.push({ id: SEEDS[i][0], hex: SEEDS[i][1], name: SEEDS[i][2], dark: darkOfHex(SEEDS[i][1]) })
+  }
+  return out
+}
+
 export default {
   name: 'settings',
   components: { RichText },
@@ -216,9 +253,10 @@ export default {
       U: ui(),
       S: SCREEN,
       vals: {},
-      groups: [],
+      // ★ 初始就有内容, 不依赖 onShow
+      groups: makeGroups(),
       gid: 'appearance',
-      seeds: [],
+      seeds: makeSeeds(),
       tip: ''
     }
   },
@@ -249,25 +287,25 @@ export default {
 
     /** 组装分组: 基础分组 + 功能分组 (core/feature.js 的 settingsGroups) */
     build() {
+      // ★ 整个 build 必须容错: 它在 onShow 里被调用, 一旦抛异常
+      //   this.groups 就不会被赋值, 页面只剩壳子 (真机上表现为"设置页没有文字和开关").
+      try {
+        this.buildInner()
+      } catch (e) {
+        log('设置', 'build 失败: ' + (e && e.message ? e.message : e) + ' @' + ((e && e.stack) ? String(e.stack).split('\n')[1] : ''))
+      }
+    },
+    buildInner() {
       this.vals = allCfg()
-      const out = []
-      let i
-      for (i = 0; i < BASE_GROUPS.length; i++) out.push(this.cloneGroup(BASE_GROUPS[i]))
-      const fg = settingsGroups() || []
-      for (i = 0; i < fg.length; i++) {
-        out.push(this.cloneGroup({ id: fg[i].id, title: fg[i].title, rows: fg[i].rows || [] }))
-      }
+      const out = makeGroups()
       this.groups = out
-      // 主题色板 (SEEDS 是唯一来源, 页面不另写色值)
-      const seeds = []
-      for (i = 0; i < SEEDS.length; i++) {
-        seeds.push({ id: SEEDS[i][0], hex: SEEDS[i][1], name: SEEDS[i][2], dark: darkOfHex(SEEDS[i][1]) })
-      }
-      this.seeds = seeds
+      this.seeds = makeSeeds()
+      let i
       let found = false
       for (i = 0; i < out.length; i++) if (out[i].id === this.gid) found = true
       if (!found && out.length) this.gid = out[0].id
       this.patchDynamic()
+      log('设置', '分组 ' + this.groups.length + ' 个, 当前 ' + this.gid + ' 行数 ' + ((this.curGroup && this.curGroup.rows) ? this.curGroup.rows.length : 0))
     },
     /** 行的浅拷贝 (功能分组注册的行对象是共享的, 不能就地改) */
     cloneGroup(g) {
