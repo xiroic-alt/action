@@ -15,7 +15,9 @@
 // 数据库不可用时自动退回文件 (/userdisk/pilipro/kv.json), 保证应用仍能起.
 
 import { bilinet } from '../services/native.js'
-import { dataDir, dbDir, dbPath as DB_PATH, kvFilePath, ensureDirs } from './paths.js'
+import { dataDir, dbDir, dbPath as dbPathOf, kvFilePath, ensureDirs } from './paths.js'
+// ★ 同 log.js: paths.js 的 dbPath 是函数, 必须调用 (否则原生 dbOpen 收到函数直接失败)
+const DB_PATH = dbPathOf()
 
 let opened = false
 let failed = false

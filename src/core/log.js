@@ -11,10 +11,13 @@
 // 这里把 console.log 桥接成 debug 级, 排障时把级别调到 debug 就全回来了.
 
 import { bilinet } from '../services/native.js'
-import { dataDir, logPath as LOG_PATH, logPrevPath as PREV_PATH, ensureDirs } from './paths.js'
-// 路径变量 (小写名向 paths.js 对齐): 模块内统一叫 logPath / logPrevPath
-const logPath = LOG_PATH
-const logPrevPath = PREV_PATH
+import { dataDir, logPath as logPathOf, logPrevPath as logPrevPathOf, ensureDirs } from './paths.js'
+// ★ paths.js 导出的是**函数**, 必须调用求值再传给原生 writeFile.
+//   之前直接赋值 (`const logPath = LOG_PATH`) 把函数当路径传了下去,
+//   原生端 `!JS_IsString(info[0])` 判定失败抛 TypeError, 又被这里的 try/catch 吞掉 ——
+//   结果就是"日志文件永不出现, 且没有任何报错", 极其难查.
+const logPath = logPathOf()
+const logPrevPath = logPrevPathOf()
 const MAX_LINES = 400
 const MAX_BYTES = 96 * 1024
 

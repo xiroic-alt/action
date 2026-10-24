@@ -129,7 +129,7 @@ eq(sub.pickCue(cues, 0.5), null, 'pickCue 未到')
 eq(sub.offsetCues(cues, 2)[0].from, 3, '时间偏移')
 eq(sub.parseVtt('').length, 0, '空字幕 -> 空数组')
 
-console.log('CHECK-CORE PASSED (' + pass + ' 条断言: MD5 标准向量 / wbi 签名 / 格式化 / BV 现行算法 / 弹幕 / 字幕)')
+
 
 // ---------------- 清晰度 (设备解码上限) ----------------
 const api = await import(U('services/api.js'))
@@ -143,3 +143,32 @@ eq(JSON.stringify(api.deviceQualities([6, 16, 32, 64, 80])), '[6,16,32,64,80]', 
 // 配置默认清晰度不得超过设备上限
 const cfg = await import(U('core/config.js'))
 ok(cfg.specOf('defaultQuality')[2][1] <= api.DEVICE_MAX_QN, 'defaultQuality 上限 <= 设备解码上限')
+
+// ---------------- 路径类型回归 (真机踩过的坑) ----------------
+// paths.js 导出的是一组**函数**, 但调用方如果写成 `const p = logPath` 就会把函数本身
+// 传给原生 writeFile/dbOpen -> 原生 `!JS_IsString` 判定失败 -> 抛错被 try/catch 吞掉
+// -> 日志文件永不出现且无任何报错. 这条断言把"路径必须是字符串"钉死.
+const stubMod = await import('./stub-bilinet.mjs')
+stubMod.calls.length = 0
+const logMod = await import(U('core/log.js'))
+logMod.initLog('gate-probe')
+const pathCalls = stubMod.calls.filter(c => c[0] === 'readFile' || c[0] === 'writeFile' || c[0] === 'mkdirs' || c[0] === 'dbOpen')
+ok(pathCalls.length > 0, '日志模块确实调用了原生文件接口 (' + pathCalls.length + ' 次)')
+let badPath = null
+for (const c of pathCalls) {
+  if (typeof c[1] !== 'string') { badPath = c[0] + ' 收到 ' + typeof c[1]; break }
+  if (c[1].indexOf('function') >= 0) { badPath = c[0] + ' 路径含 function'; break }
+}
+ok(badPath === null, '所有路径参数都是字符串' + (badPath ? ' -> ' + badPath : ''))
+const wrote = stubMod.calls.filter(c => c[0] === 'writeFile')
+ok(wrote.length > 0, 'initLog 会立即落盘 (writeFile 被调用)')
+ok(wrote.length > 0 && /\.log$/.test(String(wrote[wrote.length - 1][1])), '日志路径以 .log 结尾: ' + (wrote.length ? wrote[wrote.length - 1][1] : ''))
+// store 的 dbOpen 也必须拿到字符串
+stubMod.calls.length = 0
+const storeMod = await import(U('core/store.js'))
+try { storeMod.initStore() } catch (e) {}
+for (const c of stubMod.calls) {
+  if (c[0] === 'dbOpen') ok(typeof c[1] === 'string' && /\.db$/.test(c[1]), 'dbOpen 路径是 .db 字符串: ' + c[1])
+}
+
+console.log('CHECK-CORE PASSED (' + pass + ' 条断言: MD5/wbi/格式化/BV/弹幕/字幕/清晰度/路径类型)')
