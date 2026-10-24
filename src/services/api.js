@@ -582,12 +582,22 @@ export async function historyCursor(max, viewAt) {
       duration: Number(h.duration) || 0,
       playText: '',
       progressText: watchProgress(h.progress),
+      viewAt: Number(h.view_at) || 0,
       business: business,
       // 只有普通视频稿件才能在笔上播放; 直播/专栏/番剧点开时给提示
       openable: business === 'archive' && bvid !== ''
     }
   })
-  return { list: list, cursor: { max: Number(c.max) || 0, view_at: Number(c.view_at) || 0 } }
+  // 游标: 接口给了 data.cursor 就用它; 没给就退回最后一条的 oid/view_at
+  // (PiliNara 的 HistoryController 也是这么兜的: max = last.history.oid, viewAt = last.viewAt)
+  const last = list.length ? list[list.length - 1] : null
+  return {
+    list: list,
+    cursor: {
+      max: Number(c.max) || (last ? last.aid : 0),
+      view_at: Number(c.view_at) || (last ? last.viewAt : 0)
+    }
+  }
 }
 
 /** 稍后再看 (Web 接口 /x/v2/history/toview; 列表一次拉全) */

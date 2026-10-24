@@ -87,7 +87,7 @@
               <text class="rsub" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant, marginTop: '3px' }">{{ it.sub }}</text>
             </div>
           </div>
-          <div v-if="items.length > 0" class="foot" :style="{ width: '100%', justifyContent: 'center', alignItems: 'center', paddingTop: '2px', paddingBottom: '10px' }">
+          <div v-if="items.length > 0 && (canMore || loading)" class="foot" :style="{ width: '100%', justifyContent: 'center', alignItems: 'center', paddingTop: '2px', paddingBottom: '10px' }">
             <div class="more" :style="{ paddingLeft: '22px', paddingRight: '22px', height: '44px', justifyContent: 'center', alignItems: 'center', backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.btn + 'px' }" @click="loadMore">
               <text class="moret" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ moreText }}</text>
             </div>
@@ -98,7 +98,7 @@
 
     <!-- 轻提示: 框架没有 toast, 用页面内小条 (只做 transform 过渡, 不用 opacity 动画) -->
     <div v-if="tip !== ''" class="tip"
-         :style="{ position: 'absolute', left: '260px', bottom: '8px', width: '440px', height: '40px', justifyContent: 'center', alignItems: 'center', backgroundColor: U.c.inverseSurface, borderRadius: U.rad.chip + 'px' }">
+         :style="{ position: 'absolute', left: '302px', bottom: '8px', width: '440px', height: '40px', justifyContent: 'center', alignItems: 'center', backgroundColor: U.c.inverseSurface, borderRadius: U.rad.chip + 'px' }">
       <text class="tipt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.inverseOnSurface }">{{ tip }}</text>
     </div>
   </div>
@@ -111,7 +111,6 @@
 //   点击在本页切换到对应分栏列表 (本页三个 tab). 数据全部走 services/api.js 的 Web 接口.
 import NavRail from '../../components/nav-rail.vue'
 import { ui } from '../../design/ui.js'
-import { SCREEN } from '../../design/tokens.js'
 import { getCfg } from '../../core/config.js'
 import { log } from '../../core/log.js'
 import { nav, favFoldersAll, favResources, historyCursor, toViewList } from '../../services/api.js'
@@ -145,7 +144,6 @@ export default {
   data() {
     return {
       U: ui(),
-      S: SCREEN,
       nav: 'mine',
       user: null,               // services/api.js nav() 的结果
       face: '',

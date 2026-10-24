@@ -1,7 +1,7 @@
 {
   "name": "PiliPRO",
   "appid": "8009476000000001",
-  "version": "1.0.0",
+  "version": "0.1.0001",
   "description": "PiliPRO · 哔哩哔哩客户端 for 有道词典笔 (Falcon mini-app, 全量重构)",
   "icon": "app_icon.png",
   "quickjs": {

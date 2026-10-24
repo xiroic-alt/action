@@ -15,7 +15,7 @@ import { initAuth } from './core/auth.js'
 import { getCfg } from './core/config.js'
 import { runFeatureInits } from './features/index.js'
 
-const BUILD_TAG = 'PiliPRO-1.0.0'
+const BUILD_TAG = 'PiliPRO-0.1.0001'
 
 class App extends $falcon.App {
   onLaunch(options) {

@@ -3,8 +3,8 @@ name: Build AMR
 # PiliPRO —— 有道词典笔 Falcon mini-app (全量重构版)
 #
 # 存储策略 (私有仓库 Actions 配额紧张):
-#   - 产物 retention-days: 2
-#   - 同名产物只保留最新 2 份 (Prune 步骤)
+#   - 产物 retention-days: 7 (2 天会导致"构建成功但已过期", 无法取回真机验证)
+#   - 同名产物只保留最新 3 份 (Prune 步骤)
 #   - 同分支并发构建自动取消
 #   - 分支: pilipro = PiliPRO (appid 8009476000000001)
 on:
@@ -90,7 +90,22 @@ jobs:
           pnpm run package
 
       - name: Collect AMR
-        run: find . -name '*.amr' -type f
+        run: find . -name '*.amr' -type f -exec ls -l {} \;
+
+      # 红线自检: 原生模块没进包 = 应用启动即崩 (真机表现为白屏 + 无日志).
+      # 这条断言把"白屏"挡在出包之前, 是成本最低的一道闸.
+      - name: Verify AMR contains native module
+        run: |
+          set -euo pipefail
+          amr=$(ls -1 ./*.amr | head -n1)
+          echo "AMR: $amr"
+          unzip -l "$amr"
+          # .so 与 manifest 都必须存在
+          unzip -l "$amr" | grep -q 'libjsapi_bilinet.so' || { echo "::error::AMR 缺少 libjsapi_bilinet.so —— 装到设备上必然白屏"; exit 1; }
+          unzip -l "$amr" | grep -q 'manifest.json' || { echo "::error::AMR 缺少 manifest.json"; exit 1; }
+          # manifest 的版本与 appid 必须与 package.json 一致 (防止打包器缓存旧值)
+          unzip -p "$amr" manifest.json | python3 -c "import json,sys; m=json.load(sys.stdin); p=json.load(open('package.json')); assert m['appid']==p['appid'], 'appid 不一致'; print('appid OK:', m['appid']); print('version:', m['version'])"
+          echo "原生模块与 manifest 校验通过"
 
       - name: Upload AMR artifact
         uses: actions/upload-artifact@v4
@@ -98,7 +113,7 @@ jobs:
           name: pilipro-amr
           path: ./*.amr
           if-no-files-found: error
-          retention-days: 2
+          retention-days: 7
 
       - name: Prune old artifacts
         env:
@@ -106,7 +121,7 @@ jobs:
         run: |
           set -uo pipefail
           ids=$(gh api "/repos/${{ github.repository }}/actions/artifacts?per_page=100" \
-                  --jq '.artifacts | group_by(.name) | map(sort_by(.created_at) | reverse | .[2:]) | flatten | .[].id' || true)
+                  --jq '.artifacts | group_by(.name) | map(sort_by(.created_at) | reverse | .[3:]) | flatten | .[].id' || true)
           for id in $ids; do
             gh api -X DELETE "/repos/${{ github.repository }}/actions/artifacts/$id" \
               && echo "pruned artifact $id" || echo "prune failed: $id"
