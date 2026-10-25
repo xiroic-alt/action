@@ -19,11 +19,14 @@ import { log } from '../core/log.js'
 import { appId, PKG_ROOT } from '../core/paths.js'
 
 const BASE = '/userdisk/pilipro-fonts'
-const SYS_XML = '/etc/miniapp/resources/fonts/fonts.xml'
+const SYS_DIR = '/etc/miniapp/resources/fonts'
+const SYS_XML = SYS_DIR + '/fonts.xml'
+const SYS_TTF = SYS_DIR + '/Twemoji.ttf'
 const OUR_XML = BASE + '/fonts.xml'
 const ORIG_XML = BASE + '/fonts.orig.xml'
 const OUR_TTF = BASE + '/Twemoji.ttf'
 const FONT_FAMILY = 'Twemoji'
+const FONT_NAME = 'Twemoji.ttf'
 
 function sh(cmd) {
   try {
@@ -71,7 +74,7 @@ export async function install() {
     return { ok: false, code: 'NO_SRC', message: '读不到系统字体表 (fonts.xml), 为安全起见已中止' }
   }
   // 2) 必须能找到闭合标签, 否则宁可不动 (写坏 XML 会让所有字体失效)
-  const closeTag = '</fonts>'
+  const closeTag = '</familyset>'
   const ci = orig.lastIndexOf(closeTag)
   if (ci < 0) {
     return { ok: false, code: 'BAD_XML', message: '字体表结构不认识 (找不到闭合标签), 为安全起见已中止' }
@@ -85,13 +88,21 @@ export async function install() {
   const ttf = bundledFontPath()
   if (ttf) { try { sh('cp -f "' + ttf + '" ' + OUR_TTF) } catch (e) {} }
   // 4) 生成 "原文 + 一条" 的新 XML (原有条目全部保留)
-  const entry = '  <font family="' + FONT_FAMILY + '" path="' + OUR_TTF + '" />\n'
+  // 真实结构: <family name="X"><font weight="400">裸文件名</font></family>
+  const entry = '    <family name="' + FONT_FAMILY + '">\n        <font weight="400">' + FONT_NAME + '</font>\n    </family>\n'
   const merged = orig.substring(0, ci) + entry + orig.substring(ci)
   try { bilinet.writeFile(OUR_XML, merged) } catch (e) {
     return { ok: false, code: 'WRITE_FAIL', message: '写入临时字体表失败' }
   }
-  // 5) 先 umount 任何残留 (幂等), 再挂载单文件
+  // 5) 先 umount 任何残留 (幂等), 再挂载
   sh('umount ' + SYS_XML + ' 2>/dev/null || true')
+  sh('umount ' + SYS_TTF + ' 2>/dev/null || true')
+  // 5a) 字体文件: 单文件挂到字体目录里的一个新文件名.
+  //     注意: 单文件 bind-mount 到"不存在的路径"只会多出一个文件条目,
+  //     **不会隐藏同目录下已有的 41 个字体** —— 这正是与旧实现的关键区别.
+  sh('touch ' + SYS_TTF + ' 2>/dev/null || true')
+  sh('mount --bind ' + OUR_TTF + ' ' + SYS_TTF)
+  // 5b) 字体表: 只覆盖 fonts.xml 这一个文件
   sh('mount --bind ' + OUR_XML + ' ' + SYS_XML)
   // 6) 校验: 挂载后必须还能读到我们那条
   let after = ''
@@ -112,6 +123,7 @@ export async function remove() {
   if (!available()) return { ok: false, code: 'NO_NATIVE', message: '设备不支持文件操作' }
   // 1) 先卸载 (即使没挂载也不报错)
   sh('umount ' + SYS_XML + ' 2>/dev/null || true')
+  sh('umount ' + SYS_TTF + ' 2>/dev/null || true')
   // 2) 校验真的卸掉了
   let still = false
   try {
@@ -123,6 +135,7 @@ export async function remove() {
   }
   // 3) 确认没挂了才删我们自己的文件 (绝不删系统目录)
   sh('rm -f ' + OUR_XML + ' ' + OUR_TTF)
+  sh('rmdir ' + BASE + ' 2>/dev/null || true')
   log('字体', '已卸载 fonts.xml, 系统字体恢复原样')
   return { ok: true, code: 'OK', message: '已卸载, 系统字体恢复原样' }
 }
