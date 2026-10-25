@@ -176,6 +176,7 @@ export default {
       btDevices: [], btLabel: '', audioMode: 'speaker', audioMsg: '',
       // 内部
       genSeq: 0,
+      h5Tried: false,
       paramKey: '', _poll: null, _hide: null, _resumeRead: false, _applied: false
     }
   },
@@ -292,17 +293,24 @@ export default {
         if (gen !== this.genSeq) return
         if (!this.titleText) this.titleText = d.title
         const cid = d.cid
+        this.cid = cid
         if (!cid) throw new Error('未取到 cid')
         // 取流口: web 口能给出更高的可选档位 (H5 口通常只到 480P), 所以默认走 web;
         // 清晰度用设置里的 defaultQuality, 但不得超过设备解码上限.
         const wantQn = Math.min(Number(getCfg('defaultQuality')) || DEVICE_MAX_QN, DEVICE_MAX_QN)
-        let p
+        // ★ 取流顺序: H5 口优先.
+        //   原因: web 口返回的 CDN 地址 (upos-sz-mirror*.bilivideo.com) 会校验 Referer,
+        //   而原生播放器不带 Referer 头 -> 直接 "Forbidden" (真机日志实锤).
+        //   H5 口 (platform=html5) 的 CDN 不校验 Referer, 原生播放器可以直接播.
+        //   代价是档位通常只到 480P —— 但这台设备分辨率就 960x266, 480P 完全够用.
+        let p = null
         try {
-          p = await playUrl(this.bvid, cid, { source: 'web', qn: wantQn })
-        } catch (e) {
-          // web 口没有 mp4 时退回 H5 口 (少量稿件只有 H5 有)
-          log('播放', 'web 口取流失败, 退回 H5 口')
           p = await playUrl(this.bvid, cid, { source: 'html5', qn: wantQn })
+        } catch (e) {
+          log('播放', 'H5 口取流失败, 退回 web 口')
+        }
+        if (!p || !p.url) {
+          p = await playUrl(this.bvid, cid, { source: 'web', qn: wantQn })
         }
         if (gen !== this.genSeq) return
         this.applyQualities(p)
@@ -511,10 +519,41 @@ export default {
       this.showBar()
     },
     onError(e) {
+      const raw = e ? JSON.stringify(e) : ''
+      log('播放', '元素报错: ' + raw.substring(0, 160))
+      // ★ 403 降级: web 口的 CDN 地址 (upos-sz-mirror*.bilivideo.com) 校验 Referer,
+      //   而原生播放器不带 Referer 头 -> "Forbidden".
+      //   H5 口 (platform=html5) 的 CDN 不校验, 所以被拒时自动退到 H5 重取一次流.
+      if (!this.h5Tried && /forbidden|403/i.test(raw)) {
+        this.h5Tried = true
+        this.statusText = '当前清晰度不可用, 正在切换…'
+        log('播放', '被 CDN 拒绝(403), 降到 H5 口重试')
+        const self = this
+        setTimeout(function () { self.reloadH5() }, 300)
+        return
+      }
       this.statusText = '播放出错'
       this.playing = false
       this.stopPoll()
-      log('播放', '元素报错: ' + (e ? JSON.stringify(e).substring(0, 120) : ''))
+    },
+
+    /** 用 H5 口重新取流 (不校验 Referer) 并起播 */
+    async reloadH5() {
+      if (!this.bvid || !this.cid) { this.statusText = '播放出错'; return }
+      const gen = ++this.genSeq
+      try {
+        const wantQn = Math.min(Number(getCfg('defaultQuality')) || DEVICE_MAX_QN, DEVICE_MAX_QN)
+        const p = await playUrl(this.bvid, this.cid, { source: 'html5', qn: wantQn })
+        if (gen !== this.genSeq) return
+        this.applyQualities(p)
+        if (p.duration > 0) this.durMs = p.duration
+        this.playStream(p.url, gen)
+      } catch (err) {
+        if (gen !== this.genSeq) return
+        this.statusText = '播放出错'
+        this.playing = false
+        log('播放', 'H5 口也失败: ' + (err && err.message ? err.message : err))
+      }
     },
 
     // ---------------- 进度轮询 (position ~1s 一次, 中间用本地时钟插值) ----------------

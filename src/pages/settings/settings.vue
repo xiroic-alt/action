@@ -169,10 +169,10 @@ const BASE_GROUPS = [
     title: '表情字体',
     rows: [
       { t: 'text', label: '说明', value: '系统字体无 emoji 字形' },
-      { k: 'emojiInstall', t: 'action', label: '安装 emoji 字体', desc: '绑定挂载, 不改只读分区', actText: '安装' },
-      { k: 'emojiRemove', t: 'action', label: '卸载 emoji 字体', desc: '恢复系统原样', actText: '卸载', danger: true },
+      { k: 'emojiInstall', t: 'action', label: '安装 emoji 字体', desc: '只往字体表追加一条, 不改动其它字体', actText: '安装' },
+      { k: 'emojiRemove', t: 'action', label: '卸载 emoji 字体', desc: '先卸载再校验, 确认后才删文件', actText: '卸载', danger: true },
       { k: 'goClean', t: 'go', label: '清除数据', desc: '日志 / 历史 / 缓存 / 恢复默认', to: 'clean', val: function () { return '打开' } },
-            { k: 'emojiRestart', t: 'action', label: '重启框架生效', desc: '字体表只在框架启动时读取, 必须重启框架', actText: '重启' },
+            { k: 'emojiRestart', t: 'action', label: '生效说明', desc: '挂载后立即生效; 重启设备会自动恢复原样', actText: '查看' },
       { t: 'text', label: '当前状态', value: '' }
     ]
   },
@@ -439,27 +439,38 @@ export default {
     // ---- 表情字体: 一键安装 / 卸载 / 重启 ----
     async emojiInstall() {
       this.showTip('正在安装…')
-      const r = await sysFont.install()
-      this.showTip(r.msg)
+      try {
+        const r = await sysFont.install()
+        this.showTip((r && r.message) ? r.message : (r && r.ok ? '已启用' : '安装失败'))
+        log('设置', 'emoji 字体安装: ' + ((r && r.code) || '?') + ' ' + ((r && r.message) || ''))
+      } catch (e) {
+        this.showTip('安装异常: ' + (e && e.message ? e.message : e))
+        log('设置', 'emoji 字体安装异常: ' + (e && e.message ? e.message : e))
+      }
       this.refreshGroup()
-      log('设置', 'emoji 字体安装: ' + r.msg)
     },
     async emojiRemove() {
       this.showTip('正在卸载…')
-      const r = await sysFont.remove()
-      this.showTip(r.msg)
+      try {
+        const r = await sysFont.remove()
+        this.showTip((r && r.message) ? r.message : (r && r.ok ? '已卸载' : '卸载失败'))
+        log('设置', 'emoji 字体卸载: ' + ((r && r.code) || '?') + ' ' + ((r && r.message) || ''))
+      } catch (e) {
+        this.showTip('卸载异常: ' + (e && e.message ? e.message : e))
+        log('设置', 'emoji 字体卸载异常: ' + (e && e.message ? e.message : e))
+      }
       this.refreshGroup()
-      log('设置', 'emoji 字体卸载: ' + r.msg)
     },
     emojiRestart() {
-      if (sysFont.restartFramework()) { return }
-      this.showTip('当前固件不支持自动重启, 请手动重开应用')
+      this.showTip('挂载后立即生效, 不需要重启框架')
     },
     emojiStatusText() {
-      const st = sysFont.status()
-      if (!st.available) return '不可用 (缺 execAsync)'
-      if (!st.fontBundled) return '安装包缺字体'
-      return st.mounted ? '已安装 (重启后生效)' : '未安装'
+      try {
+        const st = sysFont.status()
+        if (!sysFont.available()) return '设备不支持文件操作'
+        if (st.mounted) return '已启用 (只追加了 Twemoji, 其它字体未改动)'
+        return st.hasBackup ? '未启用 (有备份可回滚)' : '未启用'
+      } catch (e) { return '状态未知' }
     },
 
     // ---- 音频: 蓝牙枚举 / 路由 ----
