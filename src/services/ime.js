@@ -86,16 +86,20 @@ export function createIME() {
     resolver = null
   }
 
-  function settle(value) {
+  function settle(value, reason) {
     const r = resolver
     resolver = null
     unsubscribe()
     closeSession()
-    // ★ 最后一道保险: 对外只吐 string 或 null.
-    //   设备回调结构多变 (对象/JSON 字符串/事件包装), 万一上游解析漏了,
-    //   这里也不会把对象丢给页面 (否则页面会写出 "[object Object]").
-    if (typeof value !== 'string') value = null
-    if (r) r(value)
+    // 最后一道保险: 对外只吐 { text, confirmed, reason } 或 null.
+    // 设备回调结构多变 (对象/JSON 字符串/事件包装), 万一上游解析漏了, 这里也不会
+    // 把对象丢给页面 (否则页面会写出 "[object Object]").
+    let out = null
+    if (typeof value === 'string') {
+      const s = value.trim()
+      if (s !== '') out = { text: s, confirmed: reason === 'confirmed' || reason === undefined, reason: reason || 'confirmed' }
+    }
+    if (r) r(out)
   }
 
   /**
@@ -160,20 +164,20 @@ export function createIME() {
         if (r.confirmed) { text = r.text; confirmed = true }
       }
 
-      // 完全没有结构化结果时才退回裸字符串 (仍然排除 UUID)
-      if (!hasKeyed) {
-        for (let i = 0; i < args.length; i++) {
-          const d = args[i]
-          if (typeof d !== 'string' || d === '') continue
-          if (isUuidArg(d, myUuid)) continue
-          text = d
-          break
-        }
-        confirmed = text !== null
-      }
+      // ★★ 删掉了原来的"裸字符串兜底"。
+      // 它只要在回调参数里看到一个非 UUID 的字符串, 就把**任意字符串**当用户文本
+      // 并标记 confirmed = true —— 这正是"发出空 prompt"的来源 (空串也满足 '' !== null)。
+      // 现在规则收紧为: 必须拿到**结构化结果** (带 text 字段) 才可能算数。
 
-      // 契约: editConfirmed === true 才写回; 否则视为取消
-      settle(confirmed ? text : null)
+      // 契约: 必须 ①拿到结构化结果 ②editConfirmed === true ③文本去空白后非空
+      //       三者同时满足才算"用户点了发送"; 其余一律当取消。
+      const s = (text === null || text === undefined) ? '' : String(text).trim()
+      if (!hasKeyed || !confirmed || s === '') {
+        dbg('判定为取消/空输入: hasKeyed=' + hasKeyed + ' confirmed=' + confirmed + ' len=' + s.length)
+        settle(null, 'cancelled')
+        return
+      }
+      settle(s, 'confirmed')
     } catch (e) {
       dbg('finish 异常(已兜底): ' + e)
       try { settle(null) } catch (e2) {}
@@ -182,11 +186,34 @@ export function createIME() {
 
   return {
     /**
-     * 打开输入法. 返回 Promise<string|null>:
-     *   - 用户确认 (editConfirmed===true) -> 文本
-     *   - 取消 / 输入法不可用 / startTextEdit 异常 -> null (不抛)
+     * 打开输入法 (带原因版). 返回 Promise<{text, confirmed, reason}|null>:
+     *   reason = 'confirmed' (点了发送且有内容) | 'cancelled' (取消/为空)
+     * 调用方据此区分"用户取消"和"真的发送了" —— 不会再把取消当成功。
+     */
+    openEx(opts) {
+      return openImpl(opts)
+    },
+
+    /**
+     * 打开输入法 (兼容旧调用). 返回 Promise<string|null>:
+     *   - 用户确认且文本非空 -> 文本
+     *   - 取消 / 空输入 / 不可用 / 异常 -> null (不抛)
      */
     open(opts) {
+      return openImpl(opts).then(function (r) { return r ? r.text : null })
+    },
+
+    /** 关闭会话并退订 (页面卸载时调用; 幂等) */
+    destroy() {
+      if (destroyed) return
+      destroyed = true
+      cleanup()
+    }
+  }
+
+  /** 真正的实现: 打开输入法, resolve { text, confirmed, reason } 或 null */
+  function openImpl(opts) {
+
       if (destroyed) return new Promise(function (resolve) { resolve(null) })
       return new Promise(function (resolve) {
         const o = opts || {}
@@ -223,13 +250,5 @@ export function createIME() {
           settle(null)
         }
       })
-    },
-
-    /** 关闭会话并退订 (页面卸载时调用; 幂等) */
-    destroy() {
-      if (destroyed) return
-      destroyed = true
-      cleanup()
-    }
   }
 }

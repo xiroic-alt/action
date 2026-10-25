@@ -545,21 +545,28 @@ export default {
     },
 
     /** 统一走系统输入法取一段文本; 取消返回 null */
+    /**
+     * 唤起系统输入法取一段文本.
+     * 返回: 非空字符串 = 用户点了发送且有内容; null = 取消/空输入.
+     *
+     * ★ 这里必须用 openEx (带原因版): 旧接口只吐 string|null, 区分不了
+     *   "用户按了返回取消" 和 "点了发送但内容为空" —— 两者都被当成一次成功发送,
+     *   于是发出空 prompt 还提示"发送成功".
+     */
     async askText(placeholder) {
       if (!this.imeSession) this.imeSession = createIME()
-      let t = null
+      let r = null
       try {
-        t = await this.imeSession.open({ text: '', placeholder: placeholder || '说点什么', maxlength: 500, enterButtonText: '发送' })
+        r = await this.imeSession.openEx({ text: '', placeholder: placeholder || '说点什么', maxlength: 500, enterButtonText: '发送' })
       } catch (e) {
         this.showTip('系统输入法唤不起来')
         return null
       }
-      // ★ 取消/空白一律当没输入:
-      //   输入法按返回时可能回传空串、空格、或 undefined, 之前这些都会被当成"有内容"
-      //   继续往下发, 结果发出一条空白评论还提示"发送成功".
-      if (t == null) return null
-      const s = String(t).trim()
-      if (s === '') return null
+      // 三道闸: 有结果对象 / 明确确认 / 去空白后非空. 任一不满足就是取消.
+      if (!r) return null
+      if (r.confirmed !== true) { log('评论', '输入法返回但未确认, 当取消'); return null }
+      const s = String(r.text == null ? '' : r.text).trim()
+      if (s === '') { log('评论', '输入法返回空内容, 当取消'); return null }
       return s
     },
 
