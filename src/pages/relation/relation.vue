@@ -69,6 +69,7 @@ export default {
       // ★ 世代守卫必须是 data 里的普通数字键: Vue2 不代理 _ 开头的键, ++undefined = NaN,
       //   而 NaN !== NaN 恒真 -> 响应永远被判"过期"丢弃, 页面卡在加载中 (项目历史踩过)
       genSeq: 0,
+      paramKey: '',
       mid: '',
       kind: 'follow',      // follow = 关注列表 / fans = 粉丝列表
       users: [],
@@ -118,22 +119,33 @@ export default {
     }
   },
   mounted() {
-    // 参数只从 $page.options 取
-    const o = (this.$page && this.$page.options) || {}
-    this.mid = String(o.mid == null ? '' : o.mid)
-    this.kind = o.kind === 'fans' ? 'fans' : 'follow'
-    this._tipTimer = null
-    if (this.mid === '') {
-      log('关系', '缺少 mid 参数, 页面不发起请求')
-      this.status = '缺少 mid 参数'
-      return
-    }
-    log('关系', '载入 ' + this.barTitle + ' mid=' + this.mid)
-    this.load(true)
+    // ★ 参数统一走 readOptions(): mounted 在设备上不一定被调用
+    this.readOptions()
   },
   methods: {
     // 框架只转发 onShow / onPageUnload 这两个钩子
-    onShow() { this.U = ui() },
+    onShow() {
+      this.U = ui()
+      this.readOptions()
+    },
+    /** 读取页面参数 (mounted 不保证触发, onShow 也要读; 同参数幂等) */
+    readOptions() {
+      const o = (this.$page && this.$page.options) || {}
+      const mid = String(o.mid == null ? '' : o.mid)
+      const kind = o.kind === 'fans' ? 'fans' : 'follow'
+      const key = mid + '|' + kind
+      if (this.paramKey === key && mid !== '') return
+      this.paramKey = key
+      this.mid = mid
+      this.kind = kind
+      if (this.mid === '') {
+        this.status = '缺少 mid 参数'
+        log('关系', '缺少 mid 参数')
+        return
+      }
+      log('关系', '载入 ' + this.barTitle + ' mid=' + this.mid)
+      this.load(true)
+    },
     onPageUnload() {
       this.genSeq++
       if (this._tipTimer) { clearTimeout(this._tipTimer); this._tipTimer = null }

@@ -210,6 +210,16 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- 页面参数必须在 onShow 里也能读到 (设备框架只转发 onShow, mounted 不保证触发) ----
+for (const f of vueFiles) {
+  const t = fs.readFileSync(f, 'utf8')
+  if (t.indexOf('$page.options') < 0) continue
+  const m = t.match(/mounted\(\) \{([\s\S]*?)\n  \},/)
+  if (m && m[1].indexOf('$page.options') >= 0) {
+    bad(path.relative(ROOT, f) + ' 只在 mounted 里读 $page.options —— 设备上 mounted 不一定被调用, 参数会恒为空')
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

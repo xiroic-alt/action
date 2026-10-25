@@ -43,6 +43,8 @@ const SPEC = {
   imgQuality: ['std', 'enum', ['low', 'std', 'high']],
   showStat: [true, 'bool'],
   autoLoadComments: [true, 'bool'],
+  // 上次成功发现的电脑端服务 IP (自动发现后缓存, 免手填)
+  pcIp: ['', 'str'],
   logLevel: ['info', 'enum', ['off', 'error', 'info', 'debug']]
 }
 

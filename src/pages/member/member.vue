@@ -162,6 +162,7 @@ export default {
       // ★ 世代守卫必须是 data 里的普通数字键: Vue2 不代理 _ 开头的键, ++undefined = NaN,
       //   而 NaN !== NaN 恒真, 响应会被永远判成"过期"直接丢弃 (项目历史踩过)
       infoGen: 0,
+      paramKey: '',
       vidGen: 0,
       dynGen: 0,
       mid: '',
@@ -295,19 +296,28 @@ export default {
     tipStyle() { return { backgroundColor: this.U.c.inverseSurface, borderRadius: this.U.rad.chip + 'px' } }
   },
   mounted() {
-    // 参数只从 $page.options 取 (框架跳转带过来的), 组件里读不到别的入口
-    const o = (this.$page && this.$page.options) || {}
-    this.mid = String(o.mid == null ? '' : o.mid)
-    this.nameOpt = String(o.name == null ? '' : o.name)
-    this._tipTimer = null
-    if (this.mid === '') { log('空间', '缺少 mid 参数, 页面不发起请求'); return }
-    log('空间', '载入 mid=' + this.mid)
-    this.loadInfo()
-    this.loadVideos(true)
+    // ★ 参数统一走 readOptions(): mounted 在设备上不一定被调用
+    this.readOptions()
   },
   methods: {
     // 框架只转发 onShow / onPageUnload 这两个钩子
-    onShow() { this.U = ui() },
+    onShow() {
+      this.U = ui()
+      this.readOptions()
+    },
+    /** 读取页面参数 (mounted 不保证触发, onShow 也要读; 同 mid 幂等) */
+    readOptions() {
+      const o = (this.$page && this.$page.options) || {}
+      const mid = String(o.mid == null ? '' : o.mid)
+      if (this.paramKey === mid && mid !== '') return
+      this.paramKey = mid
+      this.mid = mid
+      this.nameOpt = String(o.name == null ? '' : o.name)
+      if (this.mid === '') { this.status = '缺少 mid 参数'; log('空间', '缺少 mid 参数'); return }
+      log('空间', '载入 mid=' + this.mid)
+      this.loadInfo()
+      this.loadVideos(true)
+    },
     onPageUnload() {
       this.infoGen++
       this.vidGen++
@@ -455,7 +465,7 @@ export default {
     openVideo(v) {
       if (!v || !v.bvid) return
       log('空间', '打开 ' + v.bvid)
-      try { $falcon.navTo('play', { bvid: v.bvid, title: v.title }) } catch (e) {}
+      try { $falcon.navTo('video', { bvid: v.bvid, title: v.title }) } catch (e) {}
     },
 
     // ---------------- 文案 ----------------

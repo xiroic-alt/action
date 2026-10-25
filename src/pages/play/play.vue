@@ -175,7 +175,8 @@ export default {
       // 音频输出
       btDevices: [], btLabel: '', audioMode: 'speaker', audioMsg: '',
       // 内部
-      genSeq: 0, _poll: null, _hide: null, _resumeRead: false, _applied: false
+      genSeq: 0,
+      paramKey: '', _poll: null, _hide: null, _resumeRead: false, _applied: false
     }
   },
   computed: {
@@ -218,17 +219,43 @@ export default {
     }
   },
   mounted() {
-    const o = (this.$page && this.$page.options) || {}
-    this.bvid = String(o.bvid || '')
-    this.roomid = parseInt(o.roomid || '0', 10) || 0
-    this.mode = (o.mode === 'live' || this.roomid > 0) ? 'live' : ''
-    this.titleText = String(o.title || '')
-    this.rate = Number(getCfg('defaultRate')) || 1
-    this.dmOn = getCfg('dmEnable') !== false
-    this.load()
+    // ★ 设备框架只转发 onShow, mounted 不保证触发 —— 参数必须两边都读
+    this.readOptions()
   },
   methods: {
-    onShow() { this.U = ui() },
+    onShow() {
+      this.U = ui()
+      // ★ 真机上 mounted 不一定被调用, 页面参数在这里读才不会出现"缺少视频参数"
+      this.readOptions()
+    },
+
+    /**
+     * 读取页面参数并起播.
+     * 幂等: 同一组参数只起播一次; 参数变了 (从详情页切到另一个视频) 才重新加载.
+     */
+    readOptions() {
+      const o = (this.$page && this.$page.options) || {}
+      const bvid = String(o.bvid || '')
+      const roomid = parseInt(o.roomid || '0', 10) || 0
+      const mode = (o.mode === 'live' || roomid > 0) ? 'live' : ''
+      const title = String(o.title || '')
+      const key = bvid + '|' + roomid + '|' + mode
+      if (this.paramKey === key) return          // 同一组参数, 不重复起播
+      this.paramKey = key
+      this.bvid = bvid
+      this.roomid = roomid
+      this.mode = mode
+      this.titleText = title
+      this.rate = Number(getCfg('defaultRate')) || 1
+      this.dmOn = getCfg('dmEnable') !== false
+      if (!bvid && !roomid) {
+        // 参数确实为空: 给出明确提示, 不要停在"缺少视频参数"上让用户猜
+        this.statusText = '缺少视频参数'
+        log('播放', '缺少视频参数 (options=' + JSON.stringify(o) + ')')
+        return
+      }
+      this.load()
+    },
     onPageUnload() {
       this.genSeq++
       this.stopPoll()

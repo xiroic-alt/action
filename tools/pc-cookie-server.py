@@ -8,7 +8,7 @@ PiliPRO 电脑端登录 / Cookie 同步服务 (配套词典笔「电脑同步」
   1. 电脑运行:  python pc-cookie-server.py        (默认端口 9527, 可传参改端口)
   2. 启动后命令行打印局域网地址, 例如 http://192.168.1.100:9527
   3. 电脑浏览器打开 http://127.0.0.1:9527 :
-       在文本框粘贴 B 站 Cookie 整行 (必须包含 SESSDATA), 点「保存」
+       点「① 一键从浏览器获取」自动读取 (推荐); 读不到再手动粘贴 Cookie 整行点「② 保存」
        获取方法: 浏览器登录 bilibili.com -> F12 -> Network -> 任一
        api.bilibili.com 请求 -> Request Headers -> 复制整行 Cookie:
   4. 词典笔: 登录页 -> 电脑同步 -> 输入电脑局域网 IP -> 「获取并登录」
@@ -25,6 +25,12 @@ PiliPRO 电脑端登录 / Cookie 同步服务 (配套词典笔「电脑同步」
 仅使用 Python 标准库, 无需 pip 安装任何东西.
 """
 import http.server
+
+# 浏览器 Cookie 数据库读取器 (同目录). 缺了也不影响手动粘贴那条路.
+try:
+    import browser_cookie
+except Exception:
+    browser_cookie = None
 import json
 import socket
 import sys
@@ -42,6 +48,33 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 9527
 
 # 内存中的 Cookie 状态 (不落盘)
 state = {"raw": "", "sessdata": "", "bili_jct": "", "dede_userid": ""}
+
+
+def apply_raw(raw, source):
+    """把一整行 Cookie 解析后写入 state. 返回 (ok, message)"""
+    parsed = parse_cookie(raw)
+    if not parsed["sessdata"]:
+        return False, "未识别到 SESSDATA"
+    state.update(parsed)
+    print("[+] Cookie 已就绪 (%s): SESSDATA %d 字符, csrf %s, UID %s" % (
+        source, len(parsed["sessdata"]), "有" if parsed["bili_jct"] else "无",
+        parsed["dede_userid"] or "?"))
+    return True, "已就绪"
+
+
+def read_from_browser():
+    """从本机浏览器数据库里直接读 bilibili 登录 Cookie.
+    返回 (ok, message, source)"""
+    if browser_cookie is None:
+        return False, "缺少 browser_cookie.py, 请与 pc-cookie-server.py 放在同一目录", ""
+    try:
+        ck, info = browser_cookie.read_bilibili_cookie()
+    except Exception as e:
+        return False, "读取浏览器 Cookie 失败: %s" % e, ""
+    if not ck:
+        return False, info, ""
+    ok, msg = apply_raw(ck, "浏览器/" + info)
+    return ok, msg, info
 
 
 def parse_cookie(raw):
@@ -129,7 +162,8 @@ ol{color:#aab3bf;font-size:13px;line-height:1.9;padding-left:20px;margin:8px 0 0
   <h2>粘贴 Cookie</h2>
   <textarea id="ck" placeholder="SESSDATA=xxx; bili_jct=xxx; DedeUserID=xxx; ...&#10;&#10;获取: 登录 bilibili.com → F12 → Network → 任一 api.bilibili.com 请求 → Request Headers → 复制整行 Cookie:"
             oninput="onEdit()"></textarea>
-  <button onclick="save()">保存并使用</button>
+  <button onclick="grab()" id="gb" style="background:#3fd67a;margin-right:10px">① 一键从浏览器获取</button>
+<button onclick="save()">保存并使用</button>
   <div class="msg" id="msg"></div>
   <p class="tip">
     ① 电脑浏览器登录 <code>bilibili.com</code> ② 按 F12 打开开发者工具, 切到 Network
@@ -147,6 +181,22 @@ ol{color:#aab3bf;font-size:13px;line-height:1.9;padding-left:20px;margin:8px 0 0
 let current = '';
 function set(el, t, cls){var e=document.getElementById(el);e.textContent=t;e.className='msg '+(cls||'');}
 function onEdit(){ /* 手动编辑时不自动保存 */ }
+function grab(){
+  // 一键从浏览器数据库读取 bilibili 登录 Cookie.
+  // 为什么必须由服务端读: 网页 JS 受同源策略限制, 读不到 bilibili.com 的 Cookie.
+  var b=document.getElementById('gb');
+  b.disabled=true; var old=b.textContent; b.textContent='正在读取浏览器…';
+  fetch('/api/browser-cookie').then(function(r){return r.json();}).then(function(j){
+    if(j.ok){
+      document.getElementById('ck').value='（已从 '+j.source+' 读取, SESSDATA '+(j.sessdata||'').length+' 字符, UID '+j.uid+'）';
+      set('msg','✓ 已从浏览器获取并保存 · 来源 '+j.source,'ok');
+      check();
+    } else {
+      set('msg','✗ '+j.message,'err');
+    }
+  }).catch(function(e){set('msg','请求失败: '+e,'err');})
+    .finally(function(){ b.disabled=false; b.textContent=old; });
+}
 function save(){
   var v=document.getElementById('ck').value.trim();
   if(!v){set('msg','请先粘贴 Cookie','err');return;}
@@ -201,7 +251,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 "has_jct": bool(state["bili_jct"]),
                 "uid": state["dede_userid"]
             })
+        elif self.path.startswith("/api/browser-cookie"):
+            ok, msg, src = read_from_browser()
+            print("[i] /api/browser-cookie ->", msg)
+            self._json({"ok": ok, "message": msg, "source": src,
+                        "sessdata": state["sessdata"], "uid": state["dede_userid"]})
         elif self.path == "/pilipro/cookie":
+            # ★ 笔端来取时, 若电脑上还没准备 Cookie, 自动从浏览器数据库读一次 ——
+            #   这样用户在笔上点一下"获取并登录"就够了, 不用回电脑粘贴.
+            if not state["sessdata"]:
+                ok, msg, src = read_from_browser()
+                print("[i] 笔端触发自动读取:", msg)
             # ★ 对外契约: 字段名固定 (dede_userid 是下划线形态, 笔端按此解析)
             if state["sessdata"]:
                 print("[<-] 笔端取走 Cookie: %s" % self.client_address[0])

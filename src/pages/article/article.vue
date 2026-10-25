@@ -88,6 +88,7 @@ export default {
       loading: false,
       error: '',
       genSeq: 0,
+      paramKey: '',
       HEAD_H: HEAD_H
     }
   },
@@ -109,14 +110,22 @@ export default {
     }
   },
   mounted() {
-    this._unloaded = false
-    const o = (this.$page && this.$page.options) || {}
-    this.cv = String(o.cv || '')
-    this.load()
+    // ★ 参数统一走 readOptions(): mounted 在设备上不一定被调用
+    this.readOptions()
   },
   methods: {
     // 框架只转发 onShow / onPageUnload 两个生命周期
     onShow() { this.U = ui() },
+    /** 读取页面参数 (mounted 不保证触发, onShow 也要读; 同参数幂等) */
+    readOptions() {
+      const o = (this.$page && this.$page.options) || {}
+      const cv = String(o.cv || '')
+      if (this.paramKey === cv && cv !== '') return
+      this.paramKey = cv
+      this.cv = cv
+      if (!cv) { this.status = '缺少专栏参数'; return }
+      this.load()
+    },
     onPageUnload() {
       this._unloaded = true
       this.genSeq++

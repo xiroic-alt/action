@@ -177,7 +177,8 @@ export default {
       try {
         if (v.kind === 'live' && v.roomId) { $falcon.navTo('play', { roomid: v.roomId, mode: 'live', title: v.title }); return }
         if (v.kind === 'bangumi') { this.status = '番剧详情下一批接入'; return }
-        if (v.bvid) $falcon.navTo('play', { bvid: v.bvid, title: v.title })
+        // 点卡片先到**详情页**, 由详情页再进播放 (用户要求: 不要直接跳播放页)
+      if (v.bvid) $falcon.navTo('video', { bvid: v.bvid, title: v.title })
       } catch (e) {}
     }
   }

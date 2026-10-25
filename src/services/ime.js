@@ -91,6 +91,10 @@ export function createIME() {
     resolver = null
     unsubscribe()
     closeSession()
+    // ★ 最后一道保险: 对外只吐 string 或 null.
+    //   设备回调结构多变 (对象/JSON 字符串/事件包装), 万一上游解析漏了,
+    //   这里也不会把对象丢给页面 (否则页面会写出 "[object Object]").
+    if (typeof value !== 'string') value = null
     if (r) r(value)
   }
 
@@ -121,25 +125,42 @@ export function createIME() {
         return
       }
 
-      // 先看有没有"带 text 键的对象", 有则以它为唯一文本来源 (裸串全部忽略)
+      // ★ 真机实证: 回调里的 data 常常是 **JSON 字符串**
+      //   '{"text":"xxx","cursorIndex":3,"editConfirmed":true}'
+      //   早期版本把它当"裸字符串"直接返回, 于是调用方拿到的是整串 JSON
+      //   ("返回了全部数值"), 而不是 text 的值. 这里统一解析:
+      //     1) 字符串且像 JSON -> JSON.parse 后按对象处理
+      //     2) 对象且带 string 类型的 text -> 取 text
+      //   其余 (纯 UUID / 无关字符串) 一律忽略.
+      function pick(v) {
+        if (v && typeof v === 'object' && v.data !== undefined && (v.type || v.timestamp !== undefined)) v = v.data
+        if (typeof v === 'string') {
+          const s = v.trim()
+          // 只尝试解析明显是 JSON 对象的串, 避免把用户输入的 "{abc" 当 JSON
+          if (s.charAt(0) === '{' && s.indexOf('"text"') > 0) {
+            try { return pick(JSON.parse(s)) } catch (e) { return null }
+          }
+          return null
+        }
+        if (v && typeof v === 'object' && typeof v.text === 'string') {
+          if (v.text === '' || isUuidArg(v.text, myUuid)) return null
+          return { text: v.text, confirmed: v.editConfirmed === true }
+        }
+        return null
+      }
+
       let text = null
       let confirmed = false
       let hasKeyed = false
-
       for (let i = 0; i < args.length; i++) {
-        let d = args[i]
-        // 事件包装 { type, timestamp, data } 解一层
-        if (d && typeof d === 'object' && d.data !== undefined && (d.type || d.timestamp !== undefined)) d = d.data
-        if (!d || typeof d !== 'object') continue
-        if (typeof d.text !== 'string') continue
+        const r = pick(args[i])
+        if (!r) continue
         hasKeyed = true
-        if (d.text !== '' && !isUuidArg(d.text, myUuid)) {
-          if (text === null) text = d.text
-          if (d.editConfirmed === true) confirmed = true
-        }
+        if (text === null) text = r.text
+        if (r.confirmed) { text = r.text; confirmed = true }
       }
 
-      // 没有任何带 text 键的对象: 退回"裸字符串"路径 (仅在它肯定不是 UUID 时)
+      // 完全没有结构化结果时才退回裸字符串 (仍然排除 UUID)
       if (!hasKeyed) {
         for (let i = 0; i < args.length; i++) {
           const d = args[i]

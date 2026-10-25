@@ -248,7 +248,7 @@ export default {
       if (norm.kind === 'video') {
         this.record(q)
         log('搜索', '视频号直达 ' + norm.bvid)
-        try { $falcon.navTo('play', { bvid: norm.bvid }) } catch (e) {}
+        try { $falcon.navTo('video', { bvid: norm.bvid }) } catch (e) {}
         return
       }
       this.record(q)
@@ -326,7 +326,7 @@ export default {
 
     openVideo(v) {
       if (!v || !v.bvid) return
-      try { $falcon.navTo('play', { bvid: v.bvid, title: v.title }) } catch (e) {}
+      try { $falcon.navTo('video', { bvid: v.bvid, title: v.title }) } catch (e) {}
     },
 
     // ---------------- 样式 ----------------

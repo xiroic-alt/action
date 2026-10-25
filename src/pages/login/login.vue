@@ -35,14 +35,18 @@
       <!-- 电脑同步: 步骤说明 + IP 输入 + 获取并登录 -->
       <div v-else class="pc-wrap">
         <scroller class="pc-scroll" scroll-direction="vertical" :show-scrollbar="true">
-          <text class="pc-step" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">① 电脑与词典笔连同一个 WiFi; 电脑上运行 tools/pc-cookie-server.py, 记下它打印的局域网地址。</text>
-          <text class="pc-step" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">② 电脑浏览器打开 http://127.0.0.1:9527, 粘贴 B 站 Cookie 整行 (含 SESSDATA), 点保存。</text>
-          <text class="pc-step" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">③ 取得方法: 电脑浏览器登录 bilibili.com → F12 → Network → 任一 api 请求 → 复制 Cookie 行。</text>
-          <div class="pc-input" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.card + 'px', height: '44px' }" @click="inputIp">
-            <text class="pc-inputt" :lines="1" :style="pcIp === '' ? U.t.weak : U.t.body">{{ pcIp === '' ? '点击输入电脑 IP (如 192.168.1.100)' : pcIp }}</text>
+          <text class="pc-step" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">① 电脑与词典笔连同一个 WiFi, 电脑上运行 tools/pc-cookie-server.py。</text>
+          <text class="pc-step" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">② 点下面「一键获取并登录」: 笔会自动找到电脑, 电脑会自动从浏览器读出 B 站 Cookie —— 不用填 IP, 也不用复制 Cookie。</text>
+          <text class="pc-step" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">③ 自动读取失败时 (浏览器未登录 B 站 / 用了应用绑定加密), 再到电脑页面手动粘贴 Cookie, 然后点一次「重试」。</text>
+          <div class="btn" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px', height: '44px' }" @click="autoFetch">
+            <text class="btnt" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">{{ fetching ? '处理中…' : '一键获取并登录' }}</text>
           </div>
-          <div class="btn" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px', height: '44px' }" @click="fetchFromPc">
-            <text class="btnt" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">{{ fetching ? '获取中…' : '获取并登录' }}</text>
+          <!-- 手填 IP 只作为兜底: 自动发现不到时还能用 -->
+          <div class="pc-input" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.card + 'px', height: '44px' }" @click="inputIp">
+            <text class="pc-inputt" :lines="1" :style="pcIp === '' ? U.t.weak : U.t.body">{{ pcIp === '' ? '自动发现不到? 点这里手填电脑 IP' : '电脑 IP: ' + pcIp }}</text>
+          </div>
+          <div v-if="pcIp !== ''" class="btn" :style="{ backgroundColor: U.c.surfaceContainerHigh, borderRadius: U.rad.chip + 'px', height: '44px' }" @click="fetchFromPc">
+            <text class="btnt" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">{{ fetching ? '获取中…' : '用手填 IP 获取' }}</text>
           </div>
           <text v-if="pcStatus !== ''" class="pc-status" :lines="2" :style="{ fontSize: U.f.caption + 'px', color: pcOk ? U.c.primary : U.c.error }">{{ pcStatus }}</text>
           <text class="pc-warn" :lines="2" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">安全提示: Cookie 等同于登录凭证, 只在本机与笔之间传输; 用完请在电脑上按 Ctrl+C 关闭该服务。</text>
@@ -332,6 +336,34 @@ export default {
       this.pcIp = String(text).trim()
     },
 
+    /** 一键: 自动发现电脑 + 获取 Cookie + 校验登录 */
+    async autoFetch() {
+      if (this.fetching) return
+      const gen = this.genSeq
+      this.fetching = true
+      this.pcOk = false
+      this.pcStatus = '正在搜索电脑端服务 (最多约 10 秒)…'
+      try {
+        const ip = await discover()
+        if (gen !== this.genSeq) return
+        if (!ip) {
+          this.pcOk = false
+          this.pcStatus = '没找到电脑端服务: 确认电脑已运行 pc-cookie-server.py, 且与笔在同一 WiFi'
+          return
+        }
+        saveIp(ip)
+        this.pcIp = ip
+        this.pcStatus = '已找到电脑 ' + ip + ', 正在获取…'
+        await this.applyPcCookie(ip, gen)
+      } catch (e) {
+        if (gen !== this.genSeq) return
+        this.pcOk = false
+        this.pcStatus = e && e.message ? e.message : String(e)
+      } finally {
+        if (gen === this.genSeq) this.fetching = false
+      }
+    },
+
     async fetchFromPc() {
       if (this.fetching) return
       if (this.pcIp === '') { this.pcOk = false; this.pcStatus = '请先输入电脑 IP'; return }
@@ -340,7 +372,20 @@ export default {
       this.pcOk = false
       this.pcStatus = '正在从电脑获取…'
       try {
-        const c = await fetchPcCookie(this.pcIp)
+        await this.applyPcCookie(this.pcIp, gen)
+      } catch (e) {
+        if (this._unloaded || gen !== this.genSeq) return
+        this.pcStatus = e && e.message ? e.message : String(e)
+        this.pcOk = false
+      } finally {
+        if (gen === this.genSeq) this.fetching = false
+      }
+    },
+
+    /** 真正干活的: 拉 Cookie -> 保存 -> 校验登录态 */
+    async applyPcCookie(ip, gen) {
+      try {
+        const c = await fetchPcCookie(ip)
         if (this._unloaded || gen !== this.genSeq) return
         if (!saveLogin({ sessdata: c.sessdata, biliJct: c.biliJct, dedeUserId: c.dedeUserId })) {
           this.pcStatus = 'Cookie 缺少 SESSDATA, 保存失败'

@@ -253,6 +253,7 @@ export default {
       tip: '',
       // 世代守卫: 页面级装载用 ++this.genSeq, 动作类请求只读当前值做过期判断
       genSeq: 0,
+      paramKey: '',
       cmtGen: 0,
       tipTimer: null,
       busyLock: { like: false, coin: false, fav: false, follow: false }
@@ -314,13 +315,33 @@ export default {
     }
   },
   mounted() {
-    const o = (this.$page && this.$page.options) || {}
-    this.bvid = String(o.bvid || '')
-    this.load()
+    // ★ 参数统一走 readOptions(): mounted 在设备上不一定被调用
+    this.readOptions()
   },
   methods: {
     // 框架只转发这两个生命周期
-    onShow() { this.U = ui() },
+    onShow() {
+      this.U = ui()
+      this.readOptions()
+    },
+    /**
+     * 读取页面参数并加载.
+     * ★ 设备框架只转发 onShow, mounted 不保证触发 —— 参数必须两边都读,
+     *   否则详情页永远"缺少视频参数". 幂等: 同一 bvid 只加载一次.
+     */
+    readOptions() {
+      const o = (this.$page && this.$page.options) || {}
+      const bvid = String(o.bvid || '')
+      if (this.paramKey === bvid && this.paramKey !== '') return
+      this.paramKey = bvid
+      this.bvid = bvid
+      if (!bvid) {
+        this.status = '缺少视频参数'
+        log('详情', '缺少 bvid 参数 (options=' + JSON.stringify(o) + ')')
+        return
+      }
+      this.load()
+    },
     onPageUnload() {
       this.genSeq++
       this.cmtGen++
@@ -606,7 +627,7 @@ export default {
     },
     openBv(bvid) {
       if (!bvid) return
-      try { $falcon.navTo('play', { bvid: bvid }) } catch (e) {}
+      try { $falcon.navTo('video', { bvid: bvid }) } catch (e) {}
     },
     toggleTitle() { this.titleOpen = !this.titleOpen },
     toggleDesc() { this.descOpen = !this.descOpen },

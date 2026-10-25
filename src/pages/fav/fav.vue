@@ -95,6 +95,7 @@ export default {
       // 世代守卫必须真的是数字: ++undefined = NaN, 而 NaN !== NaN 恒真,
       // 结果会被判成"过期"丢弃, 页面永远停在加载中 (项目历史踩过)
       genSeq: 0,
+      paramKey: '',
       U: ui(),
       IC: IC,
       mediaId: 0,
@@ -195,26 +196,33 @@ export default {
     }
   },
   mounted() {
-    this.genSeq = 0
-    this.tipTimer = null
-    // 参数在 mounted 里读: 框架只在这时把 options 挂到 $page 上
-    const o = (this.$page && this.$page.options) || {}
-    this.mediaId = Number(o.id || o.media_id || 0) || 0
-    this.titleText = String(o.title || '')
-    this.needLogin = !hasCookie()
-    if (this.mediaId === 0) { this.status = '缺少收藏夹参数'; return }
-    if (this.needLogin) return
-    this.reload()
+    // ★ 参数统一走 readOptions(): mounted 在设备上不一定被调用
+    this.readOptions()
   },
   methods: {
     // 框架只转发 onShow / onPageUnload 这两个生命周期
     onShow() {
+      this.readOptions()
       this.U = ui()
       const logged = hasCookie()
       // 从登录页回来时登录态会翻转, 只有真的变了才重拉 —— 否则每次回前台都白发一次列表请求
       if (logged === !this.needLogin) return
       this.needLogin = !logged
       if (logged) this.reload()
+    },
+    /** 读取页面参数 (mounted 不保证触发, onShow 也要读; 同参数幂等) */
+    readOptions() {
+      const o = (this.$page && this.$page.options) || {}
+      const id = Number(o.id || o.media_id || 0) || 0
+      const key = String(id)
+      if (this.paramKey === key && key !== '0') return
+      this.paramKey = key
+      this.mediaId = id
+      this.titleText = String(o.title || '')
+      this.needLogin = !hasCookie()
+      if (this.mediaId === 0) { this.status = '缺少收藏夹参数'; return }
+      if (this.needLogin) return
+      this.reload()
     },
     onPageUnload() {
       this.genSeq++          // 作废在途请求, 页面销毁后不再 setData
@@ -276,7 +284,7 @@ export default {
       // 失效稿件 / 非普通视频 (直播回放、番剧) 在笔上没有播放器, 别把用户送进空白页
       if (!v.openable || v.bvid === '') { this.showTip('该收藏内容已失效或不是普通视频'); return }
       log('收藏', '打开 ' + v.bvid)
-      try { $falcon.navTo('play', { bvid: v.bvid, title: v.title }) } catch (e) {}
+      try { $falcon.navTo('video', { bvid: v.bvid, title: v.title }) } catch (e) {}
     },
     goLogin() {
       try { $falcon.navTo('login', {}) } catch (e) {}

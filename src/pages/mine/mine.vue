@@ -372,7 +372,7 @@ export default {
       if (it.type === 'folder') { this.enterFav(it); return }
       if (it.openable && it.bvid) {
         log('我的', '打开 ' + it.bvid)
-        try { $falcon.navTo('play', { bvid: it.bvid, title: it.title }) } catch (e) {}
+        try { $falcon.navTo('video', { bvid: it.bvid, title: it.title }) } catch (e) {}
         return
       }
       this.showTip('该记录不是普通视频稿件, 笔上暂不能播放')

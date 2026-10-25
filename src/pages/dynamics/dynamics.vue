@@ -271,7 +271,7 @@ export default {
 
     openVideo(v) {
       if (!v || !v.bvid) return
-      try { $falcon.navTo('play', { bvid: v.bvid, title: v.title }) } catch (e) {}
+      try { $falcon.navTo('video', { bvid: v.bvid, title: v.title }) } catch (e) {}
     },
 
     openArticle(a) {
