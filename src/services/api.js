@@ -1077,3 +1077,43 @@ export async function articleList(mid, pn) {
     }
   }).filter(function (a) { return a.id })
 }
+
+
+/* ==================== 评论互动 ==================== */
+
+/** 评论点赞 / 取消: action 1=赞 0=取消 */
+export async function commentLike(oid, rpid, action, type) {
+  const s = authState()
+  if (!s || !s.biliJct) { const e = new Error('需要登录 (缺少 csrf)'); e.kind = 'biz'; throw e }
+  return postForm(API + '/x/v2/reply/action',
+    'oid=' + oid + '&type=' + (Number(type) || 1) + '&rpid=' + rpid +
+    '&action=' + (Number(action) === 1 ? 1 : 0) + '&csrf=' + encodeURIComponent(s.biliJct))
+}
+
+/**
+ * 发表评论 / 回复.
+ * root 与 parent 都传 0 就是发主楼评论; 回复某人时:
+ *   root  = 该评论所在的主楼 rpid, parent = 被回复那条的 rpid
+ */
+export async function commentAdd(oid, message, root, parent, type) {
+  const s = authState()
+  if (!s || !s.biliJct) { const e = new Error('需要登录 (缺少 csrf)'); e.kind = 'biz'; throw e }
+  const msg = String(message || '').trim()
+  if (!msg) { const e = new Error('评论内容为空'); e.kind = 'bad'; throw e }
+  return postForm(API + '/x/v2/reply/add',
+    'oid=' + oid + '&type=' + (Number(type) || 1) +
+    '&message=' + encodeURIComponent(msg) +
+    '&root=' + (Number(root) || 0) + '&parent=' + (Number(parent) || 0) +
+    '&plat=1&csrf=' + encodeURIComponent(s.biliJct))
+}
+
+/** 某条主楼评论下的子评论 (楼中楼) */
+export async function subReplies(oid, root, pn, type) {
+  const url = API + '/x/v2/reply/reply?oid=' + encodeURIComponent(oid) +
+    '&type=' + (Number(type) || 1) + '&root=' + root +
+    '&pn=' + (pn || 1) + '&ps=10'
+  const body = await getJson(url, { noError: true })
+  const d = (body && body.data) || {}
+  const list = (d.replies || []).map(mapReply)
+  return { list: list, total: Number((d.page && d.page.count) || 0) }
+}

@@ -32,7 +32,8 @@
           <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
         </div>
 
-        <div v-if="!titleOpen" class="metarow" :style="{ height: '20px' }">
+        <!-- 数据行常显: 展开标题时也不隐藏 (用户明确要求) -->
+        <div class="metarow" :style="{ height: '20px' }">
           <text class="meta" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
         </div>
 
@@ -83,9 +84,36 @@
                 <div class="chead">
                   <text class="cname" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ c.author }}</text>
                   <text v-if="c.timeText !== ''" class="ctime" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.timeText }}</text>
-                  <text v-if="c.likeText !== ''" class="clike" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">赞 {{ c.likeText }}</text>
                 </div>
                 <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="3" :drop-emoji="false" />
+                <!-- 操作条: 点赞 / 回复 / 展开楼中楼 -->
+                <div class="cops">
+                  <div class="cop" :style="{ height: '30px' }" @click="likeComment(c)">
+                    <image class="copic" :src="c.liked ? MI.likeOn : MI.like" :style="{ width: '15px', height: '15px' }"></image>
+                    <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: c.liked ? U.c.primary : U.c.onSurfaceVariant }">{{ c.likeText === '' ? '赞' : c.likeText }}</text>
+                  </div>
+                  <div class="cop" :style="{ height: '30px' }" @click="replyComment(c)">
+                    <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">回复</text>
+                  </div>
+                  <div v-if="c.replyCount > 0" class="cop" :style="{ height: '30px' }" @click="toggleSub(c)">
+                    <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.primary }">{{ c.subOpen ? '收起' : ('展开 ' + c.replyCount + ' 条回复') }}</text>
+                  </div>
+                </div>
+                <!-- 楼中楼 -->
+                <div v-if="c.subOpen" class="subs" :style="{ backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }">
+                  <div v-if="c.subLoading" class="subhint">
+                    <text class="subhintt" :lines="1" :style="U.t.weak">加载中…</text>
+                  </div>
+                  <div v-for="(s, j) in (c.subs || [])" :key="s.rpid + '_' + j" class="subrow">
+                    <text class="subn" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.primary }">{{ s.author }}</text>
+                    <RichText class="subt" :text="s.text" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="2" :drop-emoji="false" />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="cwrite">
+              <div class="cwbtn" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px', height: '34px' }" @click="writeComment">
+                <text class="cwbtnt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimary }">写评论</text>
               </div>
             </div>
             <div v-if="comments.length > 0" class="cfoot">
@@ -126,10 +154,11 @@
 // 笔屏落地: 内容区 222 = 信息区 118 (左: UP+标题+数据 / 右: 操作栏+简介) + 评论滚动区 104。
 // 展开态 (标题/简介) 放不进 118px, 用详情浮层承载 —— 这是与上游唯一的结构性覆盖。
 import AppBar from '../../components/app-bar.vue'
+import { createIME } from '../../services/ime.js'
 import RichText from '../../components/rich-text.vue'
 import { ui } from '../../design/ui.js'
 import { SCREEN } from '../../design/tokens.js'
-import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies } from '../../services/api.js'
+import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies, commentLike, commentAdd, subReplies } from '../../services/api.js'
 import { splitByVideoIds } from '../../services/bv.js'
 import { playCount } from '../../services/format.js'
 import { hasCookie } from '../../core/auth.js'
@@ -394,6 +423,82 @@ export default {
         ? Number(e.scrollHeight) - Number(e.scrollTop) : 9999
       const near = bottom > 0 ? bottom < 80 : left < 300
       if (near && this.hasMore && !this.loadingCmt && this.comments.length > 0) this.loadComments(false)
+    },
+
+    /** 评论点赞 / 取消 */
+    async likeComment(c) {
+      const want = !c.liked
+      try {
+        await commentLike(this.aid, c.rpid, want ? 1 : 0, 1)
+        c.liked = want
+        // 本地先动数字, 失败也不至于显示反了
+        const n = Number(String(c.likeText).replace(/[^\d.]/g, '')) || 0
+        c.likeText = n === 0 ? (want ? '1' : '') : String(want ? n + 1 : Math.max(0, n - 1))
+        this.showTip(want ? '已点赞' : '已取消')
+      } catch (e) {
+        this.showTip(e && /登录/.test(e.message || '') ? '请先登录' : ('操作失败: ' + (e && e.message ? e.message : e)))
+      }
+    },
+
+    /** 回复某条评论 (唤起系统输入法) */
+    async replyComment(c) {
+      const text = await this.askText('回复 @' + c.author)
+      if (text == null || text === '') return
+      try {
+        await commentAdd(this.aid, text, c.rpid, c.rpid, 1)
+        this.showTip('回复已发送')
+        // 回复后展开该条的楼中楼并刷新
+        c.subs = []
+        c.subOpen = true
+        await this.loadSub(c)
+        this.replyTotal = this.replyTotal + 1
+      } catch (e) {
+        this.showTip(e && /登录/.test(e.message || '') ? '请先登录' : ('发送失败: ' + (e && e.message ? e.message : e)))
+      }
+    },
+
+    /** 发表主楼评论 */
+    async writeComment() {
+      const text = await this.askText('写评论')
+      if (text == null || text === '') return
+      try {
+        await commentAdd(this.aid, text, 0, 0, 1)
+        this.showTip('评论已发送')
+        await this.loadComments(true)
+      } catch (e) {
+        this.showTip(e && /登录/.test(e.message || '') ? '请先登录' : ('发送失败: ' + (e && e.message ? e.message : e)))
+      }
+    },
+
+    /** 统一走系统输入法取一段文本; 取消返回 null */
+    async askText(placeholder) {
+      if (!this.imeSession) this.imeSession = createIME()
+      try {
+        const t = await this.imeSession.open({ text: '', placeholder: placeholder || '说点什么', maxlength: 500, enterButtonText: '发送' })
+        return t
+      } catch (e) {
+        this.showTip('系统输入法唤不起来')
+        return null
+      }
+    },
+
+    /** 展开 / 收起楼中楼 */
+    async toggleSub(c) {
+      if (c.subOpen) { c.subOpen = false; return }
+      c.subOpen = true
+      if (c.subs && c.subs.length) return
+      await this.loadSub(c)
+    },
+    async loadSub(c) {
+      c.subLoading = true
+      try {
+        const r = await subReplies(this.aid, c.rpid, 1, 1)
+        c.subs = r.list || []
+      } catch (e) {
+        c.subs = []
+      } finally {
+        c.subLoading = false
+      }
     },
 
     onAction(id) {
@@ -682,7 +787,6 @@ export default {
 .sortHit { justify-content: center; align-items: center; }
 .sort { justify-content: center; align-items: center; }
 .sortt { }
-.clist { flex: 1; margin-left: 8px; margin-right: 12px; }
 .cHint { }
 .cHintHit { justify-content: center; align-items: center; }
 .crow { flex-direction: row; padding-top: 6px; padding-bottom: 6px; }
@@ -743,4 +847,17 @@ export default {
 .playHit { position: absolute; right: 14px; bottom: 10px; }
 .play { flex-direction: row; justify-content: center; align-items: center; }
 .playt { font-size: 15px; font-weight: bold; }
+.cops { flex-direction: row; align-items: center; margin-top: 2px; }
+.cop { flex-direction: row; align-items: center; margin-right: 14px; padding-left: 2px; padding-right: 2px; }
+.copic { width: 15px; height: 15px; margin-right: 3px; }
+.copt { font-size: 11px; }
+.subs { flex-direction: column; margin-top: 4px; padding: 6px; }
+.subhint { height: 22px; justify-content: center; align-items: center; }
+.subhintt { font-size: 11px; }
+.subrow { flex-direction: column; margin-bottom: 4px; }
+.subn { font-size: 11px; }
+.subt { font-size: 11px; }
+.cwrite { flex-direction: row; justify-content: center; align-items: center; padding-top: 6px; padding-bottom: 6px; }
+.cwbtn { padding-left: 18px; padding-right: 18px; justify-content: center; align-items: center; }
+.cwbtnt { font-size: 13px; }
 </style>
