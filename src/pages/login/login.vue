@@ -187,6 +187,8 @@ export default {
     /** 二维码懒启动 (mounted 与 onShow 都会调; 有守卫, 不会重复生成) */
     maybeStartQr() {
       if (this.mode !== 'qr') return
+      // 已经登录就不要再生成二维码 (电脑同步登录后回到本页会重开二维码, 反直觉)
+      if (this.account && this.account.sessdata) return
       if (this.pollState === 'generating' || this.pollState === 'waiting' || this.pollState === 'scanned') return
       if (this.qr === null) this.startQr()
     },

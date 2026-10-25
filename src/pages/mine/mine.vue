@@ -218,9 +218,10 @@ export default {
     },
     onShow() {
       this.U = ui()
-      if (!this._started) { this._started = true; this.refresh(); return }
-      // 从登录页 / 设置页回来: 轻量同步登录态, 只有状态变了才重拉列表
-      this.recheck()
+      // ★ 一律 refresh: isLogin 依赖 data 里的 user, 而 authState() 是模块级变量
+      //   (Vue 追踪不到). 之前用"轻量 recheck"只同步内存态, 页面不会重渲染,
+      //   于是从登录页回来仍显示"点击登录" —— 用户看到的就是"已经登录了但显示未登录".
+      this.refresh()
     },
     onPageUnload() {
       this.genSeq++
