@@ -589,7 +589,10 @@ export default {
         width: '44px',
         height: '26px',
         borderRadius: '13px',
-        justifyContent: 'center',
+        // ★ flex-start: 圆点从左往右位移, 用 transform 表达开/关 (框架只支持 transform 过渡)
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
         backgroundColor: on ? this.U.c.primary : this.U.c.surfaceContainerHighest
       }
     },
@@ -600,7 +603,7 @@ export default {
         height: '20px',
         borderRadius: '10px',
         marginLeft: '3px',
-        backgroundColor: on ? this.U.c.onPrimary : this.U.c.onSurfaceVariant,
+        backgroundColor: on ? this.U.c.onPrimary : this.U.c.onSurface,
         // 本机 CSS 只支持 transform 过渡: 开关位移用 translateX
         transform: on ? 'translateX(18px)' : 'translateX(0px)',
         transitionProperty: 'transform',
@@ -713,7 +716,11 @@ function darkOfHex(hex) {
 /* 右侧控件: 44px 命中区是硬要求 (笔的最小触摸尺寸) */
 .ctl { width: 56px; height: 44px; flex-direction: row; justify-content: center; align-items: center; }
 /* 开关: 药丸 40x22 + 圆点 18, 只用 transform 位移 (框架 transition 只支持 transform) */
-.sw { width: 40px; height: 22px; border-radius: 11px; flex-direction: row; align-items: center; padding-left: 2px; padding-right: 2px; }
+/* 开关药丸: 必须是 flex-start + 无内边距.
+   原来用 justify-content:center 又叠了 marginLeft 和 translateX, 三个偏移互相打架,
+   圆点就跑到药丸外面/贴边 (真机上看到的"滑块错位").
+   现在的几何: 药丸 44x26, 圆点 20, 左边距 3 -> 关: x=3..23; 开: translateX(18) -> x=21..41, 右侧留 3. */
+.sw { width: 44px; height: 26px; border-radius: 13px; flex-direction: row; align-items: center; justify-content: flex-start; }
 .knob { width: 18px; height: 18px; border-radius: 9px; background-color: #ffffff; }
 .ct { font-size: 13px; }
 .cic { width: 16px; height: 16px; margin-left: 2px; }

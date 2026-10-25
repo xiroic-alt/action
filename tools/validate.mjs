@@ -175,6 +175,28 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- 图标变体必须真的不同 (真机踩过: 生成器算了颜色却没用, 47 个图标全是纯黑) ----
+{
+  const miDir = path.join(ROOT, 'src/assets/mi')
+  if (fs.existsSync(miDir)) {
+    const files = fs.readdirSync(miDir).filter((f) => f.endsWith('.png'))
+    const byBase = {}
+    for (const f of files) {
+      const m = f.match(/^(.*)_(w|d|p|m)\.png$/)
+      if (!m) continue
+      byKey(m[1], m[2], fs.readFileSync(path.join(miDir, f)))
+    }
+    function byKey(base, variant, buf) {
+      if (!byBase[base]) byBase[base] = {}
+      byBase[base][variant] = buf
+    }
+    for (const base of Object.keys(byBase)) {
+      const g = byBase[base]
+      if (g.w && g.d && g.w.equals(g.d)) bad('图标 ' + base + ' 的 _w 与 _d 内容完全相同 —— 着色没生效, 深色主题下会看不见')
+    }
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

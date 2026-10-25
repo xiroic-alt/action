@@ -28,7 +28,7 @@
 
           <!-- 标题: 2 行折叠, 点击就地展开 (展开时收起数据行, 用 118px 里的 68px 显示全文) -->
           <div class="titlerow" :style="{ height: titleRowH + 'px' }" @click="toggleTitle">
-            <text class="title" :lines="titleLines" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">{{ titleText }}</text>
+            <RichText class="title" :text="titleText" :size="U.f.subtitle" :color="U.c.onSurface" :lines="titleLines" :drop-emoji="false" />
             <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
           </div>
 
@@ -52,9 +52,9 @@
           <div class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
             <scroller v-if="descOpen" class="descScroll" scroll-direction="vertical" :show-scrollbar="true"
                       :style="{ height: (descH - 6) + 'px' }">
-              <text class="desc" :lines="0" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ descText }}</text>
+              <RichText class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
             </scroller>
-            <text v-else class="desc" :lines="3" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ descText }}</text>
+            <RichText v-else class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
           </div>
         </div>
       </div>
@@ -90,7 +90,7 @@
                 <text v-if="c.timeText !== ''" class="ctime" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.timeText }}</text>
                 <text v-if="c.likeText !== '0'" class="clike" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '赞 ' + c.likeText }}</text>
               </div>
-              <text class="ctext" :lines="2" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">{{ c.text }}</text>
+              <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
               <!-- 视频号快捷栏: 笔上 richtext 内部元素不触发点击, 所以号单独成排 (数据来自 splitByVideoIds) -->
               <div v-if="c.vids.length > 0" class="cids">
                 <div v-for="v in c.vids" :key="v" class="cidHit" :style="{ height: '44px' }" @click="openBv(v)">
@@ -165,6 +165,7 @@
 // 笔屏落地: 内容区 222 = 信息区 118 (左: UP+标题+数据 / 右: 操作栏+简介) + 评论滚动区 104。
 // 展开态 (标题/简介) 放不进 118px, 用详情浮层承载 —— 这是与上游唯一的结构性覆盖。
 import AppBar from '../../components/app-bar.vue'
+import RichText from '../../components/rich-text.vue'
 import { ui } from '../../design/ui.js'
 import { SCREEN } from '../../design/tokens.js'
 import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies } from '../../services/api.js'
@@ -205,7 +206,7 @@ function prepReply(r) {
 }
 
 export default {
-  components: { AppBar },
+  components: { AppBar, RichText },
   name: 'video',
   data() {
     return {

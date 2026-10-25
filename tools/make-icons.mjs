@@ -89,9 +89,17 @@ let made = 0, missing = []
 for (const it of ICONS) {
   const svg = path.join(SRC, it.icon + '.svg')
   if (!fs.existsSync(svg)) { missing.push(it.icon); continue }
-  const b64 = fs.readFileSync(svg).toString('base64')
-  const data = 'data:image/svg+xml;base64,' + b64
   const color = COLORS[it.color] || COLORS.w
+  // ★ 必须把颜色写进 SVG 再光栅化.
+  //   原来只算出了 color 却没用在任何地方 -> sharp 原样输出 SVG 自带的黑色,
+  //   于是 47 个图标的所有变体 (_w/_d/_p) 全是纯黑, 深色主题下几乎看不见.
+  //   做法: 给 <svg> 注入 fill (子路径会继承), 并把 currentColor 也替换掉.
+  let svgText = fs.readFileSync(svg, 'utf8')
+  svgText = svgText.replace(/currentColor/g, color)
+  if (!/fill=/.test(svgText.slice(0, svgText.indexOf('>')))) {
+    svgText = svgText.replace('<svg', '<svg fill="' + color + '"')
+  }
+  const data = 'data:image/svg+xml;base64,' + Buffer.from(svgText, 'utf8').toString('base64')
   if (DRY) { console.log(it.file + ' <- ' + it.icon + ' ' + it.size + 'px ' + color); made++; continue }
   sharp(Buffer.from(data.split(',')[1], 'base64'))
     .resize(it.size, it.size)
