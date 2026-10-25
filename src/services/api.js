@@ -827,3 +827,235 @@ export async function relationModify(mid, act) {
     'fid=' + m + '&act=' + (Number(act) === 2 ? 2 : 1) +
     '&re_src=11&csrf=' + encodeURIComponent(s.biliJct))
 }
+
+
+/* ==================== 动态 / 用户空间 / 专栏 / 关注粉丝 ==================== */
+// 说明: 全部走 Web 接口 (用户要求不碰 app 接口). 动态与空间信息需要 wbi 签名,
+// 统一走 signQuery(); 列表项用下面的 map* 收敛成页面用的结构.
+
+/** 时间戳 -> 相对时间 */
+function relTime(ts) {
+  const n = Number(ts) || 0
+  if (!n) return ''
+  const d = Math.max(0, Math.floor(Date.now() / 1000) - n)
+  if (d < 60) return '刚刚'
+  if (d < 3600) return Math.floor(d / 60) + ' 分钟前'
+  if (d < 86400) return Math.floor(d / 3600) + ' 小时前'
+  if (d < 86400 * 30) return Math.floor(d / 86400) + ' 天前'
+  return F.date ? F.date(n) : ''
+}
+
+/** 去掉 HTML 标签 (专栏正文/简介) */
+function stripHtml(s) {
+  return String(s || '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .trim()
+}
+
+/** 动态卡片 -> 统一结构 */
+function mapDynamic(it) {
+  if (!it) return null
+  const mod = it.modules || {}
+  const au = mod.module_author || {}
+  const dy = mod.module_dynamic || {}
+  const desc = dy.desc || {}
+  const major = dy.major || {}
+  const out = {
+    id: String(it.id_str || ''),
+    type: String(it.type || ''),
+    author: au.name || '',
+    face: F.thumb(au.face || '', 80, 80),
+    pubTs: au.pub_ts || 0,
+    timeText: relTime(au.pub_ts),
+    text: desc.text || '',
+    pics: [],
+    video: null,
+    article: null,
+    repost: null
+  }
+  const draw = major.draw
+  if (draw && draw.items) {
+    for (let i = 0; i < draw.items.length && i < 9; i++) {
+      const src = draw.items[i].src || ''
+      if (src) out.pics.push(F.thumb(src, 320, 200))
+    }
+  }
+  const arch = major.archive
+  if (arch) {
+    out.video = {
+      bvid: arch.bvid || '',
+      title: arch.title || '',
+      cover: F.thumb(arch.cover || '', 480, 300),
+      durationText: F.duration ? F.duration(arch.duration) : '',
+      playText: F.playCount ? F.playCount(arch.stat && arch.stat.play) : ''
+    }
+  }
+  const opus = major.opus
+  if (opus) {
+    out.text = out.text || (opus.summary && opus.summary.text) || ''
+    if (opus.pics) {
+      for (let i = 0; i < opus.pics.length && i < 9; i++) {
+        const u = opus.pics[i].url || ''
+        if (u) out.pics.push(F.thumb(u, 320, 200))
+      }
+    }
+  }
+  const art = major.article
+  if (art) out.article = { id: String(art.id || ''), title: art.title || '', covers: art.covers || [] }
+  const orig = it.orig
+  if (orig) out.repost = mapDynamic(orig)
+  return out
+}
+
+/** 动态流: type = all(推荐) | video */
+export async function dynamicFeed(offset, type) {
+  const q = await signQuery({
+    offset: offset || '',
+    type: type || 'all',
+    platform: 'web',
+    features: 'itemOpusStyle,listOnlyfans,opusBigCover,onlyfansVote,decorationCard'
+  })
+  const body = await getJson(API + '/x/polymer/web-dynamic/v1/feed/all?' + q)
+  const d = (body && body.data) || {}
+  return {
+    items: (d.items || []).map(mapDynamic).filter(Boolean),
+    offset: d.offset || '',
+    hasMore: !!d.has_more
+  }
+}
+
+/** 用户空间动态 */
+export async function spaceDynamics(mid, offset) {
+  const q = await signQuery({
+    host_mid: mid,
+    offset: offset || '',
+    platform: 'web',
+    features: 'itemOpusStyle,opusBigCover,onlyfansVote'
+  })
+  const body = await getJson(API + '/x/polymer/web-dynamic/v1/feed/space?' + q)
+  const d = (body && body.data) || {}
+  return {
+    items: (d.items || []).map(mapDynamic).filter(Boolean),
+    offset: d.offset || '',
+    hasMore: !!d.has_more
+  }
+}
+
+/** 用户空间基本信息 */
+export async function spaceInfo(mid) {
+  const q = await signQuery({ mid: mid })
+  const body = await getJson(API + '/x/space/wbi/acc/info?' + q)
+  const d = (body && body.data) || {}
+  return {
+    mid: d.mid || mid,
+    name: d.name || '',
+    face: F.thumb(d.face || '', 120, 120),
+    sign: d.sign || '',
+    level: (d.level) || 0,
+    fans: (d.fans) || 0,
+    fansText: F.count ? F.count(d.fans) : String(d.fans || 0),
+    archive: (d.archive_count) || 0,
+    like: (d.likes) || 0,
+    vip: d.vip && d.vip.status ? (d.vip.label && d.vip.label.text) || '大会员' : ''
+  }
+}
+
+/** 用户投稿视频 */
+export async function spaceVideos(mid, pn) {
+  const q = await signQuery({ mid: mid, pn: pn || 1, ps: 20, order: 'pubdate', platform: 'web' })
+  const body = await getJson(API + '/x/space/wbi/arc/search?' + q)
+  const d = (body && body.data) || {}
+  const list = (d.list && d.list.vlist) || []
+  return list.map(function (v) {
+    return {
+      bvid: v.bvid || '',
+      title: v.title || '',
+      author: v.author || '',
+      pic: F.thumb(v.pic || '', 480, 300),
+      playText: F.playCount ? F.playCount(v.play) : '',
+      danmakuText: F.count ? F.count(v.video_review) : '',
+      durationText: F.duration ? F.duration(v.length) : ''
+    }
+  }).filter(function (v) { return v.bvid })
+}
+
+/** 关注 / 粉丝列表: kind = follow | fans */
+export async function relationList(mid, kind, pn) {
+  const q = await signQuery({ vmid: mid, pn: pn || 1, ps: 20, order: 'desc', order_type: 'desc' })
+  const url = kind === 'fans'
+    ? API + '/x/relation/fans?' + q
+    : API + '/x/relation/followings?' + q
+  const body = await getJson(url)
+  const d = (body && body.data) || {}
+  const list = d.list || []
+  return list.map(function (u) {
+    return {
+      mid: u.mid,
+      name: u.uname || '',
+      face: F.thumb(u.face || '', 80, 80),
+      sign: u.sign || '',
+      fansText: F.count ? F.count(u.fans) : ''
+    }
+  }).filter(function (u) { return u.mid })
+}
+
+/** 专栏详情 */
+export async function articleInfo(cv) {
+  const body = await getJson(API + '/x/article/view?cv=' + encodeURIComponent(cv))
+  const d = (body && body.data) || {}
+  const opus = d.opus || {}
+  let text = ''
+  if (opus.content && opus.content.paragraphs) {
+    const ps = opus.content.paragraphs
+    for (let i = 0; i < ps.length; i++) {
+      const p = ps[i]
+      if (p.text && p.text.nodes) {
+        let line = ''
+        for (let j = 0; j < p.text.nodes.length; j++) line += (p.text.nodes[j].word && p.text.nodes[j].word.words) || ''
+        if (line) text += line + '\n'
+      } else if (p.pic && p.pic.pics) {
+        // 图片段落: 用占位行表示 (页面只渲染文字, 图片另行展示)
+        text += '[图片]\n'
+      }
+    }
+  }
+  if (!text) text = stripHtml(d.content || '')
+  return {
+    id: d.id || cv,
+    title: (opus.title) || d.title || '',
+    author: (opus.author && opus.author.name) || d.author_name || '',
+    face: F.thumb((opus.author && opus.author.face) || d.author_face || '', 80, 80),
+    pubText: relTime((opus.author && opus.author.pub_ts) || d.publish_time || 0),
+    banner: F.thumb((opus.top && opus.top.url) || d.banner_url || '', 640, 360),
+    stats: {
+      view: (d.stats && d.stats.view) || d.view || 0,
+      like: (d.stats && d.stats.like) || d.like || 0,
+      coin: (d.stats && d.stats.coin) || d.coin || 0,
+      fav: (d.stats && d.stats.favorite) || d.favorite || 0
+    },
+    text: text
+  }
+}
+
+/** 用户专栏列表 */
+export async function articleList(mid, pn) {
+  const q = await signQuery({ mid: mid, pn: pn || 1, ps: 20, sort: 'publish_time' })
+  const body = await getJson(API + '/x/space/wbi/article?' + q)
+  const d = (body && body.data) || {}
+  const list = (d.articles) || []
+  return list.map(function (a) {
+    return {
+      id: a.id,
+      title: a.title || '',
+      cover: F.thumb((a.image_urls && a.image_urls[0]) || '', 320, 200),
+      viewText: F.count ? F.count(a.view) : '',
+      timeText: relTime(a.publish_time)
+    }
+  }).filter(function (a) { return a.id })
+}

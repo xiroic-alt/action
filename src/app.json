@@ -6,7 +6,13 @@
     "play": "pages/play/play.vue",
     "mine": "pages/mine/mine.vue",
     "login": "pages/login/login.vue",
-    "settings": "pages/settings/settings.vue"
+    "settings": "pages/settings/settings.vue",
+    "dynamics": "pages/dynamics/dynamics.vue",
+    "member": "pages/member/member.vue",
+    "fav": "pages/fav/fav.vue",
+    "article": "pages/article/article.vue",
+    "relation": "pages/relation/relation.vue",
+    "msg": "pages/msg/msg.vue"
   },
   "options": {
     "external": [
