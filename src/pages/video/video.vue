@@ -676,13 +676,13 @@ export default {
 .desc { }
 
 /* ---- 评论区 ---- */
-.cmts { flex-direction: row; width: 936px; margin-left: 12px; }
-.sortcol { flex-direction: column; justify-content: center; }
+.cmts { flex-direction: row; flex: 1; }
+.sortcol { flex-direction: column; padding-left: 10px; padding-top: 6px; }
 .sortTitle { width: 92px; height: 18px; padding-left: 8px; }
 .sortHit { justify-content: center; align-items: center; }
 .sort { justify-content: center; align-items: center; }
 .sortt { }
-.clist { flex: 1; margin-left: 8px; margin-right: 118px; }
+.clist { flex: 1; margin-left: 8px; margin-right: 12px; }
 .cHint { }
 .cHintHit { justify-content: center; align-items: center; }
 .crow { flex-direction: row; padding-top: 6px; padding-bottom: 6px; }
