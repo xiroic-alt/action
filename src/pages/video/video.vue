@@ -43,7 +43,7 @@
           </div>
         </div>
 
-        <div class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
+        <div v-if="descText !== ''" class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
           <scroller v-if="descOpen" class="descScroll" scroll-direction="vertical" :show-scrollbar="true"
                     :style="{ height: (descH - 6) + 'px' }">
             <RichText class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
@@ -73,8 +73,8 @@
         </div>
         <scroller class="cscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onCmtScroll">
           <div class="clist">
-            <div v-if="comments.length === 0 && cmtStatus !== ''" class="chint">
-              <text class="chintt" :style="U.t.weak">{{ cmtStatus }}</text>
+            <div v-if="comments.length === 0" class="chint">
+              <text class="chintt" :style="U.t.weak">{{ cmtStatus !== '' ? cmtStatus : (loadingCmt ? '加载中…' : '暂无评论') }}</text>
             </div>
             <div v-for="(c, i) in comments" :key="c.rpid + '_' + i" class="crow">
               <image v-if="c.face !== ''" class="cav" :src="c.face" :style="{ width: '28px', height: '28px', borderRadius: '14px' }"></image>
@@ -636,7 +636,7 @@ export default {
 
 <style scoped>
 .page { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; flex-direction: column; }
-.content { width: 960px; }
+.content { width: 960px; flex-direction: row; }
 
 /* ---- 信息区 ---- */
 .info { flex-direction: row; width: 936px; margin-left: 12px; }

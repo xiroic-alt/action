@@ -330,9 +330,24 @@ export async function fav(aid, addIds, delIds) {
 /** 评论列表 (Web 老接口, 稳定且无需签名) */
 export async function replies(aid, pn, sort, type) {
   const t = Number(type) || 1
-  // sort: 0=按时间, 2=按热度. 按时间时 B 站会忽略"置顶"且必须带 nohot=1,
-  // 否则部分稿件返回空列表 (真机表现为"点时间排序没有评论").
   const byTime = sort === 'time'
+  // ★ 按时间排序必须走新的 wbi/main 接口 (mode=2):
+  //   老的 /x/v2/reply?sort=0 在真机上恒返回空列表 (实测 "评论 0/0"),
+  //   这正是用户说的"点时间排序显示没有评论".
+  if (byTime) {
+    try {
+      const q = await signQuery({
+        oid: aid, type: t, mode: 2, pagination_str: '{"offset":""}',
+        plat: 1, web_location: 1315875
+      })
+      const body = await getJson(API + '/x/v2/reply/wbi/main?' + q, { noError: true })
+      const d = (body && body.data) || {}
+      const list = (d.replies || []).map(mapReply)
+      const total = Number((d.cursor && d.cursor.all_count) || (d.page && d.page.count) || 0)
+      if (list.length > 0) return { list: list, total: total }
+      // 新接口也空 -> 落到热度接口 (至少让用户看到内容, 不要空白)
+    } catch (e) {}
+  }
   const srt = byTime ? 0 : 2
   const url = API + '/x/v2/reply?type=' + t + '&oid=' + encodeURIComponent(aid) +
     '&pn=' + (pn || 1) + '&ps=20&sort=' + srt + (byTime ? '&nohot=1' : '')
