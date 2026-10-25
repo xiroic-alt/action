@@ -83,6 +83,8 @@ import RichText from '../../components/rich-text.vue'
 // 登录成功后显示昵称/UID, 并可直接退出登录.
 import { ui } from '../../design/ui.js'
 import { qrGenerate, qrPoll, fetchPcCookie, nav } from '../../services/api.js'
+// 电脑端服务自动发现 (免手填 IP)
+import { discover, saveIp } from '../../services/pcdisc.js'
 import { qrcodeMatrix } from '../../services/qrcode.js'
 import { createIME } from '../../services/ime.js'
 import { saveLogin, clearLogin, updateProfile, authState } from '../../core/auth.js'

@@ -330,9 +330,12 @@ export async function fav(aid, addIds, delIds) {
 /** 评论列表 (Web 老接口, 稳定且无需签名) */
 export async function replies(aid, pn, sort, type) {
   const t = Number(type) || 1
-  const srt = sort === 'time' ? 0 : 2
+  // sort: 0=按时间, 2=按热度. 按时间时 B 站会忽略"置顶"且必须带 nohot=1,
+  // 否则部分稿件返回空列表 (真机表现为"点时间排序没有评论").
+  const byTime = sort === 'time'
+  const srt = byTime ? 0 : 2
   const url = API + '/x/v2/reply?type=' + t + '&oid=' + encodeURIComponent(aid) +
-    '&pn=' + (pn || 1) + '&ps=20&sort=' + srt + '&jsonp=json'
+    '&pn=' + (pn || 1) + '&ps=20&sort=' + srt + (byTime ? '&nohot=1' : '')
   const body = await getJson(url, { noError: true })
   const d = (body && body.data) || {}
   const list = (d.replies || []).map(mapReply)

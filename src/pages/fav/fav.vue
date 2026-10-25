@@ -33,7 +33,7 @@
              一行 92px = 封面 75 + 上下留白, 222px 里正好露出 2 行多一点, 滚动时看得出还有内容 -->
         <div v-for="(v, i) in items" :key="rowKey(v, i)" class="row" :style="rowStyle" @click="openVideo(v)">
           <div class="cov" :style="covStyle">
-            <image v-if="v.pic !== ''" class="cimg" :src="v.pic" :style="covStyle" resize="cover"></image>
+            <image v-if="v.pic !== ''" class="cimg" :src="v.pic" :style="covStyle" resize="contain"></image>
             <div v-if="v.durationText !== ''" class="dur" :style="durStyle">
               <text class="durt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.durationText }}</text>
             </div>

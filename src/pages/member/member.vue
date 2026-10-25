@@ -10,7 +10,7 @@
       <div class="side">
         <div class="srow">
           <div class="avbox" :style="avBox">
-            <image v-if="faceUrl !== ''" class="avimg" :src="faceUrl" resize="cover" :style="avBox"></image>
+            <image v-if="faceUrl !== ''" class="avimg" :src="faceUrl" resize="contain" :style="avBox"></image>
           </div>
           <div class="sinfo">
             <RichText class="sname" :text="hostName" :size="U.f.subtitle" :color="U.c.onSurface" :lines="1" weight="bold" :drop-emoji="false" />
@@ -72,7 +72,7 @@
           <div v-else-if="tab === 'video'" class="rows">
             <div v-for="(v, i) in videos" :key="v.bvid + '_' + i" class="vrow" :style="vrowStyle" @click="openVideo(v)">
               <div class="cover" :style="coverBox">
-                <image v-if="v.pic !== ''" class="cimg" :src="v.pic" resize="cover" :style="coverBox"></image>
+                <image v-if="v.pic !== ''" class="cimg" :src="v.pic" resize="contain" :style="coverBox"></image>
                 <div v-if="v.durationText !== ''" class="dur" :style="durStyle">
                   <text class="durt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.durationText }}</text>
                 </div>
@@ -94,7 +94,7 @@
           <div v-else class="rows">
             <div v-for="(d, i) in dyns" :key="dynKey(d, i)" class="drow" :style="drowStyle">
               <div class="dav" :style="davBox">
-                <image v-if="d.face !== ''" class="davimg" :src="d.face" resize="cover" :style="davBox"></image>
+                <image v-if="d.face !== ''" class="davimg" :src="d.face" resize="contain" :style="davBox"></image>
               </div>
               <div class="dinfo">
                 <div class="dhead">

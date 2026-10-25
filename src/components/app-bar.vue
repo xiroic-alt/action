@@ -27,14 +27,16 @@ const MI = {
   search: require('../assets/mi/search_24_w.png'),
   more: require('../assets/mi/more_24_w.png'),
   refresh: require('../assets/mi/refresh_24_w.png'),
-  close: require('../assets/mi/close_24_w.png')
+  close: require('../assets/mi/close_24_w.png'),
+  cover: require('../assets/mi/image_24_w.png')
 }
 const MI_D = {
   back: require('../assets/mi/back_26_d.png'),
   search: require('../assets/mi/search_24_d.png'),
   more: require('../assets/mi/more_24_d.png'),
   refresh: require('../assets/mi/refresh_24_d.png'),
-  close: require('../assets/mi/close_24_d.png')
+  close: require('../assets/mi/close_24_d.png'),
+  cover: require('../assets/mi/image_24_d.png')
 }
 export default {
   name: 'app-bar',

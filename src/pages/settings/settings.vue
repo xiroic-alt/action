@@ -171,7 +171,8 @@ const BASE_GROUPS = [
       { t: 'text', label: '说明', value: '系统字体无 emoji 字形' },
       { k: 'emojiInstall', t: 'action', label: '安装 emoji 字体', desc: '绑定挂载, 不改只读分区', actText: '安装' },
       { k: 'emojiRemove', t: 'action', label: '卸载 emoji 字体', desc: '恢复系统原样', actText: '卸载', danger: true },
-      { k: 'emojiRestart', t: 'action', label: '重启框架生效', desc: '字体表只在框架启动时读取, 必须重启框架', actText: '重启' },
+      { k: 'goClean', t: 'go', label: '清除数据', desc: '日志 / 历史 / 缓存 / 恢复默认', to: 'clean', val: function () { return '打开' } },
+            { k: 'emojiRestart', t: 'action', label: '重启框架生效', desc: '字体表只在框架启动时读取, 必须重启框架', actText: '重启' },
       { t: 'text', label: '当前状态', value: '' }
     ]
   },

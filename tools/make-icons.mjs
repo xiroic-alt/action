@@ -72,7 +72,10 @@ const ICONS = [
   { file: 'bolt_16_w', icon: 'electric_bolt-fill', size: 16, color: 'w' },
   { file: 'check_20_w', icon: 'check', size: 20, color: 'w' },
   { file: 'check_20_d', icon: 'check', size: 20, color: 'd' },
-  { file: 'chevron_20_m', icon: 'chevron_right', size: 20, color: 'm' }
+  { file: 'chevron_20_m', icon: 'chevron_right', size: 20, color: 'm' },
+  // 详情页"看封面"动作
+  { file: 'image_24_w', icon: 'image', size: 24, color: 'w' },
+  { file: 'image_24_d', icon: 'image', size: 24, color: 'd' }
 ]
 
 const require_ = createRequire(import.meta.url)

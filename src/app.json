@@ -12,7 +12,8 @@
     "fav": "pages/fav/fav.vue",
     "article": "pages/article/article.vue",
     "relation": "pages/relation/relation.vue",
-    "msg": "pages/msg/msg.vue"
+    "msg": "pages/msg/msg.vue",
+    "clean": "pages/clean/clean.vue"
   },
   "options": {
     "external": [

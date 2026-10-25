@@ -1,15 +1,16 @@
 <template>
   <div class="page" :style="{ backgroundColor: U.c.surface }">
     <!-- 顶栏: PiliNara 视频页的 AppBar 语义 (elevation 0 / 标题 16 / 返回在左) -->
-    <AppBar title="视频详情" :back="true" :actions="['more']"
-            @back="goBack" @action="openDetail"></AppBar>
+    <AppBar title="视频详情" :back="true" :actions="['cover', 'more']"
+            @back="goBack" @action="onBarAction"></AppBar>
 
     <div class="content" :style="{ height: S.content + 'px' }">
       <!-- ===== 信息区 (约 118px): 左块 = UP + 标题 + 数据, 右块 = 操作栏 + 简介 ===== -->
       <div class="info" :style="{ height: INFO_H + 'px' }">
         <div class="ileft">
           <!-- UP 主行: 头像 + 昵称 + 粉丝数 + 关注按钮 (x/relation/modify) -->
-          <div class="uprow" :style="{ height: '44px' }">
+          <!-- UP 行整行可点 -> 进 UP 主主页 (用户要求) -->
+          <div class="uprow" :style="{ height: '40px' }" @click="openMember">
             <div class="avwrap" :style="{ width: '44px', height: '44px' }">
               <image v-if="faceUrl !== ''" class="avatar" :src="faceUrl"
                      :style="{ width: '32px', height: '32px', borderRadius: '16px' }"></image>
@@ -33,7 +34,7 @@
           </div>
 
           <!-- 播放量 / 弹幕数 / 发布时间 -->
-          <div v-if="!titleOpen" class="metarow" :style="{ height: '22px' }">
+          <div v-if="!titleOpen" class="metarow" :style="{ height: '20px' }">
             <text class="meta" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
           </div>
         </div>
@@ -190,7 +191,7 @@ const MI = {
 }
 
 // 信息区高度: 44 (UP 行) + 44 (标题 2 行) + 22 (数据行) + 余量 —— 评论区吃剩下的
-const INFO_H = 118
+const INFO_H = 106
 const CMT_H = SCREEN.content - INFO_H
 
 /** 评论行预处理: 先算好视频号, 模板里只负责渲染 (避免在模板里跑正则) */
@@ -253,6 +254,8 @@ export default {
       tip: '',
       // 世代守卫: 页面级装载用 ++this.genSeq, 动作类请求只读当前值做过期判断
       genSeq: 0,
+      coverOpen: false,
+      coverUrl: '',
       paramKey: '',
       cmtGen: 0,
       tipTimer: null,
@@ -264,7 +267,7 @@ export default {
       return { close: this.U.dark ? MI.closeW : MI.closeD }
     },
     titleLines() { return this.titleOpen ? 0 : 2 },
-    titleRowH() { return this.titleOpen ? 68 : 44 },
+    titleRowH() { return this.titleOpen ? 62 : 40 },
     descH() { return this.descOpen ? 64 : 58 },
     replyTotalText() { return this.replyTotal > 0 ? playCount(this.replyTotal) : '--' },
     fansLine() {
@@ -360,6 +363,7 @@ export default {
         this.titleText = d.title
         this.descText = d.desc
         this.faceUrl = d.face
+        this.coverUrl = d.pic || ''
         this.upName = d.author
         this.mid = d.mid
         this.pageRows = d.pages || []
@@ -631,6 +635,23 @@ export default {
     },
     toggleTitle() { this.titleOpen = !this.titleOpen },
     toggleDesc() { this.descOpen = !this.descOpen },
+    onBarAction(a) {
+      if (a === 'cover') { this.showCover(); return }
+      this.openDetail()
+    },
+
+    /** 显示封面浮层 (原图, 等比缩放) */
+    showCover() {
+      if (!this.coverUrl) { this.showTip('还没有封面'); return }
+      this.coverOpen = true
+    },
+
+    /** 进入 UP 主主页 */
+    openMember() {
+      if (!this.mid) { this.showTip('未取到 UP 主 mid'); return }
+      try { $falcon.navTo('member', { mid: this.mid, name: this.upName }) } catch (e) {}
+    },
+
     openDetail() { this.detailOpen = true },
     closeDetail() { this.detailOpen = false },
     showTip(msg) {

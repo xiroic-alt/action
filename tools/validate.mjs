@@ -220,6 +220,15 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- 用了 pcdisc 的符号却没导入 (真机报 "discover is not defined") ----
+for (const f of [...jsFiles, ...vueFiles]) {
+  const t = fs.readFileSync(f, 'utf8')
+  if (path.basename(f) === 'pcdisc.js') continue      // 定义文件本身不算
+  if (/\b(discover|saveIp|cachedIp|probe)\s*\(/.test(t) && t.indexOf('pcdisc') < 0) {
+    bad(path.relative(ROOT, f) + ' 调用了 pcdisc 的函数但没有 import')
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')
