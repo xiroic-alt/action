@@ -52,6 +52,14 @@
         </div>
       </div>
 
+        <!-- 播放按钮: 浮动在左栏右下, 不占布局高度 (双栏重排时漏掉过, 这里补回) -->
+        <div class="playHit" :style="playHitStyle" @click="goPlay">
+          <div class="play" :style="playStyle">
+            <text class="playt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
+          </div>
+        </div>
+      </div>
+
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
       <div class="cmts" :style="{ height: S.content + 'px' }">
@@ -724,4 +732,8 @@ export default {
 .coverBig { width: 900px; height: 236px; }
 .coverTip { position: absolute; bottom: 6px; left: 0px; width: 960px; text-align: center;
             font-size: 12px; color: #ffffff; }
+.pane { position: relative; }
+.playHit { position: absolute; right: 14px; bottom: 10px; }
+.play { flex-direction: row; justify-content: center; align-items: center; }
+.playt { font-size: 15px; font-weight: bold; }
 </style>

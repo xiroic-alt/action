@@ -57,14 +57,10 @@ class App extends $falcon.App {
   }
   onShow() {
     superCall(this, 'onShow')
-    // ★ 兜底: 从桌面回到前台时若页面栈为空 (被系统回收过), 主动回首页,
-    //   否则用户看到的是黑屏.
-    try {
-      const p = $falcon.getPage ? $falcon.getPage() : null
-      if (!p) $falcon.navTo('index')
-    } catch (e) {
-      try { $falcon.navTo('index') } catch (e2) {}
-    }
+    // 注意: 这里**不要**做"没有页面就回首页"的兜底.
+    // 之前加过, 结果 $falcon.getPage 不存在时 p 恒为 null,
+    // 于是每次回前台 (例如输入法关闭后) 都 navTo('index'),
+    // 把登录页/详情页直接顶掉 —— 用户表现为"输入完 IP 就自己跳回首页".
   }
   onHide() { superCall(this, 'onHide') }
   onDestroy() { superCall(this, 'onDestroy') }

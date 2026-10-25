@@ -11,6 +11,7 @@
 //       扫描用 execAsync 跑, 不阻塞 UI; 结果缓存到设置里, 下次直接命中.
 import { bilinet } from './native.js'
 import { getCfg, setCfg } from '../core/config.js'
+import { dataDir } from '../core/paths.js'
 import { log } from '../core/log.js'
 
 export const PORT = 9527
@@ -72,25 +73,34 @@ export async function discover() {
   const net = ownSubnet()
   if (!net) { log('电脑同步', '读不到本机网段, 无法自动发现'); return '' }
   log('电脑同步', '开始扫描 ' + net + '.1-254 :' + PORT)
-  // 用 shell 并行扫: 每批 40 个, 单请求 1s 超时. 实测 9 秒.
+  // ★ 扫描脚本必须**先写文件再执行**:
+  //   直接把多行脚本塞给 execAsync 在真机上不生效 (引号/换行被吃掉, 返回空).
   const script = [
+    '#!/bin/sh',
     'P=' + net,
     'n=0',
     'for i in $(seq 1 254); do',
-    '  ( curl -s -m 1 "http://$P.$i:' + PORT + '/api/info" 2>/dev/null | grep -q \'"port"\' && echo "HIT:$P.$i" ) &',
+    '  ( r=$(curl -s -m 1 "http://$P.$i:' + PORT + '/api/info" 2>/dev/null);',
+    '    echo "$r" | grep -q "\"port\"" && echo "HIT:$P.$i" ) &',
     '  n=$((n+1))',
     '  if [ $((n % 40)) -eq 0 ]; then wait; fi',
     'done',
-    'wait'
+    'wait',
+    'echo DONE'
   ].join('\n')
   let out = ''
   try {
-    if (typeof bilinet.execAsync === 'function') out = await bilinet.execAsync(script)
-    else out = bilinet.exec(script)
+    const sp = dataDir() + '/pcscan.sh'
+    bilinet.mkdirs(dataDir())
+    bilinet.writeFile(sp, script, false)
+    bilinet.exec('chmod 755 ' + sp + ' 2>/dev/null')
+    if (typeof bilinet.execAsync === 'function') out = await bilinet.execAsync('sh ' + sp)
+    else out = bilinet.exec('sh ' + sp)
   } catch (e) {
     log('电脑同步', '扫描失败: ' + (e && e.message ? e.message : e))
     return ''
   }
+  log('电脑同步', '扫描输出: ' + String(out || '').replace(/\s+/g, ' ').slice(0, 160))
   const m = String(out || '').match(/HIT:(\d+\.\d+\.\d+\.\d+)/)
   if (!m) { log('电脑同步', '没有找到电脑端服务'); return '' }
   saveIp(m[1])
