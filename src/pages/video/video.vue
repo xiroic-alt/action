@@ -727,7 +727,6 @@ export default {
 .tipt { }
 .pane { flex-direction: column; padding-left: 12px; padding-right: 10px; }
 .vsep { width: 1px; }
-.cmts { flex-direction: row; flex: 1; }
 .sortbtn { height: 34px; justify-content: center; align-items: center; border-radius: 8px; }
 .cscroll { width: 347px; height: 222px; }
 .clist { flex-direction: column; padding-right: 10px; }
