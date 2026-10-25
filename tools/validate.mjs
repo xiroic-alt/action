@@ -229,6 +229,23 @@ for (const f of [...jsFiles, ...vueFiles]) {
   }
 }
 
+// ---- SPEC 配置项形状 (真机踩过: ['', 'str'] 少了域数组 -> coerce 读 s[2][0] 抛错
+//      -> 每个页面 data() 里的 ui() 失败 -> 组件挂不上 -> 黑屏)
+// 判定: 类型段后面必须还有第三段 (域), 即不能出现 "'str']" / "'int']" / "'enum']" 这种收尾.
+{
+  const cf = fs.readFileSync(path.join(ROOT, 'src/core/config.js'), 'utf8')
+  const a = cf.indexOf('SPEC = {')
+  const b2 = cf.indexOf('function specOf')
+  const body = a >= 0 && b2 > a ? cf.slice(a, b2) : ''
+  for (const line of body.split('\n')) {
+    const m = line.match(/^\s{2}(\w+):\s*\[/)
+    if (!m) continue
+    if (/'(str|int|enum)'\s*\]/.test(line)) {
+      bad('配置项 ' + m[1] + ' 的类型后面缺少域数组 (str 要 [maxLen], int 要 [min,max], enum 要 [取值])')
+    }
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')
