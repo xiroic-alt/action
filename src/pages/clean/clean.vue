@@ -55,7 +55,7 @@
 import AppBar from '../../components/app-bar.vue'
 import { ui } from '../../design/ui.js'
 import { SCREEN } from '../../design/tokens.js'
-import { logPathOf, logPrevPathOf, dataDirFn } from '../../core/paths.js'
+import { logPath, logPrevPath, dataDir } from '../../core/paths.js'
 import { clearSearchHistory, getSearchHistory, storeStatus } from '../../core/store.js'
 import { allCfg, resetConfig } from '../../core/config.js'
 import { log, flushLog } from '../../core/log.js'
@@ -147,8 +147,8 @@ export default {
     /** 占用统计 */
     refresh() {
       const out = []
-      try { out.push({ label: '运行日志', value: fmtSize(sizeOf(logPathOf())) }) } catch (e) {}
-      try { out.push({ label: '日志备份', value: fmtSize(sizeOf(logPrevPathOf())) }) } catch (e) {}
+      try { out.push({ label: '运行日志', value: fmtSize(sizeOf(logPath())) }) } catch (e) {}
+      try { out.push({ label: '日志备份', value: fmtSize(sizeOf(logPrevPath())) }) } catch (e) {}
       try {
         const n = getSearchHistory(999).length
         out.push({ label: '搜索历史', value: n + ' 条' })
@@ -183,8 +183,8 @@ export default {
 
     cleanLog() {
       try {
-        bilinet.writeFile(logPathOf(), '', false)
-        bilinet.writeFile(logPrevPathOf(), '', false)
+        bilinet.writeFile(logPath(), '', false)
+        bilinet.writeFile(logPrevPath(), '', false)
         log('清除', '日志已清空')
         this.showTip('日志已清空')
       } catch (e) { this.showTip('清空失败: ' + (e && e.message ? e.message : e)) }
@@ -207,7 +207,7 @@ export default {
     cleanImgCache() {
       // 框架自带缩略图缓存目录, 删掉即可 (会重建)
       try {
-        bilinet.exec('rm -rf ' + dataDirFn() + '/image_cache 2>/dev/null')
+        bilinet.exec('rm -rf ' + dataDir() + '/image_cache 2>/dev/null')
         this.showTip('图片缓存已清除')
       } catch (e) { this.showTip('清除失败: ' + (e && e.message ? e.message : e)) }
       this.refresh()
@@ -224,11 +224,11 @@ export default {
     },
 
     cleanAll() {
-      try { bilinet.writeFile(logPathOf(), '', false) } catch (e) {}
-      try { bilinet.writeFile(logPrevPathOf(), '', false) } catch (e) {}
+      try { bilinet.writeFile(logPath(), '', false) } catch (e) {}
+      try { bilinet.writeFile(logPrevPath(), '', false) } catch (e) {}
       try { clearSearchHistory() } catch (e) {}
       try { bilinet.dbExec('DELETE FROM progress') } catch (e) {}
-      try { bilinet.exec('rm -rf ' + dataDirFn() + '/image_cache 2>/dev/null') } catch (e) {}
+      try { bilinet.exec('rm -rf ' + dataDir() + '/image_cache 2>/dev/null') } catch (e) {}
       try { resetConfig(); this.U = ui() } catch (e) {}
       // 注意: 不动 auth.json —— 登录态保留
       try { log('清除', '全部数据已清空 (登录态保留)') } catch (e) {}

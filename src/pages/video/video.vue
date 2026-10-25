@@ -4,144 +4,90 @@
     <AppBar title="视频详情" :back="true" :actions="['cover', 'more']"
             @back="goBack" @action="onBarAction"></AppBar>
 
-    <div class="content" :style="{ height: S.content + 'px' }">
-      <!-- ===== 信息区 (约 118px): 左块 = UP + 标题 + 数据, 右块 = 操作栏 + 简介 ===== -->
-      <div class="info" :style="{ height: INFO_H + 'px' }">
-        <div class="ileft">
-          <!-- UP 主行: 头像 + 昵称 + 粉丝数 + 关注按钮 (x/relation/modify) -->
-          <!-- UP 行整行可点 -> 进 UP 主主页 (用户要求) -->
-          <div class="uprow" :style="{ height: '40px' }" @click="openMember">
-            <div class="avwrap" :style="{ width: '44px', height: '44px' }">
-              <image v-if="faceUrl !== ''" class="avatar" :src="faceUrl"
-                     :style="{ width: '32px', height: '32px', borderRadius: '16px' }"></image>
-              <div v-else class="avatar ph" :style="{ width: '32px', height: '32px', borderRadius: '16px', backgroundColor: U.c.surfaceContainerHighest }"></div>
-            </div>
-            <div class="upmeta">
-              <text class="upname" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">{{ upName }}</text>
-              <text class="upfans" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ fansLine }}</text>
-            </div>
-            <div class="followHit" :style="{ width: '84px', height: '44px' }" @click="toggleFollow">
-              <div class="follow" :style="followStyle">
-                <text class="followt" :lines="1" :style="followTextStyle">{{ followLabel }}</text>
-              </div>
-            </div>
+    <!-- 内容区: 左右双栏 (参考 PiliNara 详情页在宽屏上的分栏思路)
+         左栏固定 520px: UP + 标题 + 数据 + 操作 + 简介
+         右栏自适应:     评论 (排序 + 列表)
+         960x266 是超宽屏, 上下堆叠会让评论区只剩一条; 分栏后两栏都能吃满 222px -->
+    <div class="content" :style="{ height: S.content + 'px', flexDirection: 'row' }">
+      <div class="pane" :style="{ width: '520px', height: S.content + 'px' }">
+        <div class="uprow" :style="{ height: '44px' }" @click="openMember">
+          <div class="avwrap" :style="{ width: '44px', height: '44px' }">
+            <image v-if="faceUrl !== ''" class="avatar" :src="faceUrl"
+                   :style="{ width: '32px', height: '32px', borderRadius: '16px' }"></image>
+            <div v-else class="avatar ph" :style="{ width: '32px', height: '32px', borderRadius: '16px', backgroundColor: U.c.surfaceContainerHighest }"></div>
           </div>
-
-          <!-- 标题: 2 行折叠, 点击就地展开 (展开时收起数据行, 用 118px 里的 68px 显示全文) -->
-          <div class="titlerow" :style="{ height: titleRowH + 'px' }" @click="toggleTitle">
-            <RichText class="title" :text="titleText" :size="U.f.subtitle" :color="U.c.onSurface" :lines="titleLines" :drop-emoji="false" />
-            <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
+          <div class="upmeta">
+            <RichText class="upname" :text="upName" :size="U.f.subtitle" :color="U.c.onSurface" :lines="1" :drop-emoji="false" />
+            <text class="upfans" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ fansLine }}</text>
           </div>
-
-          <!-- 播放量 / 弹幕数 / 发布时间 -->
-          <div v-if="!titleOpen" class="metarow" :style="{ height: '20px' }">
-            <text class="meta" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
+          <div class="followHit" :style="{ width: '84px', height: '44px' }" @click="toggleFollow">
+            <div class="follow" :style="followStyle">
+              <text class="followt" :lines="1" :style="followTextStyle">{{ followLabel }}</text>
+            </div>
           </div>
         </div>
 
-        <div class="iright">
-          <!-- 操作栏: 顺序照 PiliNara action_item (点赞 / 投币 / 收藏 / 转发)
-               选中态用 _p 版图标; 转发只显示数量, 不做分享 (用户约束) -->
-          <div class="acts" :style="{ height: '48px' }">
-            <div v-for="a in actions" :key="a.id" class="act" :style="actStyle(a)" @click="onAction(a.id)">
-              <image class="actic" :src="iconOf(a)" :style="{ width: '22px', height: '22px' }"></image>
-              <text class="actt" :lines="1" :style="actTextStyle(a)">{{ a.text }}</text>
-            </div>
-          </div>
+        <div class="titlerow" :style="{ height: titleRowH + 'px' }" @click="toggleTitle">
+          <RichText class="title" :text="titleText" :size="U.f.subtitle" :color="U.c.onSurface" :lines="titleLines" :drop-emoji="false" />
+          <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
+        </div>
 
-          <!-- 简介: 3 行折叠, 点击就地展开 (展开态用定高 scroller 承载, 不挤压评论区) -->
-          <div class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
-            <scroller v-if="descOpen" class="descScroll" scroll-direction="vertical" :show-scrollbar="true"
-                      :style="{ height: (descH - 6) + 'px' }">
-              <RichText class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
-            </scroller>
-            <RichText v-else class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
+        <div v-if="!titleOpen" class="metarow" :style="{ height: '20px' }">
+          <text class="meta" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
+        </div>
+
+        <div class="acts" :style="{ height: '52px' }">
+          <div v-for="a in actions" :key="a.id" class="act" :style="actStyle(a)" @click="onAction(a.id)">
+            <image class="actic" :src="iconOf(a)" :style="{ width: '22px', height: '22px' }"></image>
+            <text class="actt" :lines="1" :style="actTextStyle(a)">{{ a.text }}</text>
           </div>
+        </div>
+
+        <div class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
+          <scroller v-if="descOpen" class="descScroll" scroll-direction="vertical" :show-scrollbar="true"
+                    :style="{ height: (descH - 6) + 'px' }">
+            <RichText class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
+          </scroller>
+          <RichText v-else class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
         </div>
       </div>
 
-      <!-- ===== 评论区 (剩余 104px): 左侧排序 (热度/时间) + 右侧评论滚动区 ===== -->
-      <div class="cmts" :style="{ height: CMT_H + 'px' }">
+      <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
+
+      <div class="cmts" :style="{ height: S.content + 'px' }">
         <div class="sortcol" :style="{ width: '92px' }">
           <text class="sortTitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '评论 ' + replyTotalText }}</text>
-          <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ width: '92px', height: '44px' }" @click="pickSort(s.id)">
-            <div class="sort" :style="sortStyle(s.id)">
+          <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ height: '44px' }" @click="pickSort(s.id)">
+            <div class="sortbtn" :style="sortStyle(s.id)">
               <text class="sortt" :lines="1" :style="sortTextStyle(s.id)">{{ s.label }}</text>
             </div>
           </div>
         </div>
-
-        <scroller class="clist" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll">
-          <div v-if="cmtIdle" class="cHintHit" :style="{ height: '44px' }" @click="startComments">
-            <text class="cHint" :style="U.t.weak">点此加载评论</text>
-          </div>
-          <div v-else-if="loadingCmt && comments.length === 0" class="cHint">
-            <text class="cHint" :style="U.t.weak">评论加载中…</text>
-          </div>
-          <div v-else-if="comments.length === 0" class="cHint">
-            <text class="cHint" :style="U.t.weak">{{ cmtStatus || '还没有评论' }}</text>
-          </div>
-          <div v-for="(c, i) in comments" :key="c.rpid + '_' + i" class="crow">
-            <image v-if="c.face !== ''" class="cav" :src="c.face"
-                   :style="{ width: '26px', height: '26px', borderRadius: '13px' }"></image>
-            <div v-else class="cav ph" :style="{ width: '26px', height: '26px', borderRadius: '13px', backgroundColor: U.c.surfaceContainerHighest }"></div>
-            <div class="cbody">
-              <div class="chead" :style="{ height: '18px' }">
-                <text class="cname" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ c.author }}</text>
-                <text v-if="c.timeText !== ''" class="ctime" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.timeText }}</text>
-                <text v-if="c.likeText !== '0'" class="clike" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '赞 ' + c.likeText }}</text>
-              </div>
-              <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
-              <!-- 视频号快捷栏: 笔上 richtext 内部元素不触发点击, 所以号单独成排 (数据来自 splitByVideoIds) -->
-              <div v-if="c.vids.length > 0" class="cids">
-                <div v-for="v in c.vids" :key="v" class="cidHit" :style="{ height: '44px' }" @click="openBv(v)">
-                  <div class="cid" :style="{ backgroundColor: U.c.primaryContainer, borderRadius: U.rad.chip + 'px' }">
-                    <text class="cidt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onPrimaryContainer }">{{ v }}</text>
-                  </div>
+        <scroller class="cscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onCmtScroll">
+          <div class="clist">
+            <div v-if="comments.length === 0 && cmtStatus !== ''" class="chint">
+              <text class="chintt" :style="U.t.weak">{{ cmtStatus }}</text>
+            </div>
+            <div v-for="(c, i) in comments" :key="c.rpid + '_' + i" class="crow">
+              <image v-if="c.face !== ''" class="cav" :src="c.face" :style="{ width: '28px', height: '28px', borderRadius: '14px' }"></image>
+              <div v-else class="cav ph" :style="{ width: '28px', height: '28px', borderRadius: '14px', backgroundColor: U.c.surfaceContainerHighest }"></div>
+              <div class="cbody">
+                <div class="chead">
+                  <text class="cname" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ c.author }}</text>
+                  <text v-if="c.timeText !== ''" class="ctime" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.timeText }}</text>
+                  <text v-if="c.likeText !== ''" class="clike" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">赞 {{ c.likeText }}</text>
                 </div>
+                <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="3" :drop-emoji="false" />
+              </div>
+            </div>
+            <div v-if="comments.length > 0" class="cfoot">
+              <div class="cmore" :style="U.action" @click="loadComments(false)">
+                <text class="cmoret" :style="U.t.caption">{{ loadingCmt ? '加载中…' : (hasMore ? '加载更多' : '没有更多了') }}</text>
               </div>
             </div>
           </div>
-          <div v-if="comments.length > 0" class="cfoot">
-            <text class="cHint" :style="U.t.tiny">{{ loadingCmt ? '加载中…' : (hasMore ? '上滑加载更多' : '没有更多了') }}</text>
-          </div>
         </scroller>
       </div>
-    </div>
-
-    <!-- 播放按钮 (底部) -> 播放器页 -->
-    <div class="playHit" :style="playHitStyle" @click="goPlay">
-      <div class="play" :style="playStyle">
-        <image class="plic" :src="MI.play" :style="{ width: '20px', height: '20px' }"></image>
-        <text class="plt" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
-      </div>
-    </div>
-
-    <!-- 详情浮层: 标题/简介的展开态 (完整标题 + 全文简介 + 分P + 字幕轨) -->
-    <div v-if="detailOpen" class="sheet" :style="sheetStyle">
-      <div class="sheetHead" :style="{ height: '44px' }">
-        <text class="sheetT" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">视频信息</text>
-        <div class="sheetClose" :style="{ width: '44px', height: '44px' }" @click="closeDetail">
-          <image :src="MIc.close" :style="{ width: '22px', height: '22px' }"></image>
-        </div>
-      </div>
-      <scroller class="sheetBody" scroll-direction="vertical" :show-scrollbar="true">
-        <text class="sTitle" :lines="0" :style="{ fontSize: U.f.title + 'px', color: U.c.onSurface }">{{ titleText }}</text>
-        <text class="sMeta" :lines="0" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
-        <text class="sDesc" :lines="0" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurfaceVariant }">{{ descText }}</text>
-        <div v-if="pageRows.length > 0" class="sSec">
-          <text class="sSecT" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.primary }">{{ '分P (' + pageRows.length + ')' }}</text>
-          <div v-for="p in pageRows" :key="p.cid" class="sRow">
-            <text class="sRowT" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ pageRowText(p) }}</text>
-          </div>
-        </div>
-        <div v-if="subRows.length > 0" class="sSec">
-          <text class="sSecT" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.primary }">{{ '字幕轨 (' + subRows.length + ')' }}</text>
-          <div v-for="s in subRows" :key="s.id" class="sRow">
-            <text class="sRowT" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ subRowText(s) }}</text>
-          </div>
-        </div>
-      </scroller>
     </div>
 
     <!-- 轻提示 (无 toast 组件; 单行状态用页面内小条, 点一下收起) -->
@@ -427,6 +373,15 @@ export default {
     },
 
     // ---------------- 互动 (乐观更新 + 失败回滚) ----------------
+    /** 评论滚动到底自动加载下一页 (上滑自动刷新) */
+    onCmtScroll(e) {
+      const bottom = (e && e.scrollBottom != null) ? Number(e.scrollBottom) : 0
+      const left = (e && e.scrollHeight != null && e.scrollTop != null)
+        ? Number(e.scrollHeight) - Number(e.scrollTop) : 9999
+      const near = bottom > 0 ? bottom < 80 : left < 300
+      if (near && this.hasMore && !this.loadingCmt && this.comments.length > 0) this.loadComments(false)
+    },
+
     onAction(id) {
       if (id === 'like') this.doLike()
       else if (id === 'coin') this.doCoin()
@@ -753,4 +708,20 @@ export default {
 .tipHit { position: absolute; left: 12px; bottom: 8px; justify-content: center; align-items: center; }
 .tip { height: 34px; justify-content: center; align-items: center; padding-left: 14px; padding-right: 14px; }
 .tipt { }
+.pane { flex-direction: column; padding-left: 12px; padding-right: 10px; }
+.vsep { width: 1px; }
+.cmts { flex-direction: row; flex: 1; }
+.sortbtn { height: 34px; justify-content: center; align-items: center; border-radius: 8px; }
+.cscroll { flex: 1; }
+.clist { flex-direction: column; padding-right: 10px; }
+.chint { height: 90px; justify-content: center; align-items: center; }
+.chintt { font-size: 13px; }
+.cmore { height: 36px; padding-left: 16px; padding-right: 16px; justify-content: center; align-items: center; }
+.cmoret { font-size: 13px; }
+/* 封面浮层: 等比缩放显示原图 (不裁剪), 点任意处关闭 */
+.coverMask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px;
+             background-color: rgba(0,0,0,0.86); justify-content: center; align-items: center; }
+.coverBig { width: 900px; height: 236px; }
+.coverTip { position: absolute; bottom: 6px; left: 0px; width: 960px; text-align: center;
+            font-size: 12px; color: #ffffff; }
 </style>
