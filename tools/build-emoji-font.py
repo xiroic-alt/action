@@ -1,52 +1,45 @@
-# -*- coding: utf-8 -*-
-"""把 emoji 字体裁剪成本项目需要的子集 (可复现, 零联网)
-
-为什么需要:
-    完整 Twemoji COLR 字体 1440 KB, 而本项目只需要 573 个常用 emoji -> 裁完 238 KB.
-    体积直接决定安装包大小和笔的闪存占用, 所以这一步必须留在仓库里可复现.
-
-素材来源 (先跑一次 tools/fetch-emoji-font.sh 下载原始字体):
-    https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf
-
-产物:
-    libs/Twemoji.ttf        随 AMR 分发, 由设置页"安装表情字体"写到系统字体目录
-    (字体落在 libs/ 是因为打包器会整目录打进 AMR; src/ 下只收图片)
-
-用法:
-    python tools/build-emoji-font.py <原始字体路径>
-"""
-import os
-import sys
-
-from fontTools import subset
+#!/usr/bin/env python3
+# 生成 libs/Twemoji.ttf —— 设备可渲染的 emoji 字体
+#
+# 真机结论 (2026-10-25, 反复上机验证):
+#   框架的文本渲染只认 **glyf 轮廓字形**, 以下两种彩色格式都渲染不出来:
+#     - COLR/CPAL (Twemoji)      -> 字形轮廓是空的, 屏幕上什么都没有
+#     - CBDT/CBLC (NotoColorEmoji)-> 纯位图字体没有 glyf, 全部落到 .notdef (⊠ 缺字框)
+#   所以必须用"单色轮廓"字体. 选 OpenMoji-black-glyf:
+#     - 纯 glyf, 1426 个 emoji 码位, 1.4MB
+#     - 形状与 Noto/Twemoji 同一套 Unicode 语义, 只是单色描边
+#
+# 字体族名固定为 "Twemoji": 与 resources/fonts/fonts.xml 里注册的 name 必须**完全一致**,
+# 否则框架按内部名匹配失败, 文本会退化成豆腐块 (踩过).
+#
+# 用法: python tools/build-emoji-font.py <OpenMoji-black-glyf.ttf>
+import sys, os, shutil
+sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+from fontTools.ttLib import TTFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "libs", "Twemoji.ttf")
-
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from emoji_list import EMOJI  # noqa: E402
-
+OUT = os.path.join(ROOT, 'libs', 'Twemoji.ttf')
+FAMILY = 'Twemoji'
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
+    src = sys.argv[1] if len(sys.argv) > 1 else None
+    if not src or not os.path.exists(src):
+        print('用法: python tools/build-emoji-font.py <OpenMoji-black-glyf.ttf>')
+        return 1
+    f = TTFont(src)
+    if 'glyf' not in f:
+        print('错误: 源字体没有 glyf 表, 设备上无法渲染')
         return 2
-    src = sys.argv[1]
-    if not os.path.exists(src):
-        print("找不到原始字体:", src)
-        return 2
-    # 收集码位 (含 ZWJ 组合里的每个码位)
-    cps = set()
-    for ch in EMOJI:
-        for c in ch:
-            cps.add(ord(c))
-    uni = ",".join("U+%04X" % c for c in sorted(cps))
+    for rec in f['name'].names:
+        if rec.nameID in (1, 4, 16, 6):
+            rec.string = FAMILY.encode('utf-16-be') if rec.platformID == 3 else FAMILY.encode('latin-1')
     os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    subset.main([src, "--unicodes=" + uni, "--output-file=" + OUT,
-                 "--layout-features=*", "--notdef-outline", "--no-hinting"])
-    print("生成 %s: %d 字节 (%d 个码位)" % (OUT, os.path.getsize(OUT), len(cps)))
+    f.save(OUT)
+    f2 = TTFont(OUT, lazy=True)
+    cmap = f2.getBestCmap()
+    print('生成 %s: %.0f KB, %d 个码位, glyf=%s' % (
+        OUT, os.path.getsize(OUT) / 1024, len(cmap), 'glyf' in f2))
     return 0
 
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

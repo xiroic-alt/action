@@ -148,7 +148,7 @@ export async function install() {
   const out = (r.out || '').trim()
   if (out.indexOf('OK') >= 0) {
     log('字体', 'emoji 字体已挂载')
-    return { ok: true, msg: '已安装, 重启应用后生效' }
+    return { ok: true, msg: '已安装, 重启框架后生效' }
   }
   log('字体', '安装失败: ' + out.slice(0, 200))
   return { ok: false, msg: '安装失败: ' + (out.slice(0, 80) || '未知错误') }
@@ -169,18 +169,34 @@ export async function remove() {
   const out = (r.out || '').trim()
   if (out.indexOf('CLEAN') >= 0) {
     log('字体', '已卸载, 系统字体目录恢复')
-    return { ok: true, msg: '已卸载, 重启应用后恢复原样' }
+    return { ok: true, msg: '已卸载, 重启框架后恢复原样' }
   }
   return { ok: false, msg: '卸载异常: ' + out.slice(0, 80) }
 }
 
-/** 重启小程序 (让框架重新加载 fonts.xml) */
-export function restartApp() {
+/**
+ * 重启**框架**让新字体生效.
+ *
+ * ★ 为什么不能只用 $falcon.restartMiniapp():
+ *   字体族表是 miniapp 进程启动时读一次 fonts.xml 的. 重启应用页不会重新读表,
+ *   结果就是"装了字体却毫无效果" (真机实测: 装完 fd 数为 0, 必须重启框架才变 1).
+ *   系统有 guardian_run 监管 miniapp, 进程被杀后会自动重新拉起,
+ *   新进程就会读到我们改过的 fonts.xml.
+ *
+ * 实现: 起一个脱离本进程的 shell, 1 秒后杀掉 miniapp (nohup + & 保证不被一起带走).
+ */
+export function restartFramework() {
+  const cmd = 'nohup sh -c "sleep 1; kill -9 $(pidof miniapp)" >/dev/null 2>&1 &'
+  try { bilinet.exec(cmd); return true } catch (e) {}
+  // exec 不可用时退回框架自带重启 (至少刷新应用页)
   try {
     if (typeof $falcon !== 'undefined' && $falcon && typeof $falcon.restartMiniapp === 'function') {
       $falcon.restartMiniapp()
       return true
     }
-  } catch (e) {}
+  } catch (e2) {}
   return false
 }
+
+/** 兼容旧名字 */
+export function restartApp() { return restartFramework() }

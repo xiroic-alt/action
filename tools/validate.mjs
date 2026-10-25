@@ -160,6 +160,21 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- emoji 字体格式 (真机结论: 框架只渲染 glyf 轮廓字形) ----
+// COLR/CPAL -> 字形轮廓为空, 屏幕上什么都没有
+// CBDT/CBLC -> 纯位图没有 glyf, 全部落到 .notdef (缺字框)
+{
+  const fp = path.join(ROOT, 'libs/Twemoji.ttf')
+  if (!fs.existsSync(fp)) bad('缺少 libs/Twemoji.ttf (emoji 字体)')
+  else {
+    const buf = fs.readFileSync(fp)
+    const tag = (t) => buf.indexOf(Buffer.from(t, 'latin1')) >= 0
+    if (!tag('glyf')) bad('libs/Twemoji.ttf 没有 glyf 表 —— 框架渲染不出来, emoji 会变成空白/缺字框')
+    if (tag('COLR')) bad('libs/Twemoji.ttf 含 COLR (彩色矢量) —— 框架不支持, 必须用单色轮廓字体')
+    if (tag('CBDT')) bad('libs/Twemoji.ttf 含 CBDT (彩色位图) —— 框架不支持, 必须用单色轮廓字体')
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

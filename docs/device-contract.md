@@ -52,3 +52,25 @@
 ## 存储
 
 见 `docs/storage-spec.md`（数据写 `<appid>/data/`，覆盖安装不丢且在系统清理里可见）。
+
+
+## emoji 字体 (2026-10-25 上机定论)
+
+设备**没有任何 emoji 字形**, 且框架的字体机制有三条硬约束:
+
+1. **字体表只在框架进程启动时读一次** `/etc/miniapp/resources/fonts/fonts.xml`.
+   改完字体必须重启 **miniapp 进程**(guardian_run 会自动拉起), 只重启应用页无效
+   (实测: 装完 fd=0, 重启框架后 fd=1).
+2. **按字体内部 family 名匹配**: fonts.xml 的 `name` 必须与字体 name 表里的 family 名
+   完全一致, 否则请求 `fontFamily` 时匹配失败, 文字退化成豆腐块.
+3. **只渲染 glyf 轮廓字形**:
+   - COLR/CPAL (Twemoji): 字形轮廓是空的, 屏幕上**什么都没有**
+   - CBDT/CBLC (NotoColorEmoji): 纯位图无 glyf, 全部落到 **.notdef (⊠ 缺字框)**
+   - ✅ 只有单色轮廓字体可用 → 选用 **OpenMoji-black-glyf** (1426 emoji 码位, 1.4MB)
+
+因此 `libs/Twemoji.ttf` 的实际内容是 OpenMoji-black-glyf (家族名改成 `Twemoji`),
+`tools/validate.mjs` 会校验它**必须有 glyf、且不能含 COLR/CBDT**, 防止再装错格式.
+
+渲染方式: `components/rich-text.vue` 把文本按 emoji 边界切成多个 `<text>`,
+文字段用系统默认字体、emoji 段用 `fontFamily: 'Twemoji'` —— 因为框架**没有字形回退**,
+一个 `<text>` 只能用一种字体族.

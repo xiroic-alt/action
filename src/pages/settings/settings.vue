@@ -68,15 +68,8 @@
             <text v-else class="rval" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ r.value || '' }}</text>
           </div>
 
-          <!-- 字体族探测: 逐行用不同 fontFamily 渲染, 用于确认框架是否真的按家族名加载字体 -->
-          <div v-if="curGroup.id === 'emoji'" class="eprev" :style="{ flexDirection: 'column', marginTop: '6px' }">
-            <div v-for="fam in probeFamilies" :key="fam" :style="{ flexDirection: 'row', alignItems: 'center', height: '22px' }">
-              <text class="pfam" :style="{ fontSize: '11px', color: U.c.onSurfaceVariant, width: '130px' }">{{ fam }}</text>
-              <text class="pval" :style="{ fontSize: '15px', color: U.c.onSurface, fontFamily: fam }">ABC 中文 ❤ ⭐ →</text>
-            </div>
-          </div>
-
-          <!-- 表情预览: 用于上机确认 emoji 字体是否生效 (装了字体才会出现彩色 emoji) -->
+          <!-- 表情预览: 装好 emoji 字体并重启框架后, 这里的方块会变成真正的字形.
+               注意是单色轮廓 (框架只渲染 glyf), 不是彩色 emoji. -->
           <div v-if="curGroup.id === 'emoji'" class="eprev"
                :style="{ flexDirection: 'row', alignItems: 'center', marginTop: '8px', flexWrap: 'wrap' }">
             <RichText :text="emojiPreview" :size="17" :color="U.c.onSurface" :lines="0" :drop-emoji="false" />
@@ -178,7 +171,7 @@ const BASE_GROUPS = [
       { t: 'text', label: '说明', value: '系统字体无 emoji 字形' },
       { k: 'emojiInstall', t: 'action', label: '安装 emoji 字体', desc: '绑定挂载, 不改只读分区', actText: '安装' },
       { k: 'emojiRemove', t: 'action', label: '卸载 emoji 字体', desc: '恢复系统原样', actText: '卸载', danger: true },
-      { k: 'emojiRestart', t: 'action', label: '重启应用生效', desc: '框架启动时读字体表', actText: '重启' },
+      { k: 'emojiRestart', t: 'action', label: '重启框架生效', desc: '字体表只在框架启动时读取, 必须重启框架', actText: '重启' },
       { t: 'text', label: '当前状态', value: '' }
     ]
   },
@@ -258,7 +251,6 @@ export default {
       emojiPreview: '中文混排 😀👍 组合 👨‍👩‍👧 爱心 ❤️ 星 ⭐ 箭头 → 手势 🎉 音符 🎵',
       // 字体族探测: 用 fonts.xml 里已有的家族名渲染同一段文字,
       // 若框架真的按 fontFamily 加载字体, 这些行的字形会明显不同 (Castoro 是衬线体)
-      probeFamilies: ['Castoro', 'NotoSansSC', 'Twemoji', 'HarmonyOS Sans SC'],
       btPower: null,
       btList: [],
       U: ui(),
@@ -459,7 +451,7 @@ export default {
       log('设置', 'emoji 字体卸载: ' + r.msg)
     },
     emojiRestart() {
-      if (sysFont.restartApp()) { return }
+      if (sysFont.restartFramework()) { return }
       this.showTip('当前固件不支持自动重启, 请手动重开应用')
     },
     emojiStatusText() {
@@ -727,8 +719,6 @@ function darkOfHex(hex) {
 .cic { width: 16px; height: 16px; margin-left: 2px; }
 .rval { font-size: 12px; }
 .eprev { flex-direction: row; align-items: center; flex-wrap: wrap; margin-top: 8px; width: 560px; }
-.pfam { }
-.pval { }
 .seeds { flex-direction: row; flex-wrap: wrap; margin-top: 6px; width: 560px; }
 .seed { width: 44px; height: 44px; justify-content: center; align-items: center; }
 .seedin { width: 30px; height: 30px; border-radius: 15px; justify-content: center; align-items: center; }
