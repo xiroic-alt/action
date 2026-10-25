@@ -22,7 +22,7 @@
     ]
   },
   "props": {
-    "supportCleanUp": true,
+    "supportCleanUp": false,
     "cleanUpThreshold": 30
   }
 }
