@@ -181,6 +181,7 @@ export default {
       dynLoading: false,
       dynStatus: '',
       dynLoaded: false,
+      cardFans: '',      // userCard 的粉丝数: 空间接口的 fans 常年是 0, 用它兜底
       tip: '',
       SIDE_W: SIDE_W,
       AV: AV,
@@ -200,9 +201,14 @@ export default {
     faceUrl() { return (this.info && this.info.face) ? this.info.face : '' },
     level() { return this.info ? (Number(this.info.level) || 0) : 0 },
     vip() { return (this.info && this.info.vip) ? String(this.info.vip) : '' },
+    fansText() {
+      const f = this.info ? (Number(this.info.fans) || 0) : 0
+      if (f > 0) return this.info.fansText || playCount(f)
+      return this.cardFans
+    },
     fansLine() {
-      if (!this.info) return ''
-      return '粉丝 ' + (this.info.fansText || playCount(this.info.fans))
+      if (this.fansText === '') return ''
+      return '粉丝 ' + this.fansText
     },
     signText() {
       if (this.mid === '') return '缺少 mid 参数'
@@ -213,7 +219,7 @@ export default {
       const i = this.info || {}
       return [
         { l: '投稿', v: playCount(i.archive || 0) },
-        { l: '粉丝', v: i.fansText || playCount(i.fans || 0) },
+        { l: '粉丝', v: this.fansText !== '' ? this.fansText : '--' },
         { l: '获赞', v: playCount(i.like || 0) }
       ]
     },
@@ -328,6 +334,7 @@ export default {
         const c = await userCard(this.mid)
         if (gen !== this.infoGen) return
         this.follow = !!c.following
+        this.cardFans = c.fansText || ''
       } catch (e) {}
     },
 
@@ -402,7 +409,8 @@ export default {
         const items = r.items || []
         this.dyns = reset ? items : this.dyns.concat(items)
         this.dynOffset = r.offset || ''
-        this.dynMore = !!r.hasMore
+        // 游标为空却声称还有下一页时停手: 否则会反复拉第 1 页, 列表里出现重复动态
+        this.dynMore = !!r.hasMore && this.dynOffset !== ''
         this.dynLoaded = true
         if (this.dyns.length === 0) this.dynStatus = 'TA 还没有发布动态'
         else this.dynStatus = this.dynMore ? '' : '没有更多了'
@@ -535,7 +543,7 @@ export default {
 
 /* ---- 顶部操作条 ---- */
 .tabs { width: 100%; height: 44px; flex-direction: row; align-items: center; padding-left: 12px; padding-right: 4px; }
-.tab { height: 34px; padding-left: 14px; padding-right: 14px; margin-right: 8px; justify-content: center; align-items: center; }
+.tab { height: 44px; padding-left: 14px; padding-right: 14px; margin-right: 8px; justify-content: center; align-items: center; }
 .tabt { }
 .tabcnt { flex: 1; margin-left: 4px; }
 .tabact { justify-content: center; align-items: center; }

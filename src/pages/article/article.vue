@@ -65,8 +65,8 @@ import { articleInfo } from '../../services/api.js'
 import { log } from '../../core/log.js'
 
 const HEAD_H = 48        // 作者行高: 40 头像 + 上下各 4
-const TEXT_W = 936       // 正文/标题可用宽 (960 - 左右各 12)
-const TEXT_PAD = 12      // 正文左右留白
+// 正文/标题的可用宽 = 960 - 左右各 12; 写法是"固定宽 + margin-left",
+// 这样不管框架的盒模型是 content-box 还是 border-box, 都不会横向越界
 
 /** 播放量/阅读量这类数字在笔屏上只需要一位小数 (12345 -> 1.2万) */
 function countText(n) {
