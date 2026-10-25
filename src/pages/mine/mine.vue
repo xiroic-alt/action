@@ -238,6 +238,7 @@ export default {
         if (gen !== this.genSeq) return
         this.user = me
         this.face = me.face || ''
+        log('我的', 'nav 结果 isLogin=' + me.isLogin + ' uname=' + (me.uname || '-'))
         if (!me.isLogin) { this.items = []; return }
         await this.loadTab(gen)
       } catch (e) {

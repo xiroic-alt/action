@@ -33,18 +33,26 @@ function load() {
   loaded = true
   try {
     const s = kvGet(KEY)
-    if (s) { state = JSON.parse(s); return state }
-  } catch (e) {}
+    if (s) {
+      const o = JSON.parse(s)
+      if (o && o.sessdata) { state = o; log('登录态', '从数据库读到 uid=' + (o.mid || '?') + ' sessdata 长度 ' + String(o.sessdata).length); return state }
+      log('登录态', '数据库里的记录无效 (sessdata 缺失), 尝试文件')
+    } else {
+      log('登录态', '数据库无记录, 尝试文件')
+    }
+  } catch (e) { log('登录态', '读数据库失败: ' + (e && e.message ? e.message : e)) }
   // JSON 兜底 (老数据 / 数据库不可用)
   try {
     if (bilinet && typeof bilinet.readFile === 'function') {
       const raw = bilinet.readFile(authFilePath())
       if (raw) {
         const o = JSON.parse(raw)
-        if (o && o.sessdata) { state = o; try { kvSet(KEY, JSON.stringify(o)) } catch (e2) {} return state }
+        if (o && o.sessdata) { state = o; try { kvSet(KEY, JSON.stringify(o)) } catch (e2) {} log('登录态', '从 auth.json 读到 uid=' + (o.mid || '?')); return state }
+        log('登录态', 'auth.json 存在但没有 sessdata')
       }
     }
   } catch (e) {}
+  log('登录态', '没有可用登录态')
   state = null
   return state
 }
