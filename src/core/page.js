@@ -1,7 +1,8 @@
 // 页面基类 —— 统一资源生命周期
 //
 // 设备侧两条硬事实:
-//   1. 组件里只有 onShow 会被框架转发 (onLoad/created 不触发)
+//   1. **组件**里只有 onShow 会被框架转发 (组件的 onLoad/created 不触发);
+//      但 **页面类**(BasePage) 的 onLoad 会被调用 —— 页面参数只能从那里拿
 //   2. timer / 订阅 / native 对象没收干净, 第二次进页面就会叠加 (内存与行为双泄漏)
 //
 // 所以所有页面都从这里继承, 用 this.setTimer / this.setInterval / this.onFalcon 登记资源,
@@ -16,6 +17,27 @@ export class BasePage extends $falcon.Page {
     this._unloaded = false
     // Vue2 的 methods 会被挂到实例上; 框架调用的是 $page 钩子, 所以这里做一层转发
     if (typeof this.onShow !== 'function') this.onShow = function () {}
+  }
+
+  /**
+   * 页面参数入口 —— 这是 navTo(target, options) 的参数真正落地的地方.
+   *
+   * ★ 之前基类没实现 onLoad, 于是 $page.options 永远是 {} ——
+   *   真机日志 "缺少 bvid 参数 (options={})" 就是这么来的.
+   *   参考实现 (references/miniapp) 的做法: onLoad/onNewOptions 里把 options 存到 this.options,
+   *   页面组件随后用 this.$page.options 就能读到.
+   */
+  onLoad(options) {
+    this.options = options || {}
+    const p = Object.getPrototypeOf(BasePage.prototype)
+    try { if (p && typeof p.onLoad === 'function') p.onLoad.call(this, options) } catch (e) {}
+  }
+
+  /** 页面被再次拉起 (navTo 到已存在的页面) 时的新参数 */
+  onNewOptions(options) {
+    this.options = options || {}
+    const p = Object.getPrototypeOf(BasePage.prototype)
+    try { if (p && typeof p.onNewOptions === 'function') p.onNewOptions.call(this, options) } catch (e) {}
   }
 
   /** 登记一次性定时器 (自动释放) */
