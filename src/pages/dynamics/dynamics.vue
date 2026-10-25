@@ -36,7 +36,7 @@
              :style="{ height: rowH(it) + 'px', backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }">
           <!-- 头像: 没头像时留一个同尺寸占位圆, 否则整行会往左缩 -->
           <div class="av" :style="{ backgroundColor: U.c.surfaceContainerHighest }">
-            <image v-if="it.face !== ''" class="avimg" :src="it.face" resize="contain"></image>
+            <image v-if="it.face !== ''" class="avimg" :src="it.face" resize="cover"></image>
           </div>
 
           <div class="main">
@@ -62,7 +62,7 @@
           <!-- 媒体列: 有视频就只放视频卡, 否则铺最多 3 张缩略图 (两个都放会挤掉正文) -->
           <div v-if="it.video" class="vcard" :style="videoBox" @click="openVideo(it.video)">
             <div class="vcover" :style="{ backgroundColor: U.c.surfaceContainerHighest }">
-              <image v-if="it.video.cover !== ''" class="vcoverimg" :src="it.video.cover" resize="contain"></image>
+              <image v-if="it.video.cover !== ''" class="vcoverimg" :src="it.video.cover" resize="cover"></image>
             </div>
             <div class="vinfo">
               <RichText class="vtitle" :text="it.video.title" :size="U.f.caption" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
@@ -71,7 +71,7 @@
           </div>
           <div v-else-if="hasPics(it)" class="pics" :style="picsBox">
             <div v-for="(p, pi) in threePics(it)" :key="pi" class="pic" :style="picBox">
-              <image v-if="p !== ''" class="picimg" :src="p" resize="contain"></image>
+              <image v-if="p !== ''" class="picimg" :src="p" resize="cover"></image>
             </div>
           </div>
         </div>

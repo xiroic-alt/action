@@ -76,7 +76,7 @@
                :style="{ width: '100%', height: ROW_H + 'px', flexDirection: 'row', alignItems: 'center', marginBottom: '6px', paddingRight: '12px' }"
                @click="openItem(it)">
             <div class="cover" :style="coverBox">
-              <image v-if="it.pic !== ''" class="cimg" :src="it.pic" :style="coverBox" resize="contain"></image>
+              <image v-if="it.pic !== ''" class="cimg" :src="it.pic" :style="coverBox" resize="cover"></image>
               <div v-if="it.durationText !== ''" class="dur"
                    :style="{ position: 'absolute', right: '4px', bottom: '4px', backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: '6px', paddingLeft: '5px', paddingRight: '5px', height: '18px', justifyContent: 'center', alignItems: 'center' }">
                 <text class="durt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ it.durationText }}</text>

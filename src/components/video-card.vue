@@ -4,7 +4,7 @@
        播放量 + 时长药丸盖在封面右下, 与上游首页卡片一致 -->
   <div class="card" :style="{ width: cardWS, height: cardHS, backgroundColor: U.c.surfaceContainerLow, borderRadius: U.rad.card + 'px' }" @click="onTap">
     <div class="cover" :style="{ width: cardWS, height: coverHS, borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }">
-      <image v-if="v.pic" class="coverimg" :src="thumb(v.pic, picW)" :style="{ width: picWS, height: coverHS, borderRadius: U.rad.card + 'px' }" resize="contain"></image>
+      <image v-if="v.pic" class="coverimg" :src="thumb(v.pic, picW)" :style="{ width: picWS, height: coverHS, borderRadius: U.rad.card + 'px' }" resize="cover"></image>
       <div class="meta" v-if="U.den.showStat !== false">
         <text class="mt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.playText }}</text>
         <text class="mt2" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ v.durationText }}</text>

@@ -98,6 +98,12 @@
       </div>
     </div>
 
+    <!-- 封面浮层: 完整显示原图 (contain, 留白可接受), 点任意处关闭 -->
+    <div v-if="coverOpen" class="coverMask" @click="hideCover">
+      <image class="coverBig" :src="coverUrl" resize="contain"></image>
+      <text class="coverTip" :lines="1">点击任意处关闭</text>
+    </div>
+
     <!-- 轻提示 (无 toast 组件; 单行状态用页面内小条, 点一下收起) -->
     <div v-if="tip !== ''" class="tipHit" :style="{ width: '380px', height: '44px' }" @click="hideTip">
       <div class="tip" :style="{ backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }">
@@ -602,6 +608,8 @@ export default {
       if (a === 'cover') { this.showCover(); return }
       this.openDetail()
     },
+
+    hideCover() { this.coverOpen = false },
 
     /** 显示封面浮层 (原图, 等比缩放) */
     showCover() {
