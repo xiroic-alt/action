@@ -246,6 +246,17 @@ for (const f of [...jsFiles, ...vueFiles]) {
   }
 }
 
+// ---- 模板 <div> 必须配平 (真机踩过: 多一个 </div> 提前闭合容器,
+//      后面的块被挤出可视区 -> 用户看到"整块不见了") ----
+for (const f of vueFiles) {
+  const t = fs.readFileSync(f, 'utf8')
+  const cut = t.indexOf('<script>')
+  const tpl = cut > 0 ? t.slice(0, cut) : t
+  const o = (tpl.match(/<div/g) || []).length
+  const c = (tpl.match(/<\/div>/g) || []).length
+  if (o !== c) bad(path.relative(ROOT, f) + ' 模板 <div> 不配平: 开 ' + o + ' 闭 ' + c)
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

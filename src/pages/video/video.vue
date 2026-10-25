@@ -50,7 +50,6 @@
           </scroller>
           <RichText v-else class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
         </div>
-      </div>
 
         <!-- 播放按钮: 浮动在左栏右下, 不占布局高度 (双栏重排时漏掉过, 这里补回) -->
         <div class="playHit" :style="playHitStyle" @click="goPlay">
