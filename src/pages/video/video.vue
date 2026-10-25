@@ -63,6 +63,7 @@
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
       <div class="cmts" :style="{ width: '439px', height: S.content + 'px' }">
+        <div class="cmain" :style="{ height: '178px' }">
         <div class="sortcol" :style="{ width: '92px' }">
           <text class="sortTitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '评论 ' + replyTotalText }}</text>
           <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ height: '44px' }" @click="pickSort(s.id)">
@@ -88,11 +89,11 @@
                 <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="3" :drop-emoji="false" />
                 <!-- 操作条: 点赞 / 回复 / 展开楼中楼 -->
                 <div class="cops">
-                  <div class="cop" :style="{ height: '30px' }" @click="likeComment(c)">
+                  <div class="cop" :style="{ height: '44px' }" @click="likeComment(c)">
                     <image class="copic" :src="c.liked ? MI.likeOn : MI.like" :style="{ width: '15px', height: '15px' }"></image>
                     <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: c.liked ? U.c.primary : U.c.onSurfaceVariant }">{{ c.likeText === '' ? '赞' : c.likeText }}</text>
                   </div>
-                  <div class="cop" :style="{ height: '30px' }" @click="replyComment(c)">
+                  <div class="cop" :style="{ height: '44px' }" @click="replyComment(c)">
                     <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">回复</text>
                   </div>
                   <div v-if="c.replyCount > 0" class="cop" :style="{ height: '30px' }" @click="toggleSub(c)">
@@ -107,6 +108,9 @@
                   <div v-for="(s, j) in (c.subs || [])" :key="s.rpid + '_' + j" class="subrow">
                     <text class="subn" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.primary }">{{ s.author }}</text>
                     <RichText class="subt" :text="s.text" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="2" :drop-emoji="false" />
+                    <div class="cop" :style="{ height: '44px' }" @click="replySub(c, s)">
+                      <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">回复</text>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -123,6 +127,55 @@
             </div>
           </div>
         </scroller>
+        </div>
+
+        <!-- 常驻输入条: 一直在底部, 点任意处唤起系统输入法发主楼评论.
+             笔上没有内嵌可编辑文本组件, 只能"点击 -> 系统输入法"这条路. -->
+        <div class="cbar" :style="{ backgroundColor: U.c.surfaceContainerLow, height: '44px' }" @click="writeComment">
+          <div class="cbarbox" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.chip + 'px' }">
+            <text class="cbart" :lines="1" :style="U.t.weak">说点什么…</text>
+          </div>
+          <div class="cbarsend" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px' }" @click="writeComment">
+            <text class="cbarsendt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimary }">发送</text>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 投币选择 (1/2 枚) -->
+    <div v-if="coinOpen" class="pickMask" @click="closeCoin">
+      <div class="pickBox" :style="{ backgroundColor: U.c.surfaceContainerHigh, borderRadius: U.rad.card + 'px' }" @click="noop">
+        <text class="pickTitle" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">投币支持一下</text>
+        <div class="pickRow" :style="{ height: '52px' }" @click="pickCoin(1)">
+          <text class="pickTxt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">投 1 枚硬币</text>
+        </div>
+        <div class="pickRow" :style="{ height: '52px' }" @click="pickCoin(2)">
+          <text class="pickTxt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">投 2 枚硬币</text>
+        </div>
+        <div class="pickRow" :style="{ height: '52px' }" @click="closeCoin">
+          <text class="pickTxt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurfaceVariant }">取消</text>
+        </div>
+      </div>
+    </div>
+
+    <!-- 收藏夹选择 -->
+    <div v-if="favOpen" class="pickMask" @click="closeFav">
+      <div class="pickBox" :style="{ backgroundColor: U.c.surfaceContainerHigh, borderRadius: U.rad.card + 'px' }" @click="noop">
+        <text class="pickTitle" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">选择收藏夹</text>
+        <div v-if="favLoading" class="pickRow" :style="{ height: '52px' }">
+          <text class="pickTxt" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurfaceVariant }">加载中…</text>
+        </div>
+        <scroller v-else class="pickScroll" scroll-direction="vertical" :show-scrollbar="true" :style="{ height: '140px' }">
+          <div v-for="(f, fi) in favList" :key="f.id + '_' + fi" class="pickRow" :style="{ height: '44px' }" @click="pickFav(f)">
+            <text class="pickTxt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">{{ f.title }}</text>
+          </div>
+          <div v-if="favList.length === 0" class="pickRow" :style="{ height: '44px' }">
+            <text class="pickTxt" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurfaceVariant }">没有收藏夹</text>
+          </div>
+        </scroller>
+        <div class="pickRow" :style="{ height: '44px' }" @click="closeFav">
+          <text class="pickTxt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurfaceVariant }">取消</text>
+        </div>
       </div>
     </div>
 
@@ -244,6 +297,10 @@ export default {
       // 世代守卫: 页面级装载用 ++this.genSeq, 动作类请求只读当前值做过期判断
       genSeq: 0,
       coverOpen: false,
+      coinOpen: false,
+      favOpen: false,
+      favList: [],
+      favLoading: false,
       coverUrl: '',
       paramKey: '',
       cmtGen: 0,
@@ -457,6 +514,21 @@ export default {
       }
     },
 
+    /** 回复楼中楼里的某条子评论 (root = 主楼, parent = 子评论) */
+    async replySub(root, s) {
+      const text = await this.askText('回复 @' + s.author)
+      if (text == null || text === '') return
+      try {
+        await commentAdd(this.aid, text, root.rpid, s.rpid, 1)
+        this.showTip('回复已发送')
+        root.subs = []
+        root.subOpen = true
+        await this.loadSub(root)
+      } catch (e) {
+        this.showTip(e && /登录/.test(e.message || '') ? '请先登录' : ('发送失败: ' + (e && e.message ? e.message : e)))
+      }
+    },
+
     /** 发表主楼评论 */
     async writeComment() {
       const text = await this.askText('写评论')
@@ -503,9 +575,43 @@ export default {
 
     onAction(id) {
       if (id === 'like') this.doLike()
-      else if (id === 'coin') this.doCoin()
-      else if (id === 'fav') this.doFav()
+      else if (id === 'coin') this.openCoin()
+      else if (id === 'fav') this.openFav()
       // share: 只显示数量, 不做分享 (用户约束), 不挂动作
+    },
+
+    /** 投币: 弹出 1/2 枚选择 (对齐 PiliNara 的投币弹窗) */
+    openCoin() {
+      if (!this.aid) return
+      if (!hasCookie()) { this.showTip('请先登录再投币'); return }
+      if (this.coined) { this.showTip('已经投过币了'); return }
+      this.coinOpen = true
+    },
+    async pickCoin(n) {
+      this.coinOpen = false
+      await this.doCoin(n)
+    },
+
+    /** 收藏: 弹出收藏夹列表供选择 (对齐 PiliNara 的收藏弹窗) */
+    async openFav() {
+      if (!this.aid) return
+      if (!hasCookie()) { this.showTip('请先登录再收藏'); return }
+      this.favOpen = true
+      if (this.favList.length > 0) return
+      this.favLoading = true
+      try {
+        const r = await favFolders(this.aid)
+        this.favList = r || []
+      } catch (e) {
+        this.favList = []
+        this.showTip('收藏夹读取失败')
+      } finally {
+        this.favLoading = false
+      }
+    },
+    async pickFav(f) {
+      this.favOpen = false
+      await this.doFav(f && f.id ? f.id : 0)
     },
 
     async doLike() {
@@ -537,7 +643,8 @@ export default {
       }
     },
 
-    async doCoin() {
+    async doCoin(num) {
+      const n = Number(num) === 2 ? 2 : 1
       if (this.busyLock.coin || !this.aid) return
       if (!hasCookie()) { this.showTip('请先登录再投币'); return }
       if (this.coined) { this.showTip('已投过币'); return }
@@ -545,9 +652,9 @@ export default {
       const gen = this.genSeq
       const prev = this.cnt.coin
       this.coined = true
-      this.cnt.coin = prev + 1
+      this.cnt.coin = prev + n
       try {
-        await coin(this.aid, 1, false)
+        await coin(this.aid, n, false)
         if (gen !== this.genSeq) return
       } catch (e) {
         if (gen !== this.genSeq) return
@@ -559,15 +666,17 @@ export default {
       }
     },
 
-    async doFav() {
+    async doFav(fidPick) {
+      // fidPick: 从收藏夹选择面板传入; 不传则用默认收藏夹
+      const useFid = Number(fidPick) || Number(this.favFolderId) || 0
       if (this.busyLock.fav || !this.aid) return
       if (!hasCookie()) { this.showTip('请先登录再收藏'); return }
-      if (!this.favFolderId) { this.showTip('没有可用收藏夹'); return }
+      if (!useFid) { this.showTip('没有可用收藏夹'); return }
       this.busyLock.fav = true
       const gen = this.genSeq
       const was = this.faved
       const prev = this.cnt.fav
-      const fid = this.favFolderId
+      const fid = useFid
       this.faved = !was
       this.cnt.fav = Math.max(0, prev + (this.faved ? 1 : -1))
       try {
@@ -713,6 +822,10 @@ export default {
       if (a === 'cover') { this.showCover(); return }
       this.openDetail()
     },
+
+    noop() {},
+    closeCoin() { this.coinOpen = false },
+    closeFav() { this.favOpen = false },
 
     hideCover() { this.coverOpen = false },
 
@@ -860,4 +973,17 @@ export default {
 .cwrite { flex-direction: row; justify-content: center; align-items: center; padding-top: 6px; padding-bottom: 6px; }
 .cwbtn { padding-left: 18px; padding-right: 18px; justify-content: center; align-items: center; }
 .cwbtnt { font-size: 13px; }
+.cmain { flex-direction: row; height: 178px; }
+.cbar { flex-direction: row; align-items: center; padding-left: 10px; padding-right: 10px; }
+.cbarbox { flex: 1; height: 34px; flex-direction: row; align-items: center; padding-left: 12px; padding-right: 12px; }
+.cbart { font-size: 13px; }
+.cbarsend { width: 64px; height: 34px; justify-content: center; align-items: center; margin-left: 8px; }
+.cbarsendt { font-size: 13px; }
+.pickMask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px;
+            background-color: rgba(0,0,0,0.72); justify-content: center; align-items: center; }
+.pickBox { width: 320px; padding: 10px; flex-direction: column; }
+.pickTitle { height: 36px; text-align: center; }
+.pickRow { width: 300px; justify-content: center; align-items: center; }
+.pickTxt { font-size: 14px; }
+.pickScroll { width: 300px; height: 140px; }
 </style>
