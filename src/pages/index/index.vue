@@ -135,8 +135,15 @@ export default {
       log('首页', '开始加载 ' + this.tab + ' p' + this.page + ' gen=' + gen)
       try {
         if (this.tab === 'rcmd') {
-          const list = await recommend(12, this.page)
+          const raw = await recommend(12, this.page)
           if (gen !== this.genSeq) return
+          // 跳过直播 / 番剧推荐等非视频条目: 首页只放普通视频 (用户要求)
+          const list = (raw || []).filter(function (x) {
+            if (!x) return false
+            if (x.type === 'live' || x.goto === 'live') return false
+            if (!x.bvid && !x.aid) return false
+            return true
+          })
           this.items = reset ? list : this.items.concat(list)
           if (!list.length) this.status = '没有更多了'
         } else if (this.tab === 'hot') {

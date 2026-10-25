@@ -93,3 +93,72 @@ export function applyAudioRoute(videoEl, mode, mac) {
     return { ok: false, msg: '切换失败: ' + String(e).slice(0, 60) }
   }
 }
+/* ==================== 系统级音频路由 (hal-audio) ==================== */
+//
+// 背景: 固件播放器元素**没有** setAudioDeviceType (真机报"当前固件播放器没有
+// SET AUDIO DEVICE TYPE"). 但系统自带 hal-audio, 它的用法里有:
+//   -l, --list-devices        列出声卡/音频设备
+//   -b, --bluealsa=#          a2dp dev mac addr   <- 把音频送到蓝牙
+//   -g/-s                     音量读写
+// 这正是系统其它播放器 (网易云) 走的路子: 在**系统层**路由, 不依赖播放器 API.
+//
+// 焦点释放: 系统有一个常驻 SoundPlayer 守护进程 (/oem/YoudaoDictPen/output/SoundPlayer,
+// 由 /usr/bin/runSoundPlayer + guardian_run 托管). killall -9 SoundPlayer 后
+// guardian 会自动把它拉起来 —— 等价于"释放并重置音频焦点", 这也是系统其它播放器的做法.
+
+/** 执行一条系统命令 (异步优先, 同步兜底) */
+function sysExec(cmd) {
+  try {
+    if (bilinet && typeof bilinet.execAsync === 'function') return bilinet.execAsync(cmd)
+    if (bilinet && typeof bilinet.exec === 'function') return bilinet.exec(cmd)
+  } catch (e) {}
+  return ''
+}
+
+/** 列出系统音频设备 (诊断用) */
+export async function listAudioDevices() {
+  try { return String(await sysExec('hal-audio -l 2>&1') || '') } catch (e) { return '' }
+}
+
+/**
+ * 系统级音频路由.
+ *   applySystemRoute('bt', 'AA:BB:CC:DD:EE:FF') -> 走蓝牙 A2DP
+ *   applySystemRoute('speaker')                  -> 回到扬声器
+ * 返回 { ok, msg }
+ */
+export async function applySystemRoute(kind, mac) {
+  const k = String(kind || 'speaker')
+  if (k === 'bt') {
+    const m = String(mac || '').trim().toUpperCase()
+    if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(m)) return { ok: false, msg: '蓝牙地址不合法' }
+    try {
+      await sysExec('hal-audio -b ' + m + ' 2>&1')
+      log('音频', 'hal-audio 路由到蓝牙 ' + m)
+      return { ok: true, msg: '已切换到蓝牙耳机' }
+    } catch (e) {
+      return { ok: false, msg: '切换失败: ' + (e && e.message ? e.message : e) }
+    }
+  }
+  // 回扬声器: 清掉 bluealsa 绑定
+  try {
+    await sysExec('hal-audio -b "" 2>&1')
+    log('音频', 'hal-audio 路由回扬声器')
+    return { ok: true, msg: '已切换回扬声器' }
+  } catch (e) {
+    return { ok: false, msg: '切换失败: ' + (e && e.message ? e.message : e) }
+  }
+}
+
+/**
+ * 释放音频焦点: 让系统 SoundPlayer 重启 (guardian 会自动拉起).
+ * 播放前调用一次, 可以打断其它应用正在播的声音 —— 这是系统其它播放器的做法.
+ */
+export async function releaseAudioFocus() {
+  try {
+    await sysExec('killall -9 SoundPlayer 2>/dev/null || true')
+    log('音频', '已释放音频焦点 (SoundPlayer 重置)')
+    return { ok: true, msg: '已释放音频焦点' }
+  } catch (e) {
+    return { ok: false, msg: '释放失败: ' + (e && e.message ? e.message : e) }
+  }
+}

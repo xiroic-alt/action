@@ -9,7 +9,9 @@
          右栏自适应:     评论 (排序 + 列表)
          960x266 是超宽屏, 上下堆叠会让评论区只剩一条; 分栏后两栏都能吃满 222px -->
     <div class="content" :style="{ height: S.content + 'px', flexDirection: 'row' }">
-      <div class="pane" :style="{ width: '520px', height: S.content + 'px' }">
+      <!-- 左栏: 信息多时可上下滑 (与右栏评论各自独立滚动) -->
+      <scroller class="pane" scroll-direction="vertical" :show-scrollbar="true"
+                :style="{ width: '520px', height: S.content + 'px' }">
         <div class="uprow" :style="{ height: '44px' }" @click="openMember">
           <div class="avwrap" :style="{ width: '44px', height: '44px' }">
             <image v-if="faceUrl !== ''" class="avatar" :src="faceUrl"
@@ -58,7 +60,7 @@
             <text class="playt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
           </div>
         </div>
-      </div>
+      </scroller>
 
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
@@ -545,13 +547,20 @@ export default {
     /** 统一走系统输入法取一段文本; 取消返回 null */
     async askText(placeholder) {
       if (!this.imeSession) this.imeSession = createIME()
+      let t = null
       try {
-        const t = await this.imeSession.open({ text: '', placeholder: placeholder || '说点什么', maxlength: 500, enterButtonText: '发送' })
-        return t
+        t = await this.imeSession.open({ text: '', placeholder: placeholder || '说点什么', maxlength: 500, enterButtonText: '发送' })
       } catch (e) {
         this.showTip('系统输入法唤不起来')
         return null
       }
+      // ★ 取消/空白一律当没输入:
+      //   输入法按返回时可能回传空串、空格、或 undefined, 之前这些都会被当成"有内容"
+      //   继续往下发, 结果发出一条空白评论还提示"发送成功".
+      if (t == null) return null
+      const s = String(t).trim()
+      if (s === '') return null
+      return s
     },
 
     /** 展开 / 收起楼中楼 */
@@ -894,7 +903,7 @@ export default {
 .desc { }
 
 /* ---- 评论区 ---- */
-.cmts { flex-direction: row; width: 439px; }
+.cmts { flex-direction: column; width: 439px; }
 .sortcol { flex-direction: column; padding-left: 10px; padding-top: 6px; }
 .sortTitle { width: 92px; height: 18px; padding-left: 8px; }
 .sortHit { justify-content: center; align-items: center; }

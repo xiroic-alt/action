@@ -100,6 +100,7 @@ import RichText from '../../components/rich-text.vue'
 //   暂停后 getPosition() 返回 0 -> 暂停时必须停轮询, 否则进度条被打回 0
 import { ui } from '../../design/ui.js'
 import { getCfg, setCfg } from '../../core/config.js'
+import { releaseAudioFocus } from '../../services/audio.js'
 import { log, logDebug } from '../../core/log.js'
 import { videoDetail, playUrl, danmakuXml, subtitleBody, sponsorSegments, liveRoomPlayUrl } from '../../services/api.js'
 import { shouldSkip } from '../../services/sponsorblock.js'

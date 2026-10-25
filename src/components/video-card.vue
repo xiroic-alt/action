@@ -11,7 +11,11 @@
       </div>
     </div>
     <div class="body">
-      <RichText class="title" :text="v.title" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
+      <!-- 标题最多 2 行: RichText 是逐段渲染的, :lines 不跨段生效,
+           所以用容器限高 + overflow:hidden 兜底 (超过就裁掉) -->
+      <div class="ttlwrap2" :style="{ height: ttlH + 'px' }">
+        <RichText class="title" :text="v.title" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
+      </div>
       <div class="subrow">
         <RichText class="awname" :text="v.author" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="1" :drop-emoji="false" />
         <text v-if="v.danmakuText" class="dm" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.danmakuText }}</text>
@@ -36,6 +40,11 @@ export default {
     return { U: ui(), RATIO: SPEC.coverRatio }
   },
   computed: {
+    /** 标题区高度 = 2 行 (字号 body * 1.35 行高 * 2), 超出裁切 */
+    ttlH() {
+      const fs2 = Number(this.U && this.U.f && this.U.f.body) || 13
+      return Math.round(fs2 * 1.4 * 2) + 2
+    },
     // ★ 两套值, 别混用:
     //   coverH / picW 是**数字** (picW 要拼进图片 URL 的 @..w 参数)
     //   *S 结尾的是给 style 用的**带 px 字符串** (框架的 style 不吃裸数字, 否则盒子塌成 0)
@@ -75,6 +84,7 @@ export default {
 .meta { position: absolute; right: 6px; bottom: 6px; flex-direction: row; align-items: center;
          background-color: rgba(0,0,0,0.55); border-radius: 8px; padding-left: 6px; padding-right: 6px; }
 .mt { margin-right: 6px; }
+.ttlwrap2 { overflow: hidden; }
 .body { flex: 1; flex-direction: column; padding: 6px 8px 8px 8px; }
 .title { }
 .subrow { flex-direction: row; align-items: center; margin-top: 2px; }
