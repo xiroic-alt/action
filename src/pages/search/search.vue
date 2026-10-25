@@ -34,7 +34,7 @@
             </div>
             <div v-for="(t, i) in trending" :key="t.keyword + '_' + i" class="kchip"
                  :style="chipStyle(LEFT_CHIP_W)" @click="searchFrom(t)">
-              <text class="kt" :lines="1" :style="kwStyle(i < 3)">{{ t.showName }}</text>
+              <RichText class="kt" :text="t.showName" :size="U.f.body" :color="i < 3 ? U.c.primary : U.c.onSurfaceVariant" :lines="1" :drop-emoji="false" />
             </div>
           </div>
         </scroller>
@@ -80,9 +80,9 @@
                    :style="{ width: COV_W + 'px', height: COV_H + 'px', borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }"></image>
             <div v-else class="cov" :style="{ width: COV_W + 'px', height: COV_H + 'px', borderRadius: U.rad.card + 'px', backgroundColor: U.c.surfaceContainerHighest }"></div>
             <div class="rinfo">
-              <text class="rtitle" :lines="2" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">{{ v.title }}</text>
+              <RichText class="rtitle" :text="v.title" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
               <div class="rmeta">
-                <text class="ra" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ v.author }}</text>
+                <RichText class="ra" :text="v.author" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="1" :drop-emoji="false" />
                 <text class="rp" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.playText }}</text>
                 <text v-if="v.durationText" class="rp" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.durationText }}</text>
                 <text v-if="v.pubText" class="rp" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.pubText }}</text>
@@ -101,6 +101,7 @@
 </template>
 
 <script>
+import RichText from '../../components/rich-text.vue'
 // 搜索页 —— 结构对齐 PiliNara lib/pages/search/view.dart
 //   顶栏 (返回 + 搜索框 + 搜索动作) / 大家都在搜 + 搜索历史 (横屏左右分栏) / 结果列表
 // 与上游的差异 (笔屏约束):
@@ -141,7 +142,7 @@ const MI_D = {
 }
 
 export default {
-  components: { AppBar },
+  components: {AppBar, RichText },
   name: 'search',
   data() {
     return {

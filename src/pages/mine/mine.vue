@@ -16,7 +16,7 @@
           <image v-else class="avic" :src="MIc.mine" :style="{ width: '26px', height: '26px' }"></image>
         </div>
         <div class="info" :style="{ flex: 1, height: '44px', flexDirection: 'column', justifyContent: 'center' }" @click="onLoginTap">
-          <text class="name" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface, fontWeight: 'bold' }">{{ nameText }}</text>
+          <RichText class="name" :text="nameText" :size="U.f.subtitle" :color="U.c.onSurface" :lines="1" weight="bold" :drop-emoji="false" />
           <div class="subrow" :style="{ flexDirection: 'row', alignItems: 'center', marginTop: '2px' }">
             <div v-if="level > 0" class="lv" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.chip + 'px', paddingLeft: '6px', paddingRight: '6px', height: '18px', justifyContent: 'center', alignItems: 'center' }">
               <text class="lvt" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">LV{{ level }}</text>
@@ -50,7 +50,7 @@
           <image class="tabic" :src="MIc.back" :style="{ width: '18px', height: '18px' }"></image>
           <text class="tabt" :style="tabText(null)">收藏夹</text>
         </div>
-        <text class="foldert" :lines="1" :style="{ flex: 1, fontSize: U.f.subtitle + 'px', color: U.c.onSurface, marginLeft: '10px' }">{{ folderTitle }}</text>
+        <RichText class="foldert" :text="folderTitle" :size="U.f.subtitle" :color="U.c.onSurface" :lines="1" :style="{ flex: 1, marginLeft: '10px' }" :drop-emoji="false" />
         <div class="tab" :style="tabStyle(null)" @click="refreshCurrent">
           <image class="tabic" :src="MIc.refresh" :style="{ width: '18px', height: '18px' }"></image>
           <text class="tabt" :style="tabText(null)">刷新</text>
@@ -83,8 +83,8 @@
               </div>
             </div>
             <div class="rinfo" :style="{ flex: 1, flexDirection: 'column', justifyContent: 'center', marginLeft: '10px', height: ROW_H + 'px' }">
-              <text class="rtitle" :lines="2" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">{{ it.title }}</text>
-              <text class="rsub" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant, marginTop: '3px' }">{{ it.sub }}</text>
+              <RichText class="rtitle" :text="it.title" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
+              <RichText class="rsub" :text="it.sub" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="1" :style="{ marginTop: '3px' }" :drop-emoji="false" />
             </div>
           </div>
           <div v-if="items.length > 0 && (canMore || loading)" class="foot" :style="{ width: '100%', justifyContent: 'center', alignItems: 'center', paddingTop: '2px', paddingBottom: '10px' }">
@@ -105,6 +105,7 @@
 </template>
 
 <script>
+import RichText from '../../components/rich-text.vue'
 // 「我的」页 —— 对齐 PiliNara lib/pages/mine/view.dart:
 //   顶部用户信息 (头像 / 昵称 / 等级 / 大会员, 未登录显示「点击登录」)
 //   + 三类卡片入口 (我的收藏 fav_item / 观看历史 history_item / 稍后再看 later_item),
@@ -139,7 +140,7 @@ const COVER_H = 60        // 96 / 60 = 16:10, 与 components/video-card.vue 同�
 const TIP_MS = 2000
 
 export default {
-  components: { NavRail },
+  components: {NavRail, RichText },
   name: 'mine',
   data() {
     return {

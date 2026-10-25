@@ -197,6 +197,19 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- 子组件必须导入并注册 (用了 <RichText> 却没注册, 运行时整块不渲染且不报错) ----
+for (const f of vueFiles) {
+  const t = fs.readFileSync(f, 'utf8')
+  const tpl = t.slice(0, t.indexOf('<script>'))
+  for (const m of tpl.matchAll(/<([A-Z][A-Za-z0-9]*)/g)) {
+    const name = m[1]
+    const imported = new RegExp("import\\s+" + name + "\\s+from").test(t)
+    const registered = new RegExp("components:\\s*\\{[^}]*\\b" + name + "\\b").test(t)
+    if (!imported) bad(path.relative(ROOT, f) + ' 用了 <' + name + '> 但没有 import')
+    else if (!registered) bad(path.relative(ROOT, f) + ' 用了 <' + name + '> 但 components 里没注册')
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

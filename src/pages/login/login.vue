@@ -8,7 +8,7 @@
         </div>
         <text class="title" :lines="1" :style="U.t.title">登录哔哩哔哩</text>
         <div class="grow"></div>
-        <text v-if="account" class="acc" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ accText }}</text>
+        <RichText v-if="account" class="acc" :text="accText" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="1" :drop-emoji="false" />
         <div v-if="account" class="logout" :style="{ height: '44px' }" @click="doLogout">
           <text class="logoutt" :style="{ fontSize: U.f.caption + 'px', color: U.c.primary }">退出登录</text>
         </div>
@@ -69,6 +69,7 @@
 </template>
 
 <script>
+import RichText from '../../components/rich-text.vue'
 // 登录页 —— 两种方式, 与 bilibilipan 同能力, 代码全新:
 //   ① 扫码登录: qrGenerate/qrPoll (Web 链路) + 本地二维码编码 (services/qrcode.js)
 //      B 站登录 url 实测 131 字节 -> M 级版本 8 (49x49 模块), 所以二维码区按整屏高 266 布局,
@@ -99,6 +100,7 @@ const MI_CHECK = require('../../assets/mi/check_20_d.png')
 
 export default {
   name: 'login',
+  components: { RichText },
   data() {
     return {
       U: ui(),

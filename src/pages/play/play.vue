@@ -11,14 +11,16 @@
 
     <!-- 弹幕层: 严格裁在视频矩形内 (笔屏 960x266 里画面只占中间一条) -->
     <div class="dm-layer" :style="vrectStyle">
-      <text v-for="d in dmFrame" :key="d.k" class="dm"
-            :style="{ left: d.x + 'px', top: d.y + 'px', color: d.color, fontSize: d.size + 'px', opacity: d.op }">{{ d.text }}</text>
+      <RichText v-for="d in dmFrame" :key="d.k" class="dm" :text="d.text" :size="d.size" :color="d.color"
+            :lines="1" :style="{ left: d.x + 'px', top: d.y + 'px', opacity: d.op }" :drop-emoji="false" />
     </div>
 
     <!-- 字幕层: 主字幕 + 副字幕 (PiliNara 双语字幕) -->
     <div v-if="subMain !== '' || subSecond !== ''" class="sub-layer" :style="subLayerStyle">
-      <text v-if="subMain !== ''" class="sub" :style="subMainStyle">{{ subMain }}</text>
-      <text v-if="subSecond !== ''" class="sub sub2" :style="subSecondStyle">{{ subSecond }}</text>
+      <RichText v-if="subMain !== ''" class="sub" :text="subMain" :size="subMainSize" color="#ffffff"
+            :lines="0" :style="subBgStyle" :drop-emoji="false" />
+      <RichText v-if="subSecond !== ''" class="sub sub2" :text="subSecond" :size="subSecondSize" color="#ffffff"
+            :lines="0" :style="subBgStyle" :drop-emoji="false" />
     </div>
 
     <!-- 触摸层: 点击切换控制条 (命中区铺满全屏, 有显式尺寸) -->
@@ -30,7 +32,7 @@
         <image class="bic" :src="MI.back" :style="{ width: '24px', height: '24px' }"></image>
         <text class="bt" :style="{ fontSize: U.f.body + 'px', color: '#ffffff' }">返回</text>
       </div>
-      <text class="title" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: '#ffffff' }">{{ titleText }}</text>
+      <RichText class="title" :text="titleText" :size="U.f.subtitle" color="#ffffff" :lines="1" :drop-emoji="false" />
       <text v-if="isLive" class="qt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">直播</text>
       <text v-else-if="qualityText !== ''" class="qt" :style="{ fontSize: U.f.tiny + 'px', color: '#ffffff' }">{{ qualityText }}</text>
     </div>
@@ -88,6 +90,7 @@
 </template>
 
 <script>
+import RichText from '../../components/rich-text.vue'
 // 播放页 —— 全新实现. 只沿用设备契约 (video 元素 / hole / seekbar), 结构与样式按 PiliNara 播放页重写.
 //
 // 关键契约 (来自设备实测, 见 docs/device-contract.md):
@@ -131,6 +134,7 @@ function fitRect(vw, vh) {
 
 export default {
   name: 'play',
+  components: { RichText },
   data() {
     return {
       U: ui(),
@@ -195,6 +199,9 @@ export default {
       const h = this.subSecond !== '' ? 52 : 28
       return { left: r.x + 'px', top: (r.y + r.h - off - h) + 'px', width: r.w + 'px', height: h + 'px' }
     },
+    subMainSize() { return Number(getCfg('subFont')) || 22 },
+    subSecondSize() { return Number(getCfg('subSubFont')) || 18 },
+    subBgStyle() { return { backgroundColor: 'rgba(0,0,0,' + ((Number(getCfg('subBgOpacity')) || 35) / 100) + ')' } },
     subMainStyle() {
       return {
         fontSize: (Number(getCfg('subFont')) || 22) + 'px',

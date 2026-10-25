@@ -11,9 +11,9 @@
       </div>
     </div>
     <div class="body">
-      <text class="title" :lines="2" :style="{ fontSize: U.f.body + 'px', color: U.c.onSurface }">{{ v.title }}</text>
+      <RichText class="title" :text="v.title" :size="U.f.body" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
       <div class="subrow">
-        <text class="awname" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ v.author }}</text>
+        <RichText class="awname" :text="v.author" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="1" :drop-emoji="false" />
         <text v-if="v.danmakuText" class="dm" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.danmakuText }}</text>
       </div>
     </div>
@@ -21,11 +21,13 @@
 </template>
 
 <script>
+import RichText from '../components/rich-text.vue'
 import { ui } from '../design/ui.js'
 import { SPEC } from '../design/tokens.js'
 
 export default {
   name: 'video-card',
+  components: { RichText },
   props: {
     v: { type: Object, required: true },
     w: { type: Number, default: 208 }        // 卡片宽 (px)
