@@ -62,7 +62,7 @@
 
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
-      <div class="cmts" :style="{ height: S.content + 'px' }">
+      <div class="cmts" :style="{ width: '439px', height: S.content + 'px' }">
         <div class="sortcol" :style="{ width: '92px' }">
           <text class="sortTitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '评论 ' + replyTotalText }}</text>
           <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ height: '44px' }" @click="pickSort(s.id)">
@@ -71,7 +71,8 @@
             </div>
           </div>
         </div>
-        <scroller class="cscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onCmtScroll">
+        <scroller class="cscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onCmtScroll"
+                  :style="{ width: '347px', height: S.content + 'px' }">
           <div class="clist">
             <div v-if="comments.length === 0" class="chint">
               <text class="chintt" :style="U.t.weak">{{ cmtStatus !== '' ? cmtStatus : (loadingCmt ? '加载中…' : '暂无评论') }}</text>
@@ -676,7 +677,7 @@ export default {
 .desc { }
 
 /* ---- 评论区 ---- */
-.cmts { flex-direction: row; flex: 1; }
+.cmts { flex-direction: row; width: 439px; }
 .sortcol { flex-direction: column; padding-left: 10px; padding-top: 6px; }
 .sortTitle { width: 92px; height: 18px; padding-left: 8px; }
 .sortHit { justify-content: center; align-items: center; }
@@ -728,7 +729,7 @@ export default {
 .vsep { width: 1px; }
 .cmts { flex-direction: row; flex: 1; }
 .sortbtn { height: 34px; justify-content: center; align-items: center; border-radius: 8px; }
-.cscroll { flex: 1; }
+.cscroll { width: 347px; height: 222px; }
 .clist { flex-direction: column; padding-right: 10px; }
 .chint { height: 90px; justify-content: center; align-items: center; }
 .chintt { font-size: 13px; }
