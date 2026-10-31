@@ -400,18 +400,27 @@ export default {
       log('音频', '输出=' + this.audioMode + ' ' + this.audioMsg + ' 已连接蓝牙=' + list.length)
       return this.audioMode
     },
-    /** 把当前音频路由真正下发给播放器元素 (起播后调用) */
-    applyAudioNow() {
+    /**
+     * 把当前音频路由真正下发给播放器 (起播后调用).
+     * applyAudioRoute 是 async 的 (元素 API 不可用时会落到系统层 hal-audio), 必须 await.
+     */
+    async applyAudioNow() {
       const mac = this.audioMode === 'bluetooth' && this.btDevices.length ? this.btDevices[0].mac : ''
-      const r = audio.applyAudioRoute(this.video, this.audioMode, mac)
-      if (!r.ok) {
-        this.audioMsg = r.msg
+      // ★ 元素必须用 $refs.vv 取 —— 之前写的 this.video 根本不存在,
+      //   路由函数一直收到 undefined, 于是每次都落到"没有 setAudioDeviceType"那一支.
+      const el = this.$refs.vv || null
+      let r = await audio.applyAudioRoute(el, this.audioMode, mac)
+      if (!r || !r.ok) {
+        this.audioMsg = (r && r.msg) ? r.msg : '切换失败'
+        log('音频', '路由失败: ' + this.audioMsg)
         // 蓝牙失败就退回扬声器, 不让用户面对无声
         if (this.audioMode === 'bluetooth') {
           this.audioMode = 'speaker'
           this.btLabel = '扬声器'
-          audio.applyAudioRoute(this.video, 'speaker', '')
+          await audio.applyAudioRoute(this.$refs.vv || null, 'speaker', '')
         }
+      } else {
+        this.audioMsg = r.msg || ''
       }
       return r
     },
@@ -426,9 +435,10 @@ export default {
         this.audioMode = 'bluetooth'
       }
       this.btLabel = this.audioMode === 'bluetooth' ? '蓝牙' : '扬声器'
-      const r = this.applyAudioNow()
-      this.showTipLocal(r.ok ? ('已切到' + this.btLabel) : r.msg)
-      log('音频', '实时切换 -> ' + this.audioMode + ' ' + r.msg)
+      const r = await this.applyAudioNow()
+      const rm = (r && r.msg) ? r.msg : ''
+      this.showTipLocal((r && r.ok) ? ('已切到' + this.btLabel) : rm)
+      log('音频', '实时切换 -> ' + this.audioMode + ' ' + rm)
     },
     showTipLocal(t) {
       this.audioMsg = t
@@ -475,8 +485,10 @@ export default {
         this.startPoll()
         if (!this._applied) {
           this._applied = true
-          // 起播成功后再下发音频路由: 元素此时才真的持有 ALSA sink
-          this.applyAudioNow()
+          // 起播成功后再下发音频路由: 元素此时才真的持有 ALSA sink.
+          // applyAudioNow 是 async 的, 这里不阻塞起播, 失败也不影响播放.
+          const self2 = this
+          this.applyAudioNow().catch(function () {})
           if (this.rate !== 1) this.elem('setRate', this.rate)
           const at = (this._resumeAt || 0) > 0 ? this._resumeAt : (Number(getCfg('skipIntroSec')) || 0)
           if (at > 0) { this.elem('seekto', at); this.curMs = at * 1000; this.posMs = at * 1000; this.posAt = Date.now() }

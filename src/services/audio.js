@@ -71,9 +71,15 @@ export function btPowerState() {
  * @param {string} [mac] 蓝牙 mac (mode=bluetooth 时必填)
  * @returns {{ok:boolean, msg:string, type?:number}}
  */
-export function applyAudioRoute(videoEl, mode, mac) {
+export async function applyAudioRoute(videoEl, mode, mac) {
+  // ★ 两条路, 按可用性选:
+  //   ① 元素 API setAudioDeviceType —— 本机固件**没有**这个方法 (真机报过
+  //      "当前固件播放器没有 setAudioDeviceType");
+  //   ② 系统层 hal-audio —— 系统自带, 也是其它播放器(网易云)走的路子, 本机可用.
+  //   所以元素 API 不可用时不再报错, 直接落到系统路由.
   if (!videoEl || typeof videoEl.setAudioDeviceType !== 'function') {
-    return { ok: false, msg: '当前固件播放器没有 setAudioDeviceType' }
+    log('音频', '播放器无 setAudioDeviceType, 改用系统层路由 (hal-audio)')
+    return applySystemRoute(mode === 'bluetooth' ? 'bt' : 'speaker', mac)
   }
   try {
     if (mode === 'bluetooth') {
