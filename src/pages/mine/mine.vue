@@ -208,12 +208,12 @@ export default {
   methods: {
     // ---- 生命周期: 项目约定只有 onShow / onPageUnload 被转发 ----
     mounted() {
-      // 私有键不进 data (Vue2 不代理以 _ 开头的键), 在 mounted 里显式初始化:
-      // 世代计数必须真的是数字, 否则 ++this.genSeq 得到 NaN, 守卫会永远判"过期".
-      this.genSeq = 0
-      this._started = false
+      // 私有键不进 data (Vue2 不代理以 _ 开头的键), 在 mounted 里显式初始化.
+      // ★ 不要在这里重置 genSeq: 它是 data 里的字段, 已经被 onShow 的 refresh 加过了;
+      //   在这里置 0 会让"先 onShow 后 mounted"时两个 refresh 拿到同一个世代号,
+      //   守卫失去作用. (之前就是这里写的 0)
       this._tipTimer = null
-      this._started = true
+      log('我的', 'mounted, genSeq=' + this.genSeq)
       this.refresh()
     },
     onShow() {
@@ -233,15 +233,18 @@ export default {
       const gen = ++this.genSeq
       this.loading = true
       this.status = ''
+      log('我的', 'refresh 开始 gen=' + gen)
       try {
         const me = await nav()
-        if (gen !== this.genSeq) return
+        log('我的', 'nav 返回 gen=' + gen + ' 当前=' + this.genSeq + ' isLogin=' + (me && me.isLogin))
+        if (gen !== this.genSeq) { log('我的', '世代过期, 丢弃本次结果'); return }
         this.user = me
-        this.face = me.face || ''
-        log('我的', 'nav 结果 isLogin=' + me.isLogin + ' uname=' + (me.uname || '-'))
-        if (!me.isLogin) { this.items = []; return }
+        this.face = (me && me.face) || ''
+        log('我的', 'nav 结果 isLogin=' + (me && me.isLogin) + ' uname=' + ((me && me.uname) || '-'))
+        if (!me || !me.isLogin) { this.items = []; return }
         await this.loadTab(gen)
       } catch (e) {
+        log('我的', 'refresh 异常 gen=' + gen + ': ' + (e && e.message ? e.message : e))
         if (gen !== this.genSeq) return
         this.status = (e && e.message ? e.message : String(e))
       } finally {

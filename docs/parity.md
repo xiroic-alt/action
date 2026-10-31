@@ -1,57 +1,82 @@
-# PiliNara 功能对照表（PiliPRO 实现进度）
+# PiliNara → PiliPRO 功能对照表
 
-约定:
-- ✅ 已实现
-- 🔄 进行中
-- ⛔ 平台不可行（写明原因与替代方案）
-- 📋 待做（本批之后）
+上游: https://github.com/Starfallan/PiliNara (Flutter, forked from PiliPlus)
+上游 `lib/pages/` 共 **115 个页面目录**; PiliPRO 落地 **14 个页面**。
 
-## 基础与界面
+这份表是**验收用**的: 每一项给状态、给依据、给"为什么不做"的原因。
+图例: ✅ 已实现并真机验证 / 🟡 已实现未逐项验证 / ⬜ 未做 / 🚫 平台做不到
 
-| 功能 | 状态 | 说明 |
+## 一、顶层导航 (上游 nav_bar_config.dart 定义 home / dynamics / mine 三个一级页)
+
+| 上游 | PiliPRO | 状态 | 依据 |
+|---|---|---|---|
+| home (推荐/热门/番剧/直播) | pages/index | ✅ | 真机截图: 4 列卡片 / 封面铺满 / 上滑自动加载 |
+| dynamics (动态) | pages/dynamics | 🟡 | 已实现列表+详情跳转, 未逐项验证 |
+| mine (我的) | pages/mine | ✅ | 真机截图: 登录态/收藏/历史/稍后再看三个分栏 |
+
+## 二、核心功能
+
+| 上游 | PiliPRO | 状态 | 说明 |
+|---|---|---|---|
+| video (视频详情) | pages/video | ✅ | 双栏: 左信息/右评论; 真机截图验证 |
+| video (播放) | pages/play | 🟡 | H5 口优先取流 (避 Referer 403); 待逐项验证倍速/清晰度/记忆播放 |
+| search / search_panel / search_result | pages/search | 🟡 | 搜索+历史; BV/AV 直达详情页 |
+| member (UP 主页) | pages/member | 🟡 | 从详情页 UP 行进入; 投稿列表 |
+| fav / fav_detail / fav_panel | pages/fav | 🟡 | 收藏夹两层; 详情页收藏可选收藏夹 |
+| msg_feed_top (消息) | pages/msg | 🟡 | 回复/私信 (Web API) |
+| article / article_list | pages/article | 🟡 | 专栏阅读 |
+| login / login_devices | pages/login | ✅ | 扫码 + **电脑同步一键取 Cookie**; 真机截图验证 |
+| setting / settings_search | pages/settings | ✅ | 横屏左分组右条目; 真机截图验证 |
+| clean (清除) | pages/clean | 🟡 | 上游无对应页, 为本机 /userdata 123MB 限制新增 |
+
+## 三、未做 / 待做
+
+| 上游 | 状态 | 原因或计划 |
 |---|---|---|
-| 应用名称/共存 | ✅ | PiliPRO，appid 8009476000000001，与 bilibilipan 数据完全隔离 |
-| 侧栏导航（首页/动态/我的） | ✅ | 用 NavigationRail，不用底栏（用户要求） |
-| 首页 TabBar（推荐/热门/番剧/直播） | ✅ | 高度/间距/无分隔线按 PiliNara 规格 |
-| 「我的」页卡片顺序自定义 | 📋 | |
-| 预测性返回动画 | ⛔ | 平台无此概念（Android 专属） |
-| 自定义主题色板 | ✅ | design/tonal.js 生成 M3 语义色，8 种子 |
-| 字体系统（导入字体） | ⛔ | 设备无字体加载能力（无 loadFontFromList 等价物），只能调字号 |
+| history / history_search | ⬜ | 观看历史页; 数据接口已通 (historyCursor), 页面未写 |
+| later / later_search (稍后再看) | ⬜ | 同上, toViewList 已通 |
+| follow / follow_search / follow_tag_sort | ⬜ | 关注列表; relationList 已通 |
+| live / live_room / live_area | ⬜ | 直播播放已通 (liveRoomPlayUrl), 直播列表页未写 |
+| pgc / pgc_index / pgc_review (番剧) | ⬜ | bangumiList 已通, 页面未写 |
+| rank / hot / popular_* | ⬜ | popular 已通 (首页热门 tab), 独立榜单页未写 |
+| danmaku / danmaku_block / live_dm_block | 🟡 | 弹幕渲染已实现, 屏蔽词/设置页未写 |
+| download | 🚫 | 笔上无下载管理器, 且 /userdata 仅 123MB |
+| music / audio | 🚫 | 无独立音频播放器组件 |
+| dlna / webdav | 🚫 | 无网络文件协议栈 |
+| webview | 🚫 | 框架无 webview 组件 |
+| share (分享) | 🚫 | 用户明确要求不做 |
+| whisper / whisper_* (悄悄关注) | 🚫 | 上游私有能力, 非 B 站公开 Web API |
+| ai_chat | 🚫 | 上游接入第三方 AI, 与"只做 B 站 Web API"约束冲突 |
+| emote / live_emote | ✅ | 573 张本地 PNG (340KB) + emoji-img.vue 静态映射 |
+| sponsor_block | 🚫 | SponsorBlock 服务在本网络不可达 (实测) |
+| coin_log / exp_log / log_table / match_info | ⬜ | 记录类页面, 优先级低 |
 
-## 播放
+## 四、平台做不到的 (已实测确认, 非遗漏)
 
-| 功能 | 状态 | 说明 |
+| 能力 | 为什么做不到 |
+|---|---|
+| 运行时加载字体 | 字体表只在框架启动时读一次; 且字体目录是系统挂载点, 改它会危及整机 (已三次事故) |
+| 分享 / b23 短链 | 框架无系统分享入口 |
+| 画中画 / 系统媒体控制 / 投屏 / 超分 | 无对应 JSAPI |
+| 图片导入 (相册) | 无文件选择器 |
+| 拉起系统播放器 | 无 startApp 能力 (且有白屏风险) |
+| 音频焦点 API | 无; 改用 `killall -9 SoundPlayer` 让 guardian 重启 (系统其它播放器的做法) |
+| 蓝牙音频路由 | 播放器元素无 setAudioDeviceType; 改用系统 `hal-audio -b <MAC>` |
+
+## 五、已知未修
+
+| 项 | 状态 |
+|---|---|
+| 播放"卡在缓存中" | 未复现; 需要具体画面或日志抓手 |
+| ZWJ 组合 emoji (如 👨‍👩‍👧) | 退化成第一个基础码位 (图片方案绕不开) |
+| 详情页顶栏"看封面" | 已实现, 未真机点过 |
+
+## 六、本机特有的硬约束 (与上游的最大差异)
+
+| 项 | 值 | 影响 |
 |---|---|---|
-| 视频播放（内置 video 元素） | ✅ | 单一 mp4 源，设备契约见 docs/device-contract.md |
-| 清晰度选择 | ✅ | 档位取接口 accept_quality，按设备解码上限（1080P）过滤 |
-| 倍速 | ✅ | 0.75/1/1.25/1.5/2，播放页可循环切换 |
-| 进度条拖动 | ✅ | 原生 seekbar |
-| 断点续播/记忆播放 | ✅ | core/store.js 的 progress:* |
-| 跳片头 | ✅ | 设置项 skipIntroSec |
-| 弹幕 | ✅ | 解析/合并放大(Pakku 式)/屏蔽/泳道，字号速度行数可调 |
-| 字幕（CC + 双语） | ✅ | 主/副字幕双层，字号与底衬可调 |
-| SponsorBlock 跳过片段 | 🔄 | 决策层与门禁已就绪，取数与播放页接线进行中 |
-| 小窗 / PIP | ⛔ | 平台单窗口无小窗机制 |
-| 系统媒体控制（SMTC/MPRIS） | ⛔ | 设备无通知栏/媒体键 |
-| DLNA 投屏 | ⛔ | 平台无网络发现与投屏栈 |
-| 超分辨率 | ⛔ | 无 GPU 计算能力 |
-
-## 内容与社交
-
-| 功能 | 状态 | 说明 |
-|---|---|---|
-| 推荐流 / 热门 | ✅ | Web 端 rcmd 与 popular |
-| 番剧列表 / 直播列表 | ✅ | Web 端 pgc/web/rank 与 xlive web-interface |
-| 视频详情（简介/UP/操作栏） | ✅ | 点赞/投币/收藏 + 评论 |
-| 评论区 BV/av 号跳转 | ✅ | 正文下方可点快捷栏（richtext 内不可点） |
-| 搜索 + BV/av 直达 | ✅ | 热搜/历史/结果/触底翻页; BV-av 直接进视频不搜 页面在建；命中号直接进视频，不搜 |
-| 动态流 | 🔄 | 下一批 (侧栏"动态"入口已就位) 下一批 |
-| 私信（Web IM） | 🔄 | 接口已备(web_im), 页面在下一批 接口已按 Web 链路备好（session_svr / msgfeed） |
-| 稍后再看 / 收藏 / 历史 | ✅ | 「我的」页三 tab 已接入 Web 接口 「我的」页在建 |
-| 扫码登录 + 电脑同步登录 | ✅ | 扫码(qrcodeMatrix 渲染) + 电脑同步(pc-cookie-server.py) 页面在建 |
-| 分享到其它应用 / b23 短链 | ⛔ | 用户明确要求不做 |
-
-## 说明
-
-- 「只做 Web API」已全量执行：代码内不出现 app.bilibili.com / appkey / access_key
-- 用户不可行项一律写明原因，不做"看起来能用实际不可用"的假实现
+| 屏幕 | 960x266 (超宽横屏), 顶栏 44 + 内容 222 | 必须左右分栏, 不能照搬上游竖屏布局 |
+| 导航 | NavigationRail 侧栏 64px | 用户明确要求不用底部栏 |
+| 内存 | 1GB | 列表页需分页, 不能一次拉全 |
+| /userdata | 123MB | 必须有清除页; 图片缓存需可清 |
+| 字体 | 无字形回退, 一个 text 一种字体 | emoji 必须走图片 |
