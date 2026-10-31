@@ -273,6 +273,28 @@ for (const f of vueFiles) {
   }
 }
 
+// ---- 禁止挂载类操作 (真机三次事故: 系统字体整块消失) ----
+// /etc/miniapp/resources/fonts 本身是挂载点, 且依附框架进程的挂载命名空间;
+// 任何 mount/umount/kill miniapp 都可能让整个系统字体消失.
+{
+  const badPatterns = [
+    [/\bmount\s+(-t|--bind)|\bmount\s+\//, 'mount'],
+    [/\bumount\b/, 'umount'],
+    [/kill[^\n]*\bminiapp\b/, 'kill miniapp']
+  ]
+  for (const f of jsFiles.concat(vueFiles)) {
+    const src = fs.readFileSync(f, 'utf8')
+    const lines = src.split('\n')
+    for (let i = 0; i < lines.length; i++) {
+      const s = lines[i].trim()
+      if (s.startsWith('//') || s.startsWith('*')) continue   // 注释里说明原因可以
+      for (const [re, name] of badPatterns) {
+        if (re.test(lines[i])) bad(path.relative(ROOT, f) + ':' + (i + 1) + ' 出现禁止的挂载类操作 (' + name + ')')
+      }
+    }
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')
