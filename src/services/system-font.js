@@ -58,10 +58,17 @@ export function status() {
 /** 内置字体在应用包里的路径 (由打包流程放进 libs/) */
 export function bundledFontPath() {
   // require 只能写在 .vue 里, 这里按应用包路径拼.
-  // ★ 真机实测路径: <PKG_ROOT>/<appid>/b/libs/Twemoji.ttf
-  //   注意中间的 /b/ —— 应用代码不在 <appid>/ 直下, 而在 <appid>/b/ 下.
-  //   少了这层就会 cp 一个空路径, 表现成"校验失败回滚".
-  return PKG_ROOT + '/' + appId() + '/b/libs/Twemoji.ttf'
+  // 真机实测: 包的子目录名会变 (见过 b/libs, 也见过 a/libs) ——
+  //   升级安装后当前版本在 a/, 上一版留在 b/. 所以不能写死, 逐个探.
+  const root = PKG_ROOT + "/" + appId()
+  const cands = [root + "/a/libs/Twemoji.ttf", root + "/b/libs/Twemoji.ttf", root + "/libs/Twemoji.ttf"]
+  for (let i = 0; i < cands.length; i++) {
+    try {
+      const r = bilinet.exec("test -f " + cands[i] + " && echo 1")
+      if (String(r || "").indexOf("1") >= 0) return cands[i]
+    } catch (e) {}
+  }
+  return cands[0]
 }
 
 /**
@@ -115,9 +122,12 @@ export async function install() {
   //     现在 overlay 是系统字体目录的**完整拷贝**, 即使挂载状态异常,
   //     目录里也始终有全部原有字体, 不可能"变空".
   const OVERLAY = BASE + '/overlay'
-  sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
-  sh('umount ' + SYS_XML + ' 2>/dev/null || true')
-  sh('umount ' + SYS_TTF + ' 2>/dev/null || true')
+  // ★ 同样只卸我们自己的挂载: 系统把 fonts.xml 单独挂成一个挂载点
+  //   (/dev/mmcblk0p12 /etc/miniapp/resources/fonts/fonts.xml ext4),
+  //   无条件 umount 会把它卸掉 —— 绝对禁止.
+  let m0 = ''
+  try { m0 = String(bilinet.readFile('/proc/mounts') || '') } catch (e) {}
+  if (m0.indexOf(OVERLAY) >= 0) sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
   sh('rm -rf ' + OVERLAY)
   sh('mkdir -p ' + OVERLAY)
   sh('cp -a ' + SYS_DIR + '/. ' + OVERLAY + '/')
@@ -143,7 +153,10 @@ export async function install() {
   const hasOurs = after.indexOf(FONT_FAMILY) >= 0
   const notLess = nAfter >= nOrig
   if (!hasOurs || !notLess) {
-    sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
+    // 回滚: 只有确认当前挂的是我们的 overlay 才 umount, 否则绝不动
+    let m1 = ''
+    try { m1 = String(bilinet.readFile('/proc/mounts') || '') } catch (e) {}
+    if (m1.indexOf(OVERLAY) >= 0) sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
     sh('rm -rf ' + OVERLAY)
     return { ok: false, code: 'VERIFY_FAIL', message: '校验失败已回滚 (Twemoji:' + hasOurs + ' 字体数 ' + nAfter + '/' + nOrig + ')' }
   }
@@ -157,10 +170,19 @@ export async function install() {
  */
 export async function remove() {
   if (!available()) return { ok: false, code: 'NO_NATIVE', message: '设备不支持文件操作' }
-  // 1) 先卸载 (即使没挂载也不报错)
-  sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
-  sh('umount ' + SYS_XML + ' 2>/dev/null || true')
-  sh('umount ' + SYS_TTF + ' 2>/dev/null || true')
+  // 1) ★ 只卸载"我们自己挂上去的"，绝不碰系统原有挂载。
+  //
+  //   真机实测: /etc/miniapp/resources/fonts/fonts.xml **本身就是系统的挂载点**:
+  //     /dev/mmcblk0p12 /etc/miniapp/resources/fonts/fonts.xml ext4 rw,relatime
+  //   对它 umount 会把系统自己的挂载卸掉 —— 比不卸载更危险。
+  //   所以这里先读 /proc/mounts, 只有确认"后备路径是我们的 /userdisk/pilipro-fonts"
+  //   才执行 umount。
+  const OVERLAY = BASE + '/overlay'
+  let mounts = ''
+  try { mounts = String(bilinet.readFile('/proc/mounts') || '') } catch (e) {}
+  const ours = mounts.indexOf(OVERLAY) >= 0
+  if (ours) sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
+  if (!ours) log('字体', '未发现我们的挂载, 跳过 umount (系统挂载点不动)')
   // 2) 校验真的卸掉了
   let still = false
   try {
