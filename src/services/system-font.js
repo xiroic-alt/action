@@ -57,8 +57,11 @@ export function status() {
 
 /** 内置字体在应用包里的路径 (由打包流程放进 libs/) */
 export function bundledFontPath() {
-  // require 只能写在 .vue 里, 这里按应用包路径拼 (libs/ 由打包流程放进包)
-  return PKG_ROOT + '/' + appId() + '/libs/Twemoji.ttf'
+  // require 只能写在 .vue 里, 这里按应用包路径拼.
+  // ★ 真机实测路径: <PKG_ROOT>/<appid>/b/libs/Twemoji.ttf
+  //   注意中间的 /b/ —— 应用代码不在 <appid>/ 直下, 而在 <appid>/b/ 下.
+  //   少了这层就会 cp 一个空路径, 表现成"校验失败回滚".
+  return PKG_ROOT + '/' + appId() + '/b/libs/Twemoji.ttf'
 }
 
 /**
@@ -82,7 +85,17 @@ export async function install() {
   if (orig.indexOf(FONT_FAMILY) >= 0) {
     return { ok: false, code: 'ALREADY', message: '字体表里已经有 Twemoji 了' }
   }
-  // 3) 准备目录 + 备份 + 字体文件
+  // 3) 前置检查: 包内字体必须存在 (否则后面挂了也是白挂, 不如现在就报清楚)
+  const ttf0 = bundledFontPath()
+  let ttfOk = false
+  try { ttfOk = !!bilinet.fileExists(ttf0) } catch (e) { ttfOk = false }
+  if (!ttfOk) {
+    try { bilinet.exec('test -f ' + ttf0) ; ttfOk = true } catch (e) {}
+  }
+  if (!ttfOk) {
+    return { ok: false, code: 'NO_BUNDLED', message: '安装包里没有字体文件 (期望在 ' + ttf0 + ')' }
+  }
+  // 4) 准备目录 + 备份 + 字体文件
   sh('mkdir -p ' + BASE)
   try { bilinet.writeFile(ORIG_XML, orig) } catch (e) {}
   const ttf = bundledFontPath()
