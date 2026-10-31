@@ -94,22 +94,45 @@ export async function install() {
   try { bilinet.writeFile(OUR_XML, merged) } catch (e) {
     return { ok: false, code: 'WRITE_FAIL', message: '写入临时字体表失败' }
   }
-  // 5) 先 umount 任何残留 (幂等), 再挂载
+  // 5) 准备 overlay: **全量拷贝**系统字体目录, 再追加我们的字体.
+  //
+  //   ★ 与旧实现的关键区别:
+  //     旧实现往 overlay 里只放了一个字体文件, overlay 一空目录就空了,
+  //     挂上去 = 系统字体全消失 (设备因此被重置过).
+  //     现在 overlay 是系统字体目录的**完整拷贝**, 即使挂载状态异常,
+  //     目录里也始终有全部原有字体, 不可能"变空".
+  const OVERLAY = BASE + '/overlay'
+  sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
   sh('umount ' + SYS_XML + ' 2>/dev/null || true')
   sh('umount ' + SYS_TTF + ' 2>/dev/null || true')
-  // 5a) 字体文件: 单文件挂到字体目录里的一个新文件名.
-  //     注意: 单文件 bind-mount 到"不存在的路径"只会多出一个文件条目,
-  //     **不会隐藏同目录下已有的 41 个字体** —— 这正是与旧实现的关键区别.
-  sh('touch ' + SYS_TTF + ' 2>/dev/null || true')
-  sh('mount --bind ' + OUR_TTF + ' ' + SYS_TTF)
-  // 5b) 字体表: 只覆盖 fonts.xml 这一个文件
-  sh('mount --bind ' + OUR_XML + ' ' + SYS_XML)
-  // 6) 校验: 挂载后必须还能读到我们那条
+  sh('rm -rf ' + OVERLAY)
+  sh('mkdir -p ' + OVERLAY)
+  sh('cp -a ' + SYS_DIR + '/. ' + OVERLAY + '/')
+  let nOrig = 0
+  let nCopy = 0
+  try { nOrig = Number(String(bilinet.exec('ls -1 ' + SYS_DIR + ' 2>/dev/null | wc -l')).trim()) || 0 } catch (e) {}
+  try { nCopy = Number(String(bilinet.exec('ls -1 ' + OVERLAY + ' 2>/dev/null | wc -l')).trim()) || 0 } catch (e) {}
+  if (nOrig === 0 || nCopy < nOrig) {
+    sh('rm -rf ' + OVERLAY)
+    return { ok: false, code: 'COPY_FAIL', message: '字体目录拷贝不完整 (' + nCopy + '/' + nOrig + '), 为安全起见已中止' }
+  }
+  sh('cp -f ' + OUR_TTF + ' ' + OVERLAY + '/' + FONT_NAME)
+  try { bilinet.writeFile(OVERLAY + '/fonts.xml', merged) } catch (e) {
+    sh('rm -rf ' + OVERLAY)
+    return { ok: false, code: 'WRITE_FAIL', message: '写入 overlay 字体表失败' }
+  }
+  sh('mount --bind ' + OVERLAY + ' ' + SYS_DIR)
+  // 6) 校验: ①能读到我们那条 ②字体文件数没变少 (原有字体一个不少)
   let after = ''
   try { after = String(bilinet.readFile(SYS_XML) || '') } catch (e) {}
-  if (after.indexOf(FONT_FAMILY) < 0) {
-    sh('umount ' + SYS_XML + ' 2>/dev/null || true')
-    return { ok: false, code: 'VERIFY_FAIL', message: '挂载后校验失败, 已自动回滚' }
+  let nAfter = 0
+  try { nAfter = Number(String(bilinet.exec('ls -1 ' + SYS_DIR + ' 2>/dev/null | wc -l')).trim()) || 0 } catch (e) {}
+  const hasOurs = after.indexOf(FONT_FAMILY) >= 0
+  const notLess = nAfter >= nOrig
+  if (!hasOurs || !notLess) {
+    sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
+    sh('rm -rf ' + OVERLAY)
+    return { ok: false, code: 'VERIFY_FAIL', message: '校验失败已回滚 (Twemoji:' + hasOurs + ' 字体数 ' + nAfter + '/' + nOrig + ')' }
   }
   log('字体', '已挂载 fonts.xml (只追加 Twemoji)')
   return { ok: true, code: 'OK', message: '已启用 (只追加 Twemoji, 其它字体未改动)' }
@@ -122,19 +145,21 @@ export async function install() {
 export async function remove() {
   if (!available()) return { ok: false, code: 'NO_NATIVE', message: '设备不支持文件操作' }
   // 1) 先卸载 (即使没挂载也不报错)
+  sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
   sh('umount ' + SYS_XML + ' 2>/dev/null || true')
   sh('umount ' + SYS_TTF + ' 2>/dev/null || true')
   // 2) 校验真的卸掉了
   let still = false
   try {
     const txt = String(bilinet.readFile('/proc/mounts') || '')
-    still = txt.indexOf(SYS_XML) >= 0 && txt.indexOf(OUR_XML) >= 0
+    still = txt.indexOf(SYS_DIR) >= 0 && txt.indexOf('/userdisk/pilipro-fonts') >= 0
   } catch (e) {}
   if (still) {
     return { ok: false, code: 'BUSY', message: '卸载失败 (可能正被读取), 请重启设备后重试' }
   }
   // 3) 确认没挂了才删我们自己的文件 (绝不删系统目录)
   sh('rm -f ' + OUR_XML + ' ' + OUR_TTF)
+  sh('rm -rf ' + BASE + '/overlay')
   sh('rmdir ' + BASE + ' 2>/dev/null || true')
   log('字体', '已卸载 fonts.xml, 系统字体恢复原样')
   return { ok: true, code: 'OK', message: '已卸载, 系统字体恢复原样' }
