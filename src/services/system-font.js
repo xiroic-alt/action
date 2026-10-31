@@ -89,8 +89,16 @@ export async function install() {
   if (ci < 0) {
     return { ok: false, code: 'BAD_XML', message: '字体表结构不认识 (找不到闭合标签), 为安全起见已中止' }
   }
-  if (orig.indexOf(FONT_FAMILY) >= 0) {
-    return { ok: false, code: 'ALREADY', message: '字体表里已经有 Twemoji 了' }
+  // 判断"已安装"必须看两件事: 表里有条目 **且** 字体文件真的在目录里.
+  // 只看表文本会把"有条目但文件丢了"的坏状态误判成已安装, 直接拒绝安装 (真机踩过).
+  let ttfInDir = false
+  try { ttfInDir = !!(bilinet.exec('test -f ' + SYS_DIR + '/' + FONT_NAME + ' && echo 1')) } catch (e) {}
+  const entryInXml = orig.indexOf(FONT_FAMILY) >= 0
+  if (entryInXml && ttfInDir) {
+    return { ok: false, code: 'ALREADY', message: '已经装好了 (表里有条目, 字体文件也在)' }
+  }
+  if (entryInXml && !ttfInDir) {
+    log('字体', '表里有 Twemoji 条目但字体文件缺失, 按未安装处理 (会重建条目)')
   }
   // 3) 前置检查: 包内字体必须存在 (否则后面挂了也是白挂, 不如现在就报清楚)
   const ttf0 = bundledFontPath()
@@ -110,7 +118,27 @@ export async function install() {
   // 4) 生成 "原文 + 一条" 的新 XML (原有条目全部保留)
   // 真实结构: <family name="X"><font weight="400">裸文件名</font></family>
   const entry = '    <family name="' + FONT_FAMILY + '">\n        <font weight="400">' + FONT_NAME + '</font>\n    </family>\n'
-  const merged = orig.substring(0, ci) + entry + orig.substring(ci)
+  // ★ 幂等: 先把已有的 Twemoji family 块整段剥掉, 再追加一条.
+  //   否则重复安装会往表里堆多条同名条目 (早期失败尝试已经留下过一条).
+  let base = orig
+  try {
+    // 用 indexOf 剥, 不用正则 —— 正则里写 </family> 容易踩字面量提前结束的坑
+    const openTag = '<family name="Twemoji">'
+    const closeFam = '<' + String.fromCharCode(47) + 'family>'
+    let oi = base.indexOf(openTag)
+    while (oi >= 0) {
+      const ce = base.indexOf(closeFam, oi)
+      if (ce < 0) break
+      base = base.substring(0, oi) + base.substring(ce + closeFam.length)
+      oi = base.indexOf(openTag)
+    }
+  } catch (e) {}
+  const ci2 = base.lastIndexOf(closeTag)
+  if (ci2 < 0) {
+    sh('rm -rf ' + OVERLAY)
+    return { ok: false, code: 'BAD_XML', message: '剥掉旧条目后字体表结构异常, 为安全起见已中止' }
+  }
+  const merged = base.substring(0, ci2) + entry + base.substring(ci2)
   try { bilinet.writeFile(OUR_XML, merged) } catch (e) {
     return { ok: false, code: 'WRITE_FAIL', message: '写入临时字体表失败' }
   }
