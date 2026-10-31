@@ -257,6 +257,22 @@ for (const f of vueFiles) {
   if (o !== c) bad(path.relative(ROOT, f) + ' 模板 <div> 不配平: 开 ' + o + ' 闭 ' + c)
 }
 
+// ---- system-font.js 里 sh( 必须 await ----
+// 真机踩过: execAsync 是异步的, 不加 await 时 mkdir/cp/计数检查全并发跑,
+// cp 还没完成就去数 overlay -> "字体目录拷贝不完整 0/41"
+{
+  const sf = path.join(ROOT, 'src/services/system-font.js')
+  if (fs.existsSync(sf)) {
+    const lines = fs.readFileSync(sf, 'utf8').split('\n')
+    lines.forEach((l, i) => {
+      const s = l.trim()
+      if (s.startsWith('//') || s.startsWith('*')) return
+      if (/^(async )?function sh\(/.test(s)) return
+      if (/^sh\(/.test(s)) bad('system-font.js:' + (i + 1) + ' sh() 未 await, 命令会并发乱序')
+    })
+  }
+}
+
 console.log(problems === 0
   ? 'VALIDATE PASSED (' + jsFiles.length + ' js / ' + vueFiles.length + ' vue / ' + pngNames.size + ' 图标引用 / ' + Object.keys(appJson.pages || {}).length + ' 页面)'
   : problems + ' 个问题')

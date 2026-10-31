@@ -111,10 +111,10 @@ export async function install() {
     return { ok: false, code: 'NO_BUNDLED', message: '安装包里没有字体文件 (期望在 ' + ttf0 + ')' }
   }
   // 4) 准备目录 + 备份 + 字体文件
-  sh('mkdir -p ' + BASE)
+  await sh('mkdir -p ' + BASE)
   try { bilinet.writeFile(ORIG_XML, orig) } catch (e) {}
   const ttf = bundledFontPath()
-  if (ttf) { try { sh('cp -f "' + ttf + '" ' + OUR_TTF) } catch (e) {} }
+  if (ttf) { try { await sh('cp -f "' + ttf + '" ' + OUR_TTF) } catch (e) {} }
   // 4) 生成 "原文 + 一条" 的新 XML (原有条目全部保留)
   // 真实结构: <family name="X"><font weight="400">裸文件名</font></family>
   const entry = '    <family name="' + FONT_FAMILY + '">\n        <font weight="400">' + FONT_NAME + '</font>\n    </family>\n'
@@ -135,7 +135,7 @@ export async function install() {
   } catch (e) {}
   const ci2 = base.lastIndexOf(closeTag)
   if (ci2 < 0) {
-    sh('rm -rf ' + OVERLAY)
+    await sh('rm -rf ' + OVERLAY)
     return { ok: false, code: 'BAD_XML', message: '剥掉旧条目后字体表结构异常, 为安全起见已中止' }
   }
   const merged = base.substring(0, ci2) + entry + base.substring(ci2)
@@ -155,24 +155,24 @@ export async function install() {
   //   无条件 umount 会把它卸掉 —— 绝对禁止.
   let m0 = ''
   try { m0 = String(bilinet.readFile('/proc/mounts') || '') } catch (e) {}
-  if (m0.indexOf(OVERLAY) >= 0) sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
-  sh('rm -rf ' + OVERLAY)
-  sh('mkdir -p ' + OVERLAY)
-  sh('cp -a ' + SYS_DIR + '/. ' + OVERLAY + '/')
+  if (m0.indexOf(OVERLAY) >= 0) await sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
+  await sh('rm -rf ' + OVERLAY)
+  await sh('mkdir -p ' + OVERLAY)
+  await sh('cp -a ' + SYS_DIR + '/. ' + OVERLAY + '/')
   let nOrig = 0
   let nCopy = 0
   try { nOrig = Number(String(bilinet.exec('ls -1 ' + SYS_DIR + ' 2>/dev/null | wc -l')).trim()) || 0 } catch (e) {}
   try { nCopy = Number(String(bilinet.exec('ls -1 ' + OVERLAY + ' 2>/dev/null | wc -l')).trim()) || 0 } catch (e) {}
   if (nOrig === 0 || nCopy < nOrig) {
-    sh('rm -rf ' + OVERLAY)
+    await sh('rm -rf ' + OVERLAY)
     return { ok: false, code: 'COPY_FAIL', message: '字体目录拷贝不完整 (' + nCopy + '/' + nOrig + '), 为安全起见已中止' }
   }
-  sh('cp -f ' + OUR_TTF + ' ' + OVERLAY + '/' + FONT_NAME)
+  await sh('cp -f ' + OUR_TTF + ' ' + OVERLAY + '/' + FONT_NAME)
   try { bilinet.writeFile(OVERLAY + '/fonts.xml', merged) } catch (e) {
-    sh('rm -rf ' + OVERLAY)
+    await sh('rm -rf ' + OVERLAY)
     return { ok: false, code: 'WRITE_FAIL', message: '写入 overlay 字体表失败' }
   }
-  sh('mount --bind ' + OVERLAY + ' ' + SYS_DIR)
+  await sh('mount --bind ' + OVERLAY + ' ' + SYS_DIR)
   // 6) 校验: ①能读到我们那条 ②字体文件数没变少 (原有字体一个不少)
   let after = ''
   try { after = String(bilinet.readFile(SYS_XML) || '') } catch (e) {}
@@ -184,8 +184,8 @@ export async function install() {
     // 回滚: 只有确认当前挂的是我们的 overlay 才 umount, 否则绝不动
     let m1 = ''
     try { m1 = String(bilinet.readFile('/proc/mounts') || '') } catch (e) {}
-    if (m1.indexOf(OVERLAY) >= 0) sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
-    sh('rm -rf ' + OVERLAY)
+    if (m1.indexOf(OVERLAY) >= 0) await sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
+    await sh('rm -rf ' + OVERLAY)
     return { ok: false, code: 'VERIFY_FAIL', message: '校验失败已回滚 (Twemoji:' + hasOurs + ' 字体数 ' + nAfter + '/' + nOrig + ')' }
   }
   log('字体', '已挂载 fonts.xml (只追加 Twemoji)')
@@ -209,7 +209,7 @@ export async function remove() {
   let mounts = ''
   try { mounts = String(bilinet.readFile('/proc/mounts') || '') } catch (e) {}
   const ours = mounts.indexOf(OVERLAY) >= 0
-  if (ours) sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
+  if (ours) await sh('umount ' + SYS_DIR + ' 2>/dev/null || true')
   if (!ours) log('字体', '未发现我们的挂载, 跳过 umount (系统挂载点不动)')
   // 2) 校验真的卸掉了
   let still = false
@@ -221,9 +221,9 @@ export async function remove() {
     return { ok: false, code: 'BUSY', message: '卸载失败 (可能正被读取), 请重启设备后重试' }
   }
   // 3) 确认没挂了才删我们自己的文件 (绝不删系统目录)
-  sh('rm -f ' + OUR_XML + ' ' + OUR_TTF)
-  sh('rm -rf ' + BASE + '/overlay')
-  sh('rmdir ' + BASE + ' 2>/dev/null || true')
+  await sh('rm -f ' + OUR_XML + ' ' + OUR_TTF)
+  await sh('rm -rf ' + BASE + '/overlay')
+  await sh('rmdir ' + BASE + ' 2>/dev/null || true')
   log('字体', '已卸载 fonts.xml, 系统字体恢复原样')
   return { ok: true, code: 'OK', message: '已卸载, 系统字体恢复原样' }
 }
