@@ -19,9 +19,16 @@
       </div>
 
       <scroller class="body" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll">
-        <!-- 用户要求: 不要加载动画, 只做简单切换.
-             所以列表为空时不再显示"加载中…"占位, 只有真出错才提示一句. -->
-        <div v-if="items.length === 0 && status !== ''" class="hint">
+        <!-- 加载动画: 三点跳动.
+             为什么用 JS 驱动而不是 CSS 动画: 本框架对 @keyframes 支持不确定,
+             而 setInterval + transform/opacity 一定可用 (transform 是明确支持的). -->
+        <div v-if="loading && items.length === 0 && status === ''" class="hint">
+          <div class="dots">
+            <div v-for="n in 3" :key="'d' + n" class="dot" :style="dotStyle(n - 1)"></div>
+          </div>
+          <text class="hintt" :style="U.t.weak">加载中</text>
+        </div>
+        <div v-else-if="status !== '' && items.length === 0" class="hint">
           <text class="hintt" :style="U.t.weak">{{ status }}</text>
         </div>
         <div v-else class="grid">
@@ -109,6 +116,29 @@ export default {
 
     // ★ 单壳架构: 侧栏点击只切 nav 状态, 不 navTo.
     //   侧栏永远不动, 右侧内容按 nav 切换 —— 这就是"正常手机软件的侧边栏"行为.
+    /** 三点加载动画: 每 260ms 推进一相位 */
+    startDots() {
+      if (this.dotTimer) return
+      const self = this
+      this.dotTimer = setInterval(function () {
+        self.dotPhase = (self.dotPhase + 1) % 3
+      }, 260)
+    },
+    stopDots() {
+      if (this.dotTimer) { clearInterval(this.dotTimer); this.dotTimer = null }
+    },
+    /** 当前相位下的三点样式 (依次点亮) */
+    dotStyle(i) {
+      const on = (i === this.dotPhase)
+      return {
+        width: on ? '9px' : '7px',
+        height: on ? '9px' : '7px',
+        borderRadius: '5px',
+        marginRight: '5px',
+        backgroundColor: on ? this.U.c.primary : this.U.c.surfaceContainerHighest
+      }
+    },
+
     onNav(id) {
       log('首页', '侧栏切到 ' + id)
       this.nav = id
@@ -146,6 +176,7 @@ export default {
       const gen = ++this.genSeq
       if (reset) { this.page = 1; this.status = '' }
       this.loading = true
+      this.startDots()
       log('首页', '开始加载 ' + this.tab + ' p' + this.page + ' gen=' + gen)
       try {
         if (this.tab === 'rcmd') {
@@ -181,7 +212,7 @@ export default {
         this.status = (e && e.message ? e.message : String(e))
         log('首页', '加载失败[' + ((e && e.kind) || 'unknown') + ']: ' + this.status)
       } finally {
-        if (gen === this.genSeq) this.loading = false
+        if (gen === this.genSeq) { this.loading = false; this.stopDots() }
       }
     },
     loadMore() {
@@ -221,4 +252,6 @@ export default {
 .foot { width: 100%; justify-content: center; align-items: center; padding-top: 6px; padding-bottom: 12px; }
 .more { padding-left: 20px; padding-right: 20px; height: 36px; justify-content: center; align-items: center; }
 .moret { }
+.dots { flex-direction: row; align-items: center; justify-content: center; height: 18px; }
+.dot { }
 </style>
