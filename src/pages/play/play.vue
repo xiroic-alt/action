@@ -388,10 +388,10 @@ export default {
       const list = await audio.btDevices()
       this.btDevices = list
       if (want === 'bluetooth') {
-        if (!list.length) { this.audioMode = 'speaker'; this.audioMsg = '没有已连接蓝牙, 用扬声器' }
-        else { this.audioMode = 'bluetooth'; this.audioMsg = '蓝牙 ' + list[0].name }
+        if (!list.length) { this.audioMode = 'speaker'; this.showTipLocal('没有已连接蓝牙, 用扬声器') }
+        else { this.audioMode = 'bluetooth'; this.showTipLocal('蓝牙 ' + list[0].name) }
       } else if (want === 'auto') {
-        if (list.length) { this.audioMode = 'bluetooth'; this.audioMsg = '自动·蓝牙 ' + list[0].name }
+        if (list.length) { this.audioMode = 'bluetooth'; this.showTipLocal('自动·蓝牙 ' + list[0].name) }
         else { this.audioMode = 'speaker'; this.audioMsg = '' }
       } else {
         this.audioMode = 'speaker'; this.audioMsg = ''
@@ -411,7 +411,8 @@ export default {
       const el = this.$refs.vv || null
       let r = await audio.applyAudioRoute(el, this.audioMode, mac)
       if (!r || !r.ok) {
-        this.audioMsg = (r && r.msg) ? r.msg : '切换失败'
+        // ★ 必须走 showTipLocal: 直接赋值 this.audioMsg 不会设定时器, 提示永不消失
+        this.showTipLocal((r && r.msg) ? r.msg : '切换失败')
         log('音频', '路由失败: ' + this.audioMsg)
         // 蓝牙失败就退回扬声器, 不让用户面对无声
         if (this.audioMode === 'bluetooth') {
@@ -420,7 +421,8 @@ export default {
           await audio.applyAudioRoute(this.$refs.vv || null, 'speaker', '')
         }
       } else {
-        this.audioMsg = r.msg || ''
+        // ★ 同理: 真机上"已切换到扬声器"就是卡在这里 —— 直接赋值, 没人清它
+        this.showTipLocal(r.msg || '')
       }
       return r
     },
@@ -444,6 +446,7 @@ export default {
       this.audioMsg = t
       const self = this
       if (this._audioTipT) { try { clearTimeout(this._audioTipT) } catch (e) {} }
+      if (t === '') { this.audioMsg = ''; return }
       this._audioTipT = setTimeout(function () { if (self.audioMsg === t) self.audioMsg = '' }, 1800)
     },
 

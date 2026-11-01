@@ -1,6 +1,9 @@
 <template>
   <!-- 我的 (视图组件): 只负责右侧内容, 侧栏由外壳 index.vue 持有 -->
-  <div class="vm" :style="{ width: '896px', height: '222px' }">
+  <!-- ★ 高度用 S.height (266) 而不是 S.content (222):
+       content 是"扣掉 44px 顶栏"后的高度, 而本视图挂在没有顶栏的外壳里,
+       用 222 会让底部空出 44px 黑边 (真机就是这个现象). -->
+  <div class="vm" :style="{ width: (S.width - S.navRail + 20) + 'px', height: S.height + 'px' }">
     <div class="prow" :style="{ height: '58px' }">
       <div class="pav" @click="onAvatar">
         <image v-if="isLogin && face !== ''" class="pavimg" :src="face" resize="cover" :style="{ width: '44px', height: '44px', borderRadius: '22px' }"></image>
@@ -22,7 +25,7 @@
         <text class="tabt" :lines="1" :style="tabTextStyle(t.id)">{{ t.label }}</text>
       </div>
     </div>
-    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll" :style="{ width: '896px', height: '126px' }">
+    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll" :style="{ width: (S.width - S.navRail + 20) + 'px', height: (S.height - 58 - 38) + 'px' }">
       <div class="rows">
         <div v-if="items.length === 0" class="hint">
           <text class="hintt" :lines="2" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ emptyText }}</text>
@@ -46,6 +49,7 @@
 <script>
 import RichText from './rich-text.vue'
 import { ui } from '../design/ui.js'
+import { SCREEN } from '../design/tokens.js'
 import { log } from '../core/log.js'
 import { nav, favFoldersAll, favResources, historyCursor, toViewList } from '../services/api.js'
 
@@ -75,6 +79,7 @@ export default {
   data() {
     return {
       U: ui(),
+      S: SCREEN,
       genSeq: 0,
       tab: 'fav', tabs: TABS,
       isLogin: false, uname: "", face: "",
@@ -247,7 +252,7 @@ export default {
 .tabs { flex-direction: row; align-items: center; padding-left: 12px; }
 .tab { }
 .tabt { }
-.list { width: 896px; height: 126px; }
+.list { }
 .rows { flex-direction: column; padding-left: 12px; padding-right: 12px; }
 .hint { height: 80px; justify-content: center; align-items: center; }
 .hintt { text-align: center; }
