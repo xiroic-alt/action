@@ -189,6 +189,46 @@ export async function videoDetail(bvid) {
     coined: Number(ru.coin) > 0,
     faved: ru.favorite === 1,
     pages: pages,
+    // 联合投稿 (staff): 多人协作时除 owner 外的协作者列表.
+    // 参考源 lib/pages/video/introduction/ugc/widgets/page.dart 会把它显示成一行头像.
+    staff: ((d.staff || []).map(function (s) {
+      return {
+        mid: Number(s.mid) || 0,
+        name: String(s.name || ''),
+        face: F.thumb(s.face || '', 80, 80),
+        title: String(s.title || ''),      // 在本次投稿中的角色, 如"文案"/"剪辑"
+        vip: (s.vip && s.vip.status === 1) ? '大会员' : ''
+      }
+    })).filter(function (s) { return s.mid > 0 }),
+    // 合集 (ugc_season): 分P之上的一层, 一个合集包含多个**独立视频**.
+    // 与 pages 的区别: pages 是同一个 bvid 内的分P; season 是多个 bvid 的集合.
+    season: (function () {
+      const se = d.ugc_season
+      if (!se) return null
+      const secs = (se.sections || []).map(function (sec) {
+        return {
+          id: Number(sec.id) || 0,
+          title: String(sec.title || ''),
+          episodes: ((sec.episodes || []).map(function (ep) {
+            return {
+              bvid: String(ep.bvid || ''),
+              aid: Number(ep.aid) || 0,
+              cid: Number(ep.cid) || 0,
+              title: String(ep.title || ''),
+              cover: F.thumb((ep.arc && ep.arc.pic) || '', 320, 200),
+              durationText: F.duration((ep.arc && ep.arc.duration) || 0)
+            }
+          })).filter(function (ep) { return ep.bvid !== '' })
+        }
+      }).filter(function (sec) { return sec.episodes.length > 0 })
+      return {
+        id: Number(se.id) || 0,
+        title: String(se.title || ''),
+        cover: F.thumb(se.cover || '', 320, 200),
+        count: Number(se.ep_count) || 0,
+        sections: secs
+      }
+    })(),
     // 字幕轨 (CC): PiliNara 的双语字幕入口
     subtitles: ((d.subtitle && d.subtitle.subtitles) || []).map(function (s) {
       return {

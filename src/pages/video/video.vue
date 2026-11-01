@@ -37,6 +37,39 @@
           <text class="meta" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
         </div>
 
+        <!-- 联合投稿: 多人协作时列出协作者 (数据来自 videoDetail 的 staff) -->
+        <div v-if="staffList.length > 0" class="staffrow" :style="{ height: '26px' }">
+          <text class="stafflab" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">联合投稿</text>
+          <div v-for="(s, i) in staffList" :key="'st' + i" class="staffcell">
+            <image v-if="s.face !== ''" class="staffimg" :src="s.face" resize="cover" :style="{ width: '22px', height: '22px', borderRadius: '11px' }"></image>
+            <div v-else class="staffimgph" :style="{ width: '22px', height: '22px', borderRadius: '11px', backgroundColor: U.c.surfaceContainerHighest }"></div>
+            <text class="staffnamet" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurface }">{{ s.name }}</text>
+          </div>
+        </div>
+
+        <!-- 合集入口: 一个合集包含多个独立视频 (与同一 bvid 下的分P不同) -->
+        <div v-if="seasonInfo" class="seasonrow" :style="{ height: '32px' }" @click="toggleSeason">
+          <div class="seasonchip" :style="{ backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }">
+            <text class="seasont" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSecondaryContainer }">{{ '合集 · ' + seasonInfo.title + ' (' + seasonInfo.count + ')' }}</text>
+          </div>
+        </div>
+
+        <!-- 合集视频列表 (展开后) -->
+        <div v-if="seasonInfo && seasonOpen" class="seaslist">
+          <div v-for="(ep, i) in seasonFlat" :key="ep.bvid + '_' + i" class="seasrow" :style="{ height: '44px' }" @click="openSeasonEp(ep)">
+            <image v-if="ep.cover !== ''" class="seasimg" :src="ep.cover" resize="cover" :style="{ width: '56px', height: '34px', borderRadius: '4px' }"></image>
+            <text class="seastitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurface }">{{ ep.title }}</text>
+          </div>
+        </div>
+
+        <!-- 分P 列表: 同一个 bvid 内的多个分P (数据来自 videoDetail 的 pages) -->
+        <div v-if="pagesList.length > 1" class="partrow">
+          <text class="partlab" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '分P (' + pagesList.length + ')' }}</text>
+          <div v-for="(p, i) in pagesList" :key="'p' + p.page" class="partchip" :style="partStyle(p)" @click="pickPart(p)">
+            <text class="partt" :lines="1" :style="partTextStyle(p)">{{ 'P' + p.page }}</text>
+          </div>
+        </div>
+
         <div class="acts" :style="{ height: '52px' }">
           <div v-for="a in actions" :key="a.id" class="act" :style="actStyle(a)" @click="onAction(a.id)">
             <image class="actic" :src="iconOf(a)" :style="{ width: '22px', height: '22px' }"></image>
@@ -330,7 +363,9 @@ export default {
       titleOpen: false,
       descOpen: false,
       // 右侧切换: 'cmt' 评论 / 'rel' 相关视频
-      rTab: 'cmt', relItems: [], relStatus: '', relOffset: 0, relMore: false,
+      rTab: 'cmt',
+      // 联合投稿 / 合集 / 分P (都来自 videoDetail 一次响应)
+      staffList: [], seasonInfo: null, seasonOpen: false, seasonFlat: [], pagesList: [], curPage: 1, relItems: [], relStatus: '', relOffset: 0, relMore: false,
       detailOpen: false,
       tip: '',
       // 世代守卫: 页面级装载用 ++this.genSeq, 动作类请求只读当前值做过期判断
@@ -469,7 +504,8 @@ export default {
           share: d.statRaw.share
         }
         this.replyTotal = d.statRaw.reply
-        this.metaLine = d.playText + ' 播放 · ' + d.danmakuText + ' 弹幕 · ' + d.replyText + ' 评论 · ' + d.pubText
+        this.applyExtras(d)
+      this.metaLine = d.playText + ' 播放 · ' + d.danmakuText + ' 弹幕 · ' + d.replyText + ' 评论 · ' + d.pubText
         log('详情', '装载 ' + d.bvid + ' aid=' + d.aid + ' P' + (this.pageRows.length || 1))
         this.loadUp(gen)
         this.loadFolder(gen)
@@ -882,6 +918,46 @@ export default {
     toggleTitle() { this.titleOpen = !this.titleOpen },
     toggleDesc() { this.descOpen = !this.descOpen },
     /** 右侧切换 (评论 <-> 相关视频) */
+    /** 联合投稿 / 合集 / 分P 装载 (在 videoDetail 返回后调用一次) */
+    applyExtras(d) {
+      if (!d) return
+      this.staffList = Array.isArray(d.staff) ? d.staff : []
+      this.seasonInfo = d.season || null
+      this.seasonFlat = []
+      if (this.seasonInfo && this.seasonInfo.sections) {
+        for (let i = 0; i < this.seasonInfo.sections.length; i++) {
+          const eps = this.seasonInfo.sections[i].episodes || []
+          for (let k = 0; k < eps.length; k++) this.seasonFlat.push(eps[k])
+        }
+      }
+      this.pagesList = Array.isArray(d.pages) ? d.pages : []
+      this.curPage = (this.pagesList[0] && this.pagesList[0].page) || 1
+      log('详情', '联合投稿 ' + this.staffList.length + ' 人 / 合集 ' + (this.seasonInfo ? this.seasonInfo.count : 0) + ' 集 / 分P ' + this.pagesList.length)
+    },
+    toggleSeason() { this.seasonOpen = !this.seasonOpen },
+    openSeasonEp(ep) {
+      if (!ep || !ep.bvid) return
+      try { $falcon.navTo('video', { bvid: ep.bvid, title: ep.title }) } catch (e) {}
+    },
+    /** 切分P: 只换 cid 并重新起播, 不跳新页面 */
+    pickPart(p) {
+      if (!p || !p.cid) return
+      this.curPage = p.page
+      this.cid = p.cid
+      log('详情', '切分P P' + p.page + ' cid=' + p.cid)
+      try { this.startPlay() } catch (e) {}
+    },
+    partStyle(p) {
+      const on = p.page === this.curPage
+      return {
+        height: '24px', minWidth: '34px', paddingLeft: '8px', paddingRight: '8px', marginRight: '6px',
+        borderRadius: this.U.rad.chip + 'px', justifyContent: 'center', alignItems: 'center',
+        backgroundColor: on ? this.U.c.primary : this.U.c.surfaceContainerHighest
+      }
+    },
+    partTextStyle(p) {
+      return { fontSize: this.U.f.tiny + 'px', color: p.page === this.curPage ? this.U.c.onPrimary : this.U.c.onSurfaceVariant }
+    },
     pickRTab(id) {
       if (this.rTab === id) return
       this.rTab = id
@@ -1117,4 +1193,21 @@ export default {
 .relmeta { width: 315px; flex-direction: column; justify-content: center; }
 .reltitle { }
 .relsub { }
+.staffrow { flex-direction: row; align-items: center; }
+.stafflab { margin-right: 8px; }
+.staffcell { flex-direction: row; align-items: center; margin-right: 10px; }
+.staffimg { margin-right: 4px; }
+.staffimgph { margin-right: 4px; }
+.staffnamet { }
+.seasonrow { justify-content: center; align-items: flex-start; }
+.seasonchip { height: 22px; padding-left: 10px; padding-right: 10px; justify-content: center; align-items: center; }
+.seasont { }
+.seaslist { flex-direction: column; width: 100%; }
+.seasrow { flex-direction: row; align-items: center; }
+.seasimg { margin-right: 8px; }
+.seastitle { flex: 1; }
+.partrow { flex-direction: row; align-items: center; flex-wrap: wrap; padding-top: 2px; padding-bottom: 2px; }
+.partlab { margin-right: 8px; }
+.partchip { }
+.partt { }
 </style>
