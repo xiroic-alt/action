@@ -75,6 +75,7 @@ import { ui } from '../../design/ui.js'
 import { favResources } from '../../services/api.js'
 import { hasCookie } from '../../core/auth.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 
 // 行高 92: 封面 75 + 上下各 8 的留白, 再留 1px 给圆角不出血
 const ROW_H = 92
@@ -273,7 +274,7 @@ export default {
     onScroll(e) {
       const d = (e && e.detail) ? e.detail : {}
       // 到底部 80px 内就预取, 但必须还有下一页, 否则会反复打接口
-      if (d.scrollBottom != null && d.scrollBottom < 80 && this.items.length > 0 && this.hasMore && !this.loading) {
+      if (scrollBottomOf(e, 224) != null && scrollBottomOf(e, 224) > 0 && scrollBottomOf(e, 224) < 160 && this.items.length > 0 && this.hasMore && !this.loading) {
         this.loadMore()
       }
     },

@@ -52,6 +52,7 @@ import RichText from '../../components/rich-text.vue'
 import AppBar from '../../components/app-bar.vue'
 import { ui } from '../../design/ui.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 import { relationList } from '../../services/api.js'
 
 // ---- 笔屏几何: 数字只在这里出现 ----
@@ -194,7 +195,7 @@ export default {
     onScroll(e) {
       // 快到底时提前触发下一页, 用户不用去点按钮
       const d = (e && e.detail) ? e.detail : {}
-      if (d.scrollBottom != null && d.scrollBottom < 80) this.loadMore()
+      if (scrollBottomOf(e, 224) != null && scrollBottomOf(e, 224) > 0 && scrollBottomOf(e, 224) < 160) this.loadMore()
     },
     onAction(a) {
       if (a !== 'refresh') return

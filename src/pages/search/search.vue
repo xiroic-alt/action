@@ -116,6 +116,7 @@ import { normalizeQuery } from '../../services/bv.js'
 import { getSearchHistory, addSearchHistory, clearSearchHistory } from '../../core/store.js'
 import { createIME } from '../../services/ime.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 
 // 顶栏中间可用宽度 = 总宽 - 返回(44) - 搜索动作(44)
 const SBOX_W = SCREEN.width - 44 - 44
@@ -299,7 +300,7 @@ export default {
 
     onScroll(e) {
       const d = (e && e.detail) ? e.detail : {}
-      if (d.scrollBottom != null && d.scrollBottom < 80 && this.results.length > 0 && !this.loading) this.loadMore()
+      if (scrollBottomOf(e, 224) != null && scrollBottomOf(e, 224) > 0 && scrollBottomOf(e, 224) < 160 && this.results.length > 0 && !this.loading) this.loadMore()
     },
 
     async loadTrending() {

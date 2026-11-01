@@ -55,6 +55,7 @@ import RichText from './rich-text.vue'
 import { ui } from '../design/ui.js'
 import { SCREEN } from '../design/tokens.js'
 import { log } from '../core/log.js'
+import { scrollBottomOf } from '../core/scroll.js'
 import { nav, favFoldersAll, favResources, historyCursor, toViewList } from '../services/api.js'
 import { clearLogin } from '../core/auth.js'
 
@@ -198,7 +199,8 @@ export default {
       this.refresh()
     },
     onScroll(e) {
-      const bottom = (e && e.scrollBottom != null) ? Number(e.scrollBottom) : 0
+      const _sbv = scrollBottomOf(e, 224)
+      const bottom = (_sbv != null) ? _sbv : 0
       if (bottom > 0 && bottom < 60 && this.hasMore && !this.loading) this.loadMore()
     },
     goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },

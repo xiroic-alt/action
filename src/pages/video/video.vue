@@ -219,6 +219,7 @@ import { playCount } from '../../services/format.js'
 import { hasCookie } from '../../core/auth.js'
 import { getCfg } from '../../core/config.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 
 const MI = {
   like: require('../../assets/mi/like_24_m.png'),
@@ -477,7 +478,8 @@ export default {
     // ---------------- 互动 (乐观更新 + 失败回滚) ----------------
     /** 评论滚动到底自动加载下一页 (上滑自动刷新) */
     onCmtScroll(e) {
-      const bottom = (e && e.scrollBottom != null) ? Number(e.scrollBottom) : 0
+      const _sbv = scrollBottomOf(e, 224)
+      const bottom = (_sbv != null) ? _sbv : 0
       const left = (e && e.scrollHeight != null && e.scrollTop != null)
         ? Number(e.scrollHeight) - Number(e.scrollTop) : 9999
       const near = bottom > 0 ? bottom < 80 : left < 300
@@ -770,7 +772,7 @@ export default {
     },
     onScroll(e) {
       const d = e && e.detail ? e.detail : {}
-      if (d && d.scrollBottom != null && d.scrollBottom < 80 && this.hasMore && !this.loadingCmt && !this.cmtIdle) {
+      if (scrollBottomOf(e, 190) != null && scrollBottomOf(e, 190) > 0 && scrollBottomOf(e, 190) < 160 && this.hasMore && !this.loadingCmt && !this.cmtIdle) {
         this.page++
         this.loadComments(false)
       }

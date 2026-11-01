@@ -135,6 +135,7 @@ import { ui } from '../../design/ui.js'
 import { SCREEN } from '../../design/tokens.js'
 import { playCount } from '../../services/format.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 import { spaceInfo, spaceVideos, spaceDynamics, relationModify, userCard } from '../../services/api.js'
 
 // ---- 笔屏几何: 数字只在这里出现, 模板与样式都从这里取 ----
@@ -460,7 +461,7 @@ export default {
     onScroll(e) {
       // scroller 的 detail 在快到底时会带 scrollBottom, 提前触发下一页
       const d = (e && e.detail) ? e.detail : {}
-      if (d.scrollBottom != null && d.scrollBottom < 80) this.loadMore()
+      if (scrollBottomOf(e, 224) != null && scrollBottomOf(e, 224) > 0 && scrollBottomOf(e, 224) < 160) this.loadMore()
     },
     openVideo(v) {
       if (!v || !v.bvid) return

@@ -118,6 +118,7 @@ import { ui } from '../../design/ui.js'
 import { msgUnread, msgReplies, pmSessions } from '../../services/api.js'
 import { hasCookie } from '../../core/auth.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 
 // 分栏顺序按需求给: 回复我的 / 未读汇总 / 私信
 const TABS = [
@@ -442,7 +443,7 @@ export default {
     onScroll(e) {
       const d = (e && e.detail) ? e.detail : {}
       if (this.tab !== 'reply') return
-      if (d.scrollBottom != null && d.scrollBottom < 80 && this.replies.length > 0 && this.replyHasMore && !this.loading) {
+      if (scrollBottomOf(e, 224) != null && scrollBottomOf(e, 224) > 0 && scrollBottomOf(e, 224) < 160 && this.replies.length > 0 && this.replyHasMore && !this.loading) {
         this.loadMore()
       }
     },

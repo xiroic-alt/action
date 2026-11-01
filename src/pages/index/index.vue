@@ -64,6 +64,7 @@ import { ui } from '../../design/ui.js'
 import { SCREEN, SPEC } from '../../design/tokens.js'
 import { recommend, popular, bangumiList, liveList } from '../../services/api.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf, scrollTopOf, isPullDown } from '../../core/scroll.js'
 
 // ★ 内容宽 = 屏宽 - 侧栏 - 安全边距. 这里必须用 SPEC.safeSpace:
 //   SCREEN 里没有 safeSpace 这个键, 写错会得到 NaN, 卡片宽度就永远停在默认值.
@@ -227,25 +228,23 @@ export default {
       this.load(false)
     },
     onScroll(e) {
-      // ★ 诊断: 真机上"上滑不自动加载", 需要先确认滚动事件到底给的是什么字段.
-      //   前 5 次打全量结构, 之后只按结果处理.
-      if ((this.scrollLogs || 0) < 5) {
-        this.scrollLogs = (this.scrollLogs || 0) + 1
-        let dump = ''
-        try {
-          const d0 = e && e.detail ? e.detail : e
-          if (d0 && typeof d0 === 'object') {
-            for (const k in d0) { try { dump += k + '=' + d0[k] + ' ' } catch (x) {} }
-          } else dump = String(d0)
-        } catch (x) { dump = 'dump失败:' + x }
-        log('首页', 'scroll 事件: ' + (dump || '(空)'))
+      // ★ 真机实测: @scroll 给的是 {contentOffset:{x,y}, contentSize:{width,height}},
+      //   **没有 scrollBottom** —— 之前判断它恒为 false, 自动加载从没生效.
+      const bottom = scrollBottomOf(e, 224)
+      if (isPullDown(e, 40)) {
+        if (!this.loading) { this.pullReady = true; log("首页", "下拉到位") }
+        return
       }
-      const d = e && e.detail ? e.detail : (e || {})
-      // 兼容多种可能的字段名, 哪个有值用哪个
-      const bottom = (d.scrollBottom != null) ? d.scrollBottom
-                   : ((d.bottom != null) ? d.bottom
-                   : ((d.scrollY != null && d.scrollHeight != null) ? (d.scrollHeight - d.scrollY - (d.height || d.viewHeight || 266)) : null))
-      if (bottom != null && bottom < 120 && this.items.length > 0 && !this.loading) this.loadMore()
+      if (this.pullReady) {
+        this.pullReady = false
+        log("首页", "触发下拉刷新")
+        this.load(true)
+        return
+      }
+      if (bottom != null && bottom > 0 && bottom < 160 && this.items.length > 0 && !this.loading) {
+        log("首页", "自动加载下一页 (距底 " + bottom + "px)")
+        this.loadMore()
+      }
     },
     openVideo(v) {
       if (!v) return

@@ -100,6 +100,7 @@ import AppBar from '../../components/app-bar.vue'
 import { ui } from '../../design/ui.js'
 import { dynamicFeed } from '../../services/api.js'
 import { log } from '../../core/log.js'
+import { scrollBottomOf } from '../../core/scroll.js'
 
 const PAD = 8                              // 卡片四周内边距
 const AV = 40                              // 头像直径
@@ -261,7 +262,7 @@ export default {
     // 滚到底部前 80px 就预取: 222px 高的屏幕等真的到底再拉, 用户会先看到一片空白
     onScroll(e) {
       const d = (e && e.detail) ? e.detail : {}
-      if (d.scrollBottom != null && d.scrollBottom < 80 && this.items.length > 0 && this.hasMore && !this.loading) {
+      if (scrollBottomOf(e, 224) != null && scrollBottomOf(e, 224) > 0 && scrollBottomOf(e, 224) < 160 && this.items.length > 0 && this.hasMore && !this.loading) {
         this.load(false)
       }
     },
