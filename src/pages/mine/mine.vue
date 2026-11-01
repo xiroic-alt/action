@@ -178,38 +178,51 @@ export default {
       }
     },
     async loadTab(gen) {
-      if (this.tab === 'fav') {
-        if (this.folderId) {
-          const fr = await favResources(this.folderId, this.page)
+      // 防御式: 接口可能返回非数组 (风控/未登录/结构变了), 直接 .map 会报
+      // 'not a function' 并把整页状态带崩. 这里每步都判 Array.isArray, 并打点.
+      const arr = function (x) { return Array.isArray(x) ? x : [] }
+      try {
+        if (this.tab === 'fav') {
+          if (this.folderId) {
+            log('我的', '取收藏夹内容 id=' + this.folderId + ' p' + this.page)
+            const fr = await favResources(this.folderId, this.page)
+            if (gen !== this.genSeq) return
+            const fl = arr(fr && fr.list)
+            const mapped = fl.map(mapFav)
+            this.items = this.page === 1 ? mapped : this.items.concat(mapped)
+            this.hasMore = !!(fr && fr.hasMore)
+          } else {
+            log('我的', '取收藏夹列表')
+            const list = await favFoldersAll()
+            if (gen !== this.genSeq) return
+            const listArr = arr(list)
+            this.folders = listArr
+            this.items = listArr.map(function (fo) {
+              return { id: fo && fo.id, bvid: '', title: (fo && fo.title) || '', sub: ((fo && fo.count) || 0) + ' 个内容', cover: (fo && fo.cover) || '', kind: 'folder' }
+            })
+            this.hasMore = false
+          }
+        } else if (this.tab === 'his') {
+          log('我的', '取观看历史')
+          const hr = await historyCursor(this.cursor.max, this.cursor.view_at)
           if (gen !== this.genSeq) return
-          const fl = (fr && fr.list) || []
-          const mapped = fl.map(mapFav)
-          this.items = this.page === 1 ? mapped : this.items.concat(mapped)
-          this.hasMore = !!(fr && fr.hasMore)
+          const hl = arr(hr && hr.list)
+          const hc = (hr && hr.cursor) || {}
+          this.cursor = { max: hc.max || 0, view_at: hc.view_at || 0 }
+          const hm = hl.map(mapHis)
+          this.items = this.page === 1 ? hm : this.items.concat(hm)
+          this.hasMore = !!hc.max
         } else {
-          const list = await favFoldersAll()
+          log('我的', '取稍后再看')
+          const list = await toViewList()
           if (gen !== this.genSeq) return
-          const arr = list || []
-          this.folders = arr
-          this.items = arr.map(function (fo) {
-            return { id: fo.id, bvid: '', title: fo.title, sub: (fo.count || 0) + ' 个内容', cover: fo.cover || '', kind: 'folder' }
-          })
+          this.items = arr(list).map(mapHis)
           this.hasMore = false
         }
-      } else if (this.tab === 'his') {
-        const hr = await historyCursor(this.cursor.max, this.cursor.view_at)
-        if (gen !== this.genSeq) return
-        const hl = (hr && hr.list) || []
-        const hc = (hr && hr.cursor) || {}
-        this.cursor = { max: hc.max || 0, view_at: hc.view_at || 0 }
-        const hm = hl.map(mapHis)
-        this.items = this.page === 1 ? hm : this.items.concat(hm)
-        this.hasMore = !!hc.max
-      } else {
-        const list = await toViewList()
-        if (gen !== this.genSeq) return
-        this.items = (list || []).map(mapHis)
-        this.hasMore = false
+      } catch (e) {
+        log('我的', 'loadTab 异常 (tab=' + this.tab + '): ' + (e && e.message ? e.message : e))
+        this.items = []
+        this.status = '列表加载失败: ' + (e && e.message ? e.message : e)
       }
       log('我的', '列表装载 ' + this.items.length + ' 条 (tab=' + this.tab + ')')
     },
