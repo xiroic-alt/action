@@ -939,7 +939,7 @@ export default {
     openSeasonEp(ep) {
       log('详情', '点合集剧集 bvid=' + (ep && ep.bvid))
       if (!ep || !ep.bvid) { log('详情', '❌ 无 bvid, 不跳'); return }
-      this.goto('video', { bvid: ep.bvid, title: ep.title })
+      this.switchTo(ep.bvid, ep.title)
     },
     /** 切分P: 只换 cid 并重新起播, 不跳新页面 */
     pickPart(p) {
@@ -993,10 +993,42 @@ export default {
     onRelScroll(e) {
       // 相关视频是一次性返回的 (接口不分页), 所以只做到底提示, 不再拉取
     },
+    /**
+     * ★ 在当前页直接换片 —— **不走 navTo**.
+     *
+     * 为什么: 从详情页 navTo 到 'video'(同一个页面) 时, 框架既不压新页,
+     * 也不把 onNewOptions 转发给组件 (实测 onShow 都没触发). 结果就是:
+     * navTo 不报错、日志显示"✅ 已发起", 但页面纹丝不动.
+     * 与其继续猜框架的生命周期, 不如**不依赖它** —— 直接改本页状态并重新加载.
+     * 这也正是 B站 APP 的行为: 点相关视频就在当前页打开, 不新开一页.
+     */
+    switchTo(bvid, title) {
+      const b = String(bvid || '')
+      if (!b) return
+      if (b === this.bvid) { log('详情', '同一条视频, 忽略'); return }
+      log('详情', '当前页换片 -> ' + b)
+      this.bvid = b
+      this.paramKey = b
+      this.cid = 0
+      this.page = 1
+      this.cmtPage = 1
+      this.comments = []
+      this.relItems = []
+      this.relStatus = ''
+      this.rTab = 'cmt'
+      this.curPage = 1
+      this.staffList = []
+      this.seasonInfo = null
+      this.seasonOpen = false
+      this.seasonFlat = []
+      this.pagesList = []
+      this.titleText = String(title || '')
+      this.load()
+    },
     openRelated(v) {
       log('详情', '点相关视频 bvid=' + (v && v.bvid))
       if (!v || !v.bvid) { log('详情', '❌ 无 bvid, 不跳'); return }
-      this.goto('video', { bvid: v.bvid, title: v.title })
+      this.switchTo(v.bvid, v.title)
     },
     onBarAction(a) {
       if (a === 'cover') { this.showCover(); return }

@@ -48,7 +48,19 @@ export class BasePage extends $falcon.Page {
     this.options = options || {}
     const p = Object.getPrototypeOf(BasePage.prototype)
     try { if (p && typeof p.onNewOptions === 'function') p.onNewOptions.call(this, options) } catch (e) {}
-    try { if (typeof this.onShow === 'function') this.onShow() } catch (e) {}
+    // ★ 真机实证: 详情页的 onShow **根本没被框架调用** (加的诊断日志一条都没有),
+    //   初始加载其实是走 mounted. 所以这里不能只指望 onShow,
+    //   要按"组件方法"逐个试 —— Vue2 的 methods 会被挂到实例上.
+    const hooks = ['onShow', 'readOptions', 'onNewOptionsInPage']
+    for (let i = 0; i < hooks.length; i++) {
+      const fn = this[hooks[i]]
+      if (typeof fn !== 'function') continue
+      try {
+        fn.call(this)
+        if (typeof console !== 'undefined' && console.__pilipro) console.log('[page] onNewOptions -> ' + hooks[i] + ' 已调用')
+        break
+      } catch (e) {}
+    }
   }
 
   /** 登记一次性定时器 (自动释放) */
