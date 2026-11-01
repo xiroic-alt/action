@@ -70,6 +70,14 @@
           <div class="bvchip" :style="{ backgroundColor: U.c.primaryContainer, borderRadius: U.rad.chip + 'px' }">
             <text class="bvchipt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimaryContainer }">{{ bvid }}</text>
           </div>
+        <!-- ★ 常驻合集按钮: 放在左栏 (一眼可见), 点击后自动切到"相关视频"页并展开剧集.
+             为什么两处都有: 用户先说"移到相关视频后面", 移过去之后又"直接看不到按钮了" ——
+             信息在"相关视频"页里是对的, 但**入口必须常驻**才找得到. -->
+        <div v-if="seasonInfo" class="seasonenter" @click="openSeasonFromLeft">
+          <div class="seasonenterchip" :style="{ backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }">
+            <text class="seasonentert" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSecondaryContainer }">{{ '合集 · ' + seasonInfo.title + ' (' + seasonInfo.count + ') ›' }}</text>
+          </div>
+        </div>
           <!-- ★ 展开后完全展开, 不再套内层 scroller:
                展开后完全铺开, 由**左栏自己的 scroller** 带动 (不再嵌套一层内部滚动).
                :lines="0" = 不限行数. -->
@@ -936,6 +944,14 @@ export default {
       log('详情', '联合投稿 ' + this.staffList.length + ' 人 / 合集 ' + (this.seasonInfo ? this.seasonInfo.count : 0) + ' 集 / 分P ' + this.pagesList.length)
     },
     toggleSeason() { this.seasonOpen = !this.seasonOpen },
+    /** 左栏合集按钮: 切到相关视频页 + 展开剧集 (两处入口给同一个结果) */
+    openSeasonFromLeft() {
+      log('详情', '左栏合集按钮 -> 切到相关视频并展开')
+      this.rTab = 'rel'
+      if (this.relItems.length === 0) this.loadRelated()
+      this.seasonOpen = true
+      if (this.seasonFlat.length === 0 && !this.seasonInfo) log('详情', '无合集数据')
+    },
     openSeasonEp(ep) {
       log('详情', '点合集剧集 bvid=' + (ep && ep.bvid))
       if (!ep || !ep.bvid) { log('详情', '❌ 无 bvid, 不跳'); return }
@@ -1276,4 +1292,7 @@ export default {
 .rsimg { margin-right: 8px; }
 .rsimgph { margin-right: 8px; }
 .rstitle { width: 335px; }
+.seasonenter { width: 100%; height: 30px; flex-direction: row; align-items: center; }
+.seasonenterchip { height: 24px; padding-left: 10px; padding-right: 10px; justify-content: center; align-items: center; }
+.seasonentert { }
 </style>
