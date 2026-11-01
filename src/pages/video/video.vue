@@ -74,7 +74,16 @@
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
       <div class="cmts" :style="{ width: '439px' }">
-        <div class="cmain">
+        <!-- ★ 右侧切换条: 评论 / 相关视频 (用户要求"左右滑动切换") -->
+        <div class="rtabs" :style="{ height: '30px' }">
+          <div class="rtab" :style="rtabStyle('cmt')" @click="pickRTab('cmt')">
+            <text class="rtabt" :lines="1" :style="rtabTextStyle('cmt')">{{ '评论 ' + replyTotalText }}</text>
+          </div>
+          <div class="rtab" :style="rtabStyle('rel')" @click="pickRTab('rel')">
+            <text class="rtabt" :lines="1" :style="rtabTextStyle('rel')">相关视频</text>
+          </div>
+        </div>
+        <div class="cmain" v-show="rTab === 'cmt'">
         <div class="sortcol" :style="{ width: '92px' }">
           <text class="sortTitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '评论 ' + replyTotalText }}</text>
           <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ height: '44px' }" @click="pickSort(s.id)">
@@ -135,6 +144,24 @@
           </div>
         </scroller>
         </div>
+
+        <!-- 相关视频 (与评论同栏, 由顶部切换条或左右滑动切换) -->
+        <scroller v-if="rTab === 'rel'" class="relscroll" scroll-direction="vertical" :show-scrollbar="true"
+                  @scroll="onRelScroll" :style="{ width: '439px', height: '148px' }">
+          <div class="relrows">
+            <div v-if="relItems.length === 0" class="relhint">
+              <text class="relhintt" :lines="2" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ relStatus }}</text>
+            </div>
+            <div v-for="(v, i) in relItems" :key="v.bvid + '_' + i" class="relrow" @click="openRelated(v)">
+              <image v-if="v.cover !== ''" class="relimg" :src="v.cover" resize="cover" :style="{ width: '96px', height: '56px', borderRadius: '6px' }"></image>
+              <div v-else class="relimgph" :style="{ width: '96px', height: '56px', borderRadius: '6px', backgroundColor: U.c.surfaceContainerHigh }"></div>
+              <div class="relmeta">
+                <RichText class="reltitle" :text="v.title" :size="U.f.caption" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
+                <text class="relsub" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.author + '  ' + v.playText }}</text>
+              </div>
+            </div>
+          </div>
+        </scroller>
 
       </div>
     </div>
@@ -220,7 +247,7 @@ import { createIME } from '../../services/ime.js'
 import RichText from '../../components/rich-text.vue'
 import { ui } from '../../design/ui.js'
 import { SCREEN } from '../../design/tokens.js'
-import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies, commentLike, commentAdd, subReplies } from '../../services/api.js'
+import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies, commentLike, commentAdd, subReplies, relatedVideos } from '../../services/api.js'
 import { splitByVideoIds } from '../../services/bv.js'
 import { playCount } from '../../services/format.js'
 import { hasCookie } from '../../core/auth.js'
@@ -302,6 +329,8 @@ export default {
       // 浮层 / 提示
       titleOpen: false,
       descOpen: false,
+      // 右侧切换: 'cmt' 评论 / 'rel' 相关视频
+      rTab: 'cmt', relItems: [], relStatus: '', relOffset: 0, relMore: false,
       detailOpen: false,
       tip: '',
       // 世代守卫: 页面级装载用 ++this.genSeq, 动作类请求只读当前值做过期判断
@@ -753,6 +782,7 @@ export default {
     startComments() {
       this.cmtIdle = false
       this.loadComments(true)
+      this.loadRelated()
     },
     pickSort(id) {
       if (this.sort === id) { this.loadComments(true); return }
@@ -851,6 +881,44 @@ export default {
     },
     toggleTitle() { this.titleOpen = !this.titleOpen },
     toggleDesc() { this.descOpen = !this.descOpen },
+    /** 右侧切换 (评论 <-> 相关视频) */
+    pickRTab(id) {
+      if (this.rTab === id) return
+      this.rTab = id
+      log('详情', '右侧切到 ' + id)
+      if (id === 'rel' && this.relItems.length === 0) this.loadRelated()
+    },
+    rtabStyle(id) {
+      return {
+        height: '24px', paddingLeft: '10px', paddingRight: '10px', marginRight: '6px',
+        borderRadius: this.U.rad.chip + 'px', justifyContent: 'center', alignItems: 'center',
+        backgroundColor: id === this.rTab ? this.U.c.primaryContainer : this.U.c.surfaceContainerHighest
+      }
+    },
+    rtabTextStyle(id) {
+      return { fontSize: this.U.f.tiny + 'px', color: id === this.rTab ? this.U.c.onPrimaryContainer : this.U.c.onSurfaceVariant }
+    },
+    /** 相关视频 */
+    async loadRelated() {
+      if (!this.bvid) return
+      this.relStatus = ''
+      try {
+        const list = await relatedVideos(this.bvid)
+        this.relItems = Array.isArray(list) ? list : []
+        log('详情', '相关视频 ' + this.relItems.length + ' 条')
+        if (this.relItems.length === 0) this.relStatus = '没有相关视频'
+      } catch (e) {
+        this.relStatus = '加载失败: ' + String((e && e.message) || e)
+        log('详情', '相关视频失败: ' + this.relStatus)
+      }
+    },
+    onRelScroll(e) {
+      // 相关视频是一次性返回的 (接口不分页), 所以只做到底提示, 不再拉取
+    },
+    openRelated(v) {
+      if (!v || !v.bvid) return
+      try { $falcon.navTo('video', { bvid: v.bvid, title: v.title }) } catch (e) {}
+    },
     onBarAction(a) {
       if (a === 'cover') { this.showCover(); return }
       this.openDetail()
@@ -1036,4 +1104,17 @@ export default {
 .bvchip { padding-left: 8px; padding-right: 8px; height: 20px; justify-content: center; align-items: center; margin-bottom: 4px; align-self: flex-start; }
 .bvchipt { }
 .descpad { width: 100%; }
+.rtabs { flex-direction: row; align-items: center; padding-left: 8px; }
+.rtab { }
+.rtabt { }
+.relscroll { }
+.relrows { flex-direction: column; padding-left: 8px; padding-right: 8px; }
+.relhint { height: 80px; justify-content: center; align-items: center; }
+.relhintt { text-align: center; }
+.relrow { height: 64px; flex-direction: row; align-items: center; }
+.relimg { margin-right: 10px; }
+.relimgph { margin-right: 10px; }
+.relmeta { width: 315px; flex-direction: column; justify-content: center; }
+.reltitle { }
+.relsub { }
 </style>
