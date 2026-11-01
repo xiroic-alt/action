@@ -33,9 +33,12 @@
           </div>
         </div>
 
-        <div class="titlerow" :style="{ height: titleRowH + 'px' }" @click="toggleTitle">
+        <div class="titlerow" :style="{ height: titleRowH + 'px' }">
           <RichText class="title" :text="titleText" :size="U.f.subtitle" :color="U.c.onSurface" :lines="titleLines" :drop-emoji="false" />
-          <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
+          <!-- 只让这个小箭头可点: 原来整行 @click 会让整行出现点击高亮框 (用户要去掉) -->
+          <div class="chevhit" :style="{ width: '28px', height: '28px' }" @click="toggleTitle">
+            <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
+          </div>
         </div>
 
         <!-- 数据行常显: 展开标题时也不隐藏 (用户明确要求) -->
@@ -51,11 +54,12 @@
         </div>
 
         <div v-if="descText !== ''" class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
-          <scroller v-if="descOpen" class="descScroll" scroll-direction="vertical" :show-scrollbar="true"
-                    :style="{ height: (descH - 6) + 'px' }">
-            <RichText class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
-          </scroller>
-          <RichText v-else class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
+          <!-- ★ 展开后完全展开, 不再套内层 scroller:
+               整页已经是一体滚动 (外层 <scroller class="whole">),
+               简介自己再滚一层只会把可滑范围锁死在几十像素里 (用户反馈"滑动范围太小").
+               :lines="0" = 不限行数, 全文交给整页滚动. -->
+          <RichText class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant"
+                    :lines="descOpen ? 0 : 3" :drop-emoji="false" />
         </div>
 
         <!-- 播放按钮: 浮动在左栏右下, 不占布局高度 (双栏重排时漏掉过, 这里补回) -->
@@ -68,8 +72,8 @@
 
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
-      <div class="cmts" :style="{ width: '439px', height: S.content + 'px' }">
-        <div class="cmain" :style="{ height: '178px' }">
+      <div class="cmts" :style="{ width: '439px' }">
+        <div class="cmain">
         <div class="sortcol" :style="{ width: '92px' }">
           <text class="sortTitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '评论 ' + replyTotalText }}</text>
           <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ height: '44px' }" @click="pickSort(s.id)">
@@ -134,16 +138,6 @@
         </div>
         </div>
 
-        <!-- 常驻输入条: 一直在底部, 点任意处唤起系统输入法发主楼评论.
-             笔上没有内嵌可编辑文本组件, 只能"点击 -> 系统输入法"这条路. -->
-        <div class="cbar" :style="{ backgroundColor: U.c.surfaceContainerLow, height: '44px' }" @click="writeComment">
-          <div class="cbarbox" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.chip + 'px' }">
-            <text class="cbart" :lines="1" :style="U.t.weak">说点什么…</text>
-          </div>
-          <div class="cbarsend" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px' }" @click="writeComment">
-            <text class="cbarsendt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimary }">发送</text>
-          </div>
-        </div>
       </div>
     </div>
 
@@ -184,6 +178,18 @@
       </div>
     </div>
     </scroller>
+
+        <!-- 常驻输入条: 一直在底部, 点任意处唤起系统输入法发主楼评论.
+             笔上没有内嵌可编辑文本组件, 只能"点击 -> 系统输入法"这条路.
+             ★ 必须在整页 scroller **外面**: 放里面会被 scroller 裁剪掉 (用户报"输入框没了"). -->
+        <div class="cbar" :style="{ backgroundColor: U.c.surfaceContainerLow, height: '44px' }" @click="writeComment">
+          <div class="cbarbox" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.chip + 'px' }">
+            <text class="cbart" :lines="1" :style="U.t.weak">说点什么…</text>
+          </div>
+          <div class="cbarsend" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px' }" @click="writeComment">
+            <text class="cbarsendt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimary }">发送</text>
+          </div>
+        </div>
 
     <!-- 封面浮层: 完整显示原图 (contain, 留白可接受), 点任意处关闭 -->
     <div v-if="coverOpen" class="coverMask" @click="hideCover">
@@ -325,7 +331,8 @@ export default {
     },
     titleLines() { return this.titleOpen ? 0 : 2 },
     titleRowH() { return this.titleOpen ? 62 : 40 },
-    descH() { return this.descOpen ? 64 : 58 },
+    // 展开时给足高度让全文铺开 (整页滚动负责滑动), 收起时只露 3 行
+    descH() { return this.descOpen ? 420 : 58 },
     replyTotalText() { return this.replyTotal > 0 ? playCount(this.replyTotal) : '--' },
     fansLine() {
       const t = this.up.fansText
@@ -1023,5 +1030,7 @@ export default {
 /* 评论列表不再自己滚动, 完全展开由外层带动 */
 .clistwrap { flex-direction: column; }
 /* 常驻输入条: 脱离文档流固定在底部, 不随整页滚动跑掉 */
+/* 输入条已在 scroller 外部, 用绝对定位钉在页面底部 (左栏 520 + 1px 分隔线 = 521) */
 .cbar { position: absolute; left: 521px; bottom: 0px; width: 439px; }
+.chevhit { justify-content: center; align-items: center; }
 </style>
