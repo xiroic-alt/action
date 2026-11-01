@@ -8,10 +8,14 @@
          左栏固定 520px: UP + 标题 + 数据 + 操作 + 简介
          右栏自适应:     评论 (排序 + 列表)
          960x266 是超宽屏, 上下堆叠会让评论区只剩一条; 分栏后两栏都能吃满 222px -->
-    <div class="content" :style="{ height: S.content + 'px', flexDirection: 'row' }">
-      <!-- 左栏: 信息多时可上下滑 (与右栏评论各自独立滚动) -->
-      <scroller class="pane" scroll-direction="vertical" :show-scrollbar="true"
-                :style="{ width: '520px', height: S.content + 'px' }">
+    <!-- ★ 整页一体滚动 (用户: "和 APP 端一样, 整个页面往上滑").
+         做法: 外层一个大 scroller 包住左右两栏, 里面两层 scroller 降级成普通 div,
+         于是任何位置的滑动都移动整页, 而不是只动其中一栏. -->
+    <scroller class="whole" scroll-direction="vertical" :show-scrollbar="true"
+              :style="{ width: '960px', height: S.content + 'px' }" @scroll="onCmtScroll">
+    <div class="content" :style="{ flexDirection: 'row' }">
+      <!-- 左栏: 不再自己滚动, 高度由内容撑开 -->
+      <div class="pane" :style="{ width: '520px' }">
         <div class="uprow" :style="{ height: '44px' }" @click="openMember">
           <div class="avwrap" :style="{ width: '44px', height: '44px' }">
             <image v-if="faceUrl !== ''" class="avatar" :src="faceUrl"
@@ -60,7 +64,7 @@
             <text class="playt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
           </div>
         </div>
-      </scroller>
+      </div>
 
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
@@ -74,8 +78,7 @@
             </div>
           </div>
         </div>
-        <scroller class="cscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onCmtScroll"
-                  :style="{ width: '347px', height: S.content + 'px' }">
+        <div class="clistwrap" :style="{ width: '347px' }">
           <div class="clist">
             <div v-if="comments.length === 0" class="chint">
               <text class="chintt" :style="U.t.weak">{{ cmtStatus !== '' ? cmtStatus : (loadingCmt ? '加载中…' : '暂无评论') }}</text>
@@ -128,7 +131,7 @@
               </div>
             </div>
           </div>
-        </scroller>
+        </div>
         </div>
 
         <!-- 常驻输入条: 一直在底部, 点任意处唤起系统输入法发主楼评论.
@@ -180,6 +183,7 @@
         </div>
       </div>
     </div>
+    </scroller>
 
     <!-- 封面浮层: 完整显示原图 (contain, 留白可接受), 点任意处关闭 -->
     <div v-if="coverOpen" class="coverMask" @click="hideCover">
@@ -219,7 +223,7 @@ import { playCount } from '../../services/format.js'
 import { hasCookie } from '../../core/auth.js'
 import { getCfg } from '../../core/config.js'
 import { log } from '../../core/log.js'
-import { scrollBottomOf } from '../../core/scroll.js'
+import { scrollBottomOf, scrollTopOf } from '../../core/scroll.js'
 
 const MI = {
   like: require('../../assets/mi/like_24_m.png'),
@@ -307,6 +311,10 @@ export default {
       coverUrl: '',
       paramKey: '',
       cmtGen: 0,
+      // ★ 评论独立页码: 之前复用 this.page (和视频列表共用), 且从不递增 ->
+      //   每次都拉第 1 页, 表现为"反复加载同样的 22 条".
+      cmtPage: 1,
+      minY: null,
       tipTimer: null,
       busyLock: { like: false, coin: false, fav: false, follow: false }
     }
@@ -752,16 +760,18 @@ export default {
       if (this.loadingCmt && !reset) return
       const gen = ++this.cmtGen
       this.loadingCmt = true
-      if (reset) { this.page = 1; this.hasMore = true; this.cmtStatus = '' }
+      if (reset) { this.cmtPage = 1; this.hasMore = true; this.cmtStatus = '' }
+      else this.cmtPage = (this.cmtPage || 1) + 1
       try {
-        const r = await replies(this.aid, this.page, this.sort, 1)
+        const r = await replies(this.aid, this.cmtPage, this.sort, 1)
         if (gen !== this.cmtGen) return
         const list = (r.list || []).map(prepReply)
         this.comments = reset ? list : this.comments.concat(list)
         if (r.total > 0) this.replyTotal = r.total
-        this.hasMore = list.length > 0
+        // 拿满一页 (接口默认 20 条) 才认为还有下一页; 空页或不足一页 = 到底了
+        this.hasMore = list.length >= 20
         if (!this.hasMore && this.comments.length === 0) this.cmtStatus = '还没有评论'
-        log('详情', '评论 ' + this.comments.length + '/' + r.total + ' (' + this.sort + ' p' + this.page + ')')
+        log('详情', '评论 ' + this.comments.length + '/' + r.total + ' (' + this.sort + ' p' + this.cmtPage + ')')
       } catch (e) {
         if (gen !== this.cmtGen) return
         this.cmtStatus = (e && e.message ? e.message : String(e))
@@ -1007,4 +1017,11 @@ export default {
 .pickRow { width: 300px; justify-content: center; align-items: center; }
 .pickTxt { font-size: 14px; }
 .pickScroll { width: 300px; height: 140px; }
+/* ---- 整页一体滚动 ---- */
+/* 外层大 scroller: 包住左右两栏, 任何位置的滑动都移动整页 */
+.whole { }
+/* 评论列表不再自己滚动, 完全展开由外层带动 */
+.clistwrap { flex-direction: column; }
+/* 常驻输入条: 脱离文档流固定在底部, 不随整页滚动跑掉 */
+.cbar { position: absolute; left: 521px; bottom: 0px; width: 439px; }
 </style>
