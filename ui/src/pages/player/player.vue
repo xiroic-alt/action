@@ -82,6 +82,7 @@ import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl } from '..
 import { bilinet } from '../../services/native.js'
 import { getCfg } from '../../services/config.js'
 import { getProgress, setProgress, flushProgress } from '../../services/progress.js'
+import { btMac, routeBt, routeSpeaker, releaseAudioFocus } from '../../services/audio.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
 
@@ -228,6 +229,7 @@ export default {
       authorText: '',
       coverUrl: '',
       durTextOpt: '',
+      audioWasBt: false,     // 本次会话是否切到过蓝牙 (决定"没蓝牙时要不要清系统层绑定")
       src: '',
       inited: false,
       opened: false,
@@ -492,6 +494,7 @@ export default {
       if (gen !== this.generation) return
       var self = this
       this.audioProbed = false   // 换源/换页后重新判定输出设备
+      this._focusDone = false    // 同一页面里换流也重新要一次音频焦点
       // 直播的"还在动"计时起点: 不初始化的话 liveProgressAt=0 会让"停滞 12s"立刻成立
       this.liveProgressAt = Date.now()
       this.started = false
@@ -535,6 +538,12 @@ export default {
       this.startPolling()
       try { log('播放器', '起播 t=+' + (Date.now() - this.t0) + 'ms 音频=' + (this.audioRoute || '未定') + ' play(0)=' + r) } catch (e) {}
       this.recordHistory()
+      // 释放音频焦点: 系统常驻 SoundPlayer 持有焦点, 别的应用正在出声时我们可能被压住.
+      // 其它系统播放器的做法就是 killall -9 SoundPlayer (guardian 会立刻拉回来).
+      if (!this._focusDone) {
+        this._focusDone = true
+        try { releaseAudioFocus() } catch (e5) {}
+      }
     },
 
     // ---------------- 音频输出 (蓝牙) ----------------
@@ -566,22 +575,22 @@ export default {
       //   所以判据变成两级: 先按 bluez 扫; 扫不到就用 hcitool 的**链路层真相**交叉验证,
       //   并对该设备补一次 bluetoothctl connect 把 bluez 的状态纠正过来 (人工验过: 纠正后
       //   aplay 立刻能建出 /org/bluealsa/hci0/dev_xxx/a2dpsrc/sink).
+      // 判据交给 services/audio.js: D-Bus (权威, PenMusic 同款) -> bluetoothctl -> hcitool.
+      // 单靠 bluetoothctl 不够 —— 我们 10-17 实测过它谎报 Connected: no (hcitool 的 ACL 却是活的).
       try {
-        bilinet.execAsync(SCAN_BT_CMD)
-          .then(function (out) {
-            var hit = /CONNECTED ([0-9A-Fa-f:]{17})/.exec(String(out || ''))
-            if (hit) return hit[1]
-            // 二级判据: 链路层有 ACL(state 1) 的已配对设备
-            return bilinet.execAsync('hcitool con 2>/dev/null | grep ACL').then(function (c) {
-              var link = /([0-9A-Fa-f:]{17})/.exec(String(c || ''))
-              if (!link) return null
-              try { log('播放器', 'bluez 报未连接但链路层已连 ' + link[1] + ' -> 补一次 connect 纠正') } catch (e0) {}
-              return bilinet.execAsync('timeout 15 bluetoothctl connect ' + link[1]).then(function () { return link[1] })
-            })
-          })
-          .then(function (mac) {
+        btMac().then(function (mac) {
             if (!self.$page) return
             if (!mac) {
+              // 真没蓝牙: 若本次会话曾经切到过蓝牙, 必须把系统层的 bluealsa 绑定清掉.
+              // 否则固件会一直认为"音频走蓝牙", 板载扬声器通路是关的 -> 扬声器也是哑的
+              // (PenMusic「关键设计 10」: 蓝牙连上后固件会关掉 rk817 那条通路).
+              if (self.audioWasBt) {
+                self.audioWasBt = false
+                self.setAudioOut(AUDIO_TYPE_SPEAKER, '')
+                routeSpeaker()
+                try { log('播放器', '音频输出: 蓝牙已断 -> 已清掉系统层绑定, 回扬声器') } catch (e1) {}
+                return
+              }
               self.audioRoute = 'speaker(默认)'
               try { log('播放器', '音频输出: 无已连接蓝牙, 保持默认 (不调用 setAudioDeviceType)') } catch (e0) {}
               return
@@ -602,8 +611,12 @@ export default {
             // "Getting BlueALSA PCM: PLAYBACK <mac> sco" (真机 aplay 实测), 所以拼串安全.
             var prof = getCfg('btAudioMode') === 'sco' ? ',PROFILE=sco' : ''
             var dev = mac + prof + (comp > 0 ? (',DELAY=' + (comp * 1000)) : '')
+            self.audioWasBt = true
             self.setAudioOut(AUDIO_TYPE_BLUETOOTH, dev)
             try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)') } catch (e3) {}
+            // 系统层同步一次路由: 有些固件上元素 API 只改自己的 sink, 系统层仍认为走扬声器
+            // (PiliPRO 在同设备上就是走 hal-audio -b 的; 这里两条都发, 互相兜底)
+            routeBt(mac)
           }).catch(function () {})
       } catch (e2) {}
     },
@@ -611,6 +624,14 @@ export default {
     // 让整条管线报 "Could not open audio device for playback", 所以串首必须是 17 位 BD 地址
     // (后面可以跟 ,PROFILE=sco / ,DELAY=<us> 这类 bluealsa 参数, 已真机验证可解析).
     setAudioOut: function (type, mac) {
+      // 元素 API 不可用(某些固件版本没有这个方法) -> 落到系统层 hal-audio (PiliPRO 的做法)
+      var v = this.$refs.vv
+      if (!v || typeof v.setAudioDeviceType !== 'function') {
+        try { log('播放器', '元素无 setAudioDeviceType -> 改用系统层路由') } catch (e0) {}
+        if (type === AUDIO_TYPE_BLUETOOTH) routeBt(String(mac).split(',')[0])
+        else routeSpeaker()
+        return undefined
+      }
       var r = this.elem('setAudioDeviceType', type, mac)
       this.audioRoute = (type === AUDIO_TYPE_BLUETOOTH ? ('bluetooth ' + mac) : 'speaker')
       try { log('播放器', '音频输出 -> ' + this.audioRoute + ' (type=' + type + ' bluealsa:DEV=' + mac + ')') } catch (e) {}

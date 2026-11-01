@@ -168,6 +168,8 @@ const player = readSrc('pages/player/player.vue')
 const cfg = readSrc('services/config.js')
 const pageSrc = readSrc('pages/page/page.vue')
 const biliSrc = readSrc('services/bili.js')
+const audioSrc = readSrc('services/audio.js')
+const bluezSrc = readSrc('services/bluez-parse.js')
 const setv = readSrc('pages/settings/settings.vue')
 ok(/isLive\(\)\s*\{\s*return this\.mode === 'live'\s*\}/.test(player), 'player: isLive 由 options.mode 决定')
 ok(/\(options\.mode === 'live' \|\| rid > 0\) \? 'live' : ''/.test(player), 'player: applyOptions 用 mode=live 或 roomid 判定直播态')
@@ -228,14 +230,19 @@ ok(!/AUDIO_TYPE_BLUETOOTH = 1/.test(player), 'player: 绝不用 type=1 (那是 t
 ok(/Connected: yes/.test(player), 'player: 只认 bluetoothctl 的 Connected: yes, 不信配对列表')
 // 本机 bluez 5.58: `info`(不带地址) 未连接时报 "Missing device address argument",
 // `devices Connected` 报 "Too many arguments" —— 必须枚举后逐个查 (真机验过)
-ok(/bluetoothctl devices/.test(player) && /CONNECTED \(\[0-9A-Fa-f:\]\{17\}\)/.test(player),
-  'player: 枚举已配对设备再逐个查 Connected (两种省事写法在本机都取不到)')
+// 0.9.79 起探测逻辑集中在 services/audio.js (三级判据), 播放器只调 btMac()
+ok(/bluetoothctl devices/.test(audioSrc) && /CONNECTED/.test(audioSrc),
+  'audio: 枚举已配对设备再逐个查 Connected (两种省事写法在本机都取不到)')
 ok(/bluealsa:DEV=/.test(player), 'player: 日志回显 bluealsa:DEV=<mac> (排查用)')
 // 真机 2026-10-17: bluez 会谎报连接状态 (hcitool con 有 ACL, bluetoothctl 说 Connected: no),
 // 后果是"以为没连蓝牙 -> 不切输出 -> 声音还在扬声器", 且 bluealsa 建不出 A2DP PCM.
 // 所以判据必须是两级: 先 bluez 扫, 再拿链路层真相交叉验证, 并补一次 connect 纠正.
-ok(/hcitool con/.test(player), 'player: 用 hcitool con 的链路层真相交叉验证 bluez 状态')
-ok(/bluetoothctl connect ' \+ link\[1\]/.test(player), 'player: 对谎报的设备补 connect 纠正')
+ok(/hcitool con/.test(audioSrc), 'audio: 用 hcitool con 的链路层真相交叉验证 bluez 状态')
+ok(/bluetoothctl connect ' \+ link/.test(audioSrc), 'audio: 对谎报的设备补 connect 纠正')
+// PenMusic 给的权威判据: D-Bus 的 Device1.Connected, 比 bluetoothctl/hcitool 可靠
+ok(/GetManagedObjects/.test(audioSrc) && /parseManagedObjects/.test(audioSrc),
+  'audio: 用 D-Bus GetManagedObjects 作权威判据 (PenMusic 同款)')
+ok(/string "/.test(bluezSrc) && /nxt > 0/.test(bluezSrc), 'bluez-parse: Connected 解析窗口卡在下一个属性名之前 (防 Connected=false 跟随 Paired=true 误判)')
 // 低延迟档 (HFP/SCO): 插件只接受 [a2dp, sco] (BOGUS 对照实验真机验过)
 ok(/btAudioMode/.test(player) && /',PROFILE=sco'/.test(player), 'player: 支持 SCO 低延迟档 (拼 bluealsa PROFILE)')
 ok(/btAudioMode: \['a2dp', 'enum', \['a2dp', 'sco'\]\]/.test(cfg), 'config: btAudioMode 枚举 a2dp/sco')
@@ -249,8 +256,13 @@ ok(/',DELAY=' \+ \(comp \* 1000\)/.test(player), 'player: 补偿拼成 bluealsa 
 ok(!/Math\.max\(0, Math\.round\(comp\)\)/.test(player), 'player: 补偿不再夹负值 (插件接受负 delay, 已真机验证)')
 ok(/comp = Math\.round\(comp\)/.test(player), 'player: 补偿只取整, 保留正负两个方向')
 ok(/isFinite\(comp\)\) comp = 200/.test(player), 'player: 设置缺省时兜底 200ms')
-ok(/execAsync\(SCAN_BT_CMD\)/.test(player) && /var SCAN_BT_CMD = /.test(player),
-  'player: 蓝牙探测用 execAsync + 模块级命令常量 (同步 exec 冻主线程)')
+ok(/export const SCAN_BT_CMD/.test(audioSrc) && /bilinet\.execAsync/.test(audioSrc),
+  'audio: 探测走 execAsync + 命令常量 (同步 exec 会冻死应用)')
+// 系统级路径 (来自同设备上 PenMusic 文档 / PiliPRO audio.js 的实测结论)
+ok(/hal-audio -b /.test(audioSrc), 'audio: 有系统层 hal-audio -b <MAC> 路由 (元素无此 API 时兜底)')
+ok(/hal-audio -b ""/.test(audioSrc), 'audio: 回扬声器时清 bluealsa 绑定 (防"蓝牙断开后扬声器一直哑")')
+ok(/killall -9 SoundPlayer/.test(audioSrc), 'audio: 释放音频焦点 (系统播放器同款做法)')
+ok(/releaseAudioFocus\(\)/.test(player), 'player: 起播时释放一次音频焦点')
 // ★★ 血泪约束 (真机炸过两次: 0.9.64 / 0.9.71): native 的 setAudioDeviceType 内部是
 //   unInstallAlsasink()/installAlsasink(); 管线未建时调用 -> "Could not open audio device
 //   for playback", 而且该错误是**全局**的, 之后连扬声器播放也一起挂.
