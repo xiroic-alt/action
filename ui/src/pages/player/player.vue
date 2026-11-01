@@ -268,6 +268,13 @@ export default {
       hidePosMs: 0,          // 熄屏瞬间的位置
       resumeToMs: -1,        // >=0 = 下一次 PLAYING 后补一次 seekto 到这里 (恢复用)
       playEvtN: 0,           // 收到 PLAYING 的次数 (判断"这次 play() 到底起来没有")
+      // ---- 与生命周期回调无关的"播放意图 + 推进"判据 (onHide 在本固件从不触发) ----
+      userWantsPlay: false,  // 用户意图: 点了播放/续播 -> true; 主动暂停/离开 -> false
+      lastProgressAt: 0,     // 上一次"位置真的推进"的时间 (停滞判据)
+      lastKeepAt: 0,         // 上一次续 hal-screen keep 的时间 (30s 有效期)
+      recoverAt: 0,          // 自愈节流
+      recoverN: 0,           // 本条流的自愈次数 (上限 4, 防死循环)
+      _lastPosMs: -1,        // 上一次收到的位置 (只有真的变了才算推进)
       fallbackTried: false,  // autoFallback: 只在首个错误时换一次线
       srcIndex: 0,           // 当前是第几个候选源 (取流口链)
       pollTimer: null,
@@ -341,9 +348,17 @@ export default {
       if (this.opened && !this.playing) this.showBar()
       this.startPolling()
       // 熄屏/切走前在播 -> 自己把视频接回去 (原来这里什么都不做, 用户必须重启播放器)
+      // 两条互补的触发路径:
+      //   ① hideWasPlaying: 固件若触发 onHide (本机 P55 实测**从不**触发), 这里最精确;
+      //   ② userWantsPlay && !playing: 意图还在但没在播 —— 覆盖"熄屏后回调全都没有"的情形.
+      // 真正兜底的是 keepAwakeTick 里的定时自愈 (与回调无关); 这里只是让它更快一点.
       if (this.hideWasPlaying) {
         this.hideWasPlaying = false
-        if (this.isLive) { this.wantPlay = true; this.liveReconnect('亮屏') }
+        if (this.isLive) { this.wantPlay = true; this.liveReconnect('回到应用') }
+        else this.restoreAfterShow()
+      } else if (this.userWantsPlay && !this.playing && this.opened && this.src) {
+        try { log('播放器', '回到应用: 有播放意图但没在播 -> 接回') } catch (e1) {}
+        if (this.isLive) { this.wantPlay = true; this.liveReconnect('回到应用') }
         else this.restoreAfterShow()
       }
     },
@@ -373,6 +388,7 @@ export default {
       this.hidePosMs = this.curMs || 0
       try { log('播放器', '页面隐藏 (熄屏/切走): 在播=' + this.hideWasPlaying + ' 位置=' + Math.round(this.hidePosMs / 1000) + 's') } catch (eH) {}
       this.wantPlay = false
+      this.userWantsPlay = false
       if (this.opened && this.playing) {
         this.elem('pause')
         this.playing = false
@@ -382,6 +398,7 @@ export default {
 
     onUnload: function () {
       this.generation++
+      this.userWantsPlay = false     // 离开页面: 关掉播放意图, 自愈不得再把流拉起来
       try { flushProgress() } catch (e) {}
       this.disarmLiveWatchdog()
       this.stopPolling()
@@ -408,6 +425,7 @@ export default {
 
     stopStream: function () {
       this.wantPlay = false
+      this.userWantsPlay = false     // 停流 = 不再有播放意图, 自愈不该把它拉回来
       this.disarmLiveWatchdog()
       if (this.opened) {
         this.elem('stop')
@@ -552,6 +570,10 @@ export default {
       this.appliedOnce = false
       this.autoStarted = false
       this.wantPlay = true
+      this.userWantsPlay = true      // 播放意图 (自愈的唯一开关, 不依赖生命周期回调)
+      this.recoverN = 0
+      this.lastProgressAt = Date.now()
+      this._lastPosMs = -1
       this.posMs = 0
       this.posAt = Date.now()
       this.curMs = 0
@@ -748,6 +770,8 @@ export default {
         this.started = true
         this.playEvtN++
         this.disarmLiveWatchdog()
+        this.lastProgressAt = Date.now()
+        this.recoverN = 0
         this.applyOnce()
         // 亮屏/重建流后的"回到原位": 必须放在 applyOnce 之后 —— 它会先按 wantResumeSec
         // (数据库里的断点) seek, 而熄屏那一刻的位置更准, 由这里覆盖掉.
@@ -841,6 +865,12 @@ export default {
         }
       }
       this.curMs = ms
+      // 只有"位置真的变了"才算在推进 —— 熄屏后渲染面没了, 元素可能还反复吐同一个位置,
+      // 若拿事件到达时间来刷新, 停滞判据就永远不会成立 (自愈也就永远不会触发).
+      if (ms !== this._lastPosMs) {
+        this._lastPosMs = ms
+        if (this.playing) this.lastProgressAt = Date.now()
+      }
       // ★ 与 resumeOn 解耦: 断点续播管的是"要不要接着上次放", 本地历史管的是"看过什么".
       //   以前两者共用一个 if, 关掉续播就一条记录都不留 —— 对历史来说是错的.
       //   直播不记 (没有时长/进度语义).
@@ -901,6 +931,7 @@ export default {
       if (this.reconnectCount >= 3) {
         this.statusText = '直播已断开, 请返回重进'
         this.wantPlay = false
+        this.userWantsPlay = false
         this.showBar()
         return
       }
@@ -1049,17 +1080,65 @@ export default {
       var self = this
       var jsapiOn = screenon.screenOnAvailable()
       if (jsapiOn) screenon.screenOnStart()
-      try { log('播放器', '防息屏: JSAPI=' + (jsapiOn ? 'on' : 'off') + ' + 每 6s hal-screen on 保活') } catch (e) {}
-      // 系统息屏阈值实测 ~10s, 6s 一次留出余量
-      self.keepAwakeTap()
-      this.keepTimer = setTicker(this, 6000, function () {
-        if (!self.playing) return
-        if (screenon.screenOnAvailable()) {
-          try { screenon.screenOnTick() } catch (e) {}
+      // ★ 2026-11-01: 保活真正靠得住的是 **hal-screen keep** (binary 里的说明: "keep screen on 30s"),
+      //   每 25s 续一次即可. 原来的保活只走 JSAPI 三件套, 而真机日志一直是
+      //     [screenon] 防息屏 JSAPI 不可用 -> 走合成点击保活
+      //   —— JSAPI 取不到, 合成点击(touch move)也不足以阻止息屏, 所以"看着有机制、实际没保活",
+      //   用户看到的就是播放中屏幕自己暗掉、视频随后消失.
+      try { log('播放器', '防息屏: JSAPI=' + (jsapiOn ? 'on' : 'off') + ' + 每 25s hal-screen keep (30s 有效期)') } catch (e) {}
+      self.keepAwakeTick(true)
+      this.keepTimer = setTicker(this, 5000, function () { self.keepAwakeTick(false) })
+    },
+
+    // 一轮保活 + 恢复判定 (5s 一次).
+    // ★ 恢复判定放在这里是因为: 这台固件上组件级 onHide **从不触发** (真机日志核对:
+    //   装上新包跑了十几次熄屏/亮屏与页面切换, "页面隐藏" 出现次数始终是 0),
+    //   所以不能依赖生命周期回调来发现"熄屏把渲染面毁了". 改成**按播放意图 + 位置是否推进**
+    //   来判断, 与回调无关.
+    keepAwakeTick: function (force) {
+      var self = this
+      // 1) 保活: 有播放意图就续 keep (与是否 playing 无关 —— 熄屏后 playing 可能还停在 true)
+      if (this.userWantsPlay) {
+        var nowMs = Date.now()
+        if (force || nowMs - (this.lastKeepAt || 0) > 25000) {
+          this.lastKeepAt = nowMs
+          try {
+            bilinet.execAsync('hal-screen keep').catch(function () {})
+          } catch (eK) {}
         }
-        if (Date.now() - (self.lastUserTouchAt || 0) < 2500) return
-        self.keepAwakeTap()
-      })
+      }
+      // 2) JSAPI 兜底 (固件支持时是更轻的手段)
+      if (this.playing && screenon.screenOnAvailable()) {
+        try { screenon.screenOnTick() } catch (e0) {}
+      }
+      // 3) 恢复判定: 有播放意图 + 已经出过画面 + 位置长时间不推进 -> 接回
+      if (this.isLive) return
+      if (!this.$page || !this.opened || !this.src) return
+      if (!this.userWantsPlay || !this.started) return
+      if (Date.now() - (this.lastProgressAt || 0) < 7000) return
+      if (Date.now() - (this.recoverAt || 0) < 5000) return     // 节流: 两次尝试间隔 >= 5s
+      this.recoverStream('停滞 ' + Math.round((Date.now() - (this.lastProgressAt || 0)) / 1000) + 's')
+    },
+
+    // 把播放接回来: 先轻后重. 前两次只 play(), 之后重建整条流 (渲染面被销毁时只有重建能救).
+    recoverStream: function (why) {
+      this.recoverAt = Date.now()
+      this.recoverN = (this.recoverN || 0) + 1
+      this.lastProgressAt = Date.now()     // 重新开始计时, 避免下一轮立刻又触发
+      if (this.recoverN <= 2) {
+        try { log('播放器', '自愈 #' + this.recoverN + ' (' + why + ') -> play()') } catch (e1) {}
+        this.wantPlay = true
+        this.elem('play')
+        return
+      }
+      if (this.recoverN > 4) {
+        try { log('播放器', '自愈已达上限, 停手 (避免死循环)') } catch (e2) {}
+        return
+      }
+      try { log('播放器', '自愈 #' + this.recoverN + ' (' + why + ') -> 重建流') } catch (e3) {}
+      this.resumeToMs = this.curMs || 0
+      this.wantPlay = true
+      this.rebuildStream()
     },
     stopKeepAwake: function () {
       clearTicker(this, this.keepTimer)
@@ -1127,11 +1206,15 @@ export default {
       try {
         if (this.playing) {
           this.wantPlay = false       // 用户主动暂停: 自愈逻辑不抢
+          this.userWantsPlay = false  // 用户意图也关掉 (自愈判据的唯一开关)
           this.elem('pause')
           this.playing = false
           this.stopPolling()   // 立即停刷新, 保住当前进度
         } else {
           this.wantPlay = true
+          this.userWantsPlay = true
+          this.recoverN = 0
+          this.lastProgressAt = Date.now()
           this.lastResumeAt = Date.now()
           this.elem('resume')
           this.playing = true

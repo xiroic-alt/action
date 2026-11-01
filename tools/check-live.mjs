@@ -269,12 +269,27 @@ ok(/hideWasPlaying/.test(player) && /hidePosMs/.test(player),
 ok(/页面隐藏 \(熄屏\/切走\)/.test(player), 'player: onHide 有日志 (熄屏链路不再不可观测)')
 ok(/restoreAfterShow: function/.test(player) && /rebuildStream: function/.test(player),
   'player: 亮屏恢复两级手段 (先 play, 2.5s 没起来再重建流)')
-ok(/this\.liveReconnect\('亮屏'\)/.test(player), 'player: 亮屏时直播走重连')
+ok(/this\.liveReconnect\('(亮屏|回到应用)'\)/.test(player), 'player: 回到应用时直播走重连')
 ok(/this\.playStream\(url, gen\)/.test(player), 'player: 重建流复用已取到的 url (不走网络取流)')
 // 顺序: 恢复用的 seek 必须晚于 applyOnce 的断点 seek, 否则会被数据库断点覆盖回旧位置
 ok(player.indexOf('this.applyOnce()') > 0 &&
    player.indexOf('this.applyOnce()') < player.indexOf('this.resumeToMs >= 0'),
   'player: resumeToMs 的 seek 在 applyOnce 之后 (否则被断点 seek 覆盖)')
+// ---- ★ 熄屏/亮屏的真实可行机制 (2026-11-01 真机取证后重做) ----
+// 取证: 装上新包后做了十几次熄屏/亮屏与页面切换, "页面隐藏" 出现次数**始终是 0**
+//   -> 本固件组件级 onHide 从不触发, 依赖它的恢复等于没做.
+//   -> 改成"按播放意图 + 位置是否推进"的定时自愈, 与生命周期回调无关.
+ok(/keepAwakeTick: function/.test(player) && /setTicker\(this, 5000/.test(player),
+  'player: 保活/自愈走 5s 定时器 (不依赖 onHide —— 它在本固件从不触发)')
+ok(/hal-screen keep/.test(player), 'player: 保活用 hal-screen keep (真机 binary: keep screen on 30s)')
+ok(/lastKeepAt \|\| 0\) > 25000/.test(player), 'player: keep 的续期间隔 < 30s 有效期')
+ok(/userWantsPlay = true/.test(player) && /userWantsPlay = false/.test(player),
+  'player: 播放意图 userWantsPlay 在播/停两侧都维护')
+ok(/recoverStream: function/.test(player) && /recoverN <= 2/.test(player) && /recoverN > 4/.test(player),
+  'player: 自愈先 play() 再重建流, 且有次数上限 (防死循环)')
+ok(/recoverAt \|\| 0\) < 5000/.test(player), 'player: 自愈有 5s 节流')
+ok(/if \(ms !== this\._lastPosMs\)/.test(player),
+  'player: 只有位置真的变了才算推进 (否则熄屏后反复吐同一位置会让停滞判据永不成立)')
 // ★★ 血泪约束 (真机炸过两次: 0.9.64 / 0.9.71): native 的 setAudioDeviceType 内部是
 //   unInstallAlsasink()/installAlsasink(); 管线未建时调用 -> "Could not open audio device
 //   for playback", 而且该错误是**全局**的, 之后连扬声器播放也一起挂.
@@ -288,7 +303,7 @@ ok(!/bilinet\.exec\(/.test(player), 'player: 不许出现同步 exec')
 ok(/audioProbed = false/.test(player), 'player: 换源后要重新判定输出设备')
 
 ok(/liveReconnect: function/.test(player) && /reconnectCount >= 3/.test(player), 'player: 断流重连有次数上限 (有限次)')
-ok(/liveReconnect: function[\s\S]{0,400}var gen = \+\+this\.generation/.test(player), 'player: 每次重连换 generation')
+ok(/liveReconnect: function[\s\S]{0,800}var gen = \+\+this\.generation/.test(player), 'player: 每次重连换 generation')
 ok(/setTimer\(this, 1500, function \(\) \{ if \(gen === self\.generation\) self\.fetchAndOpen\(gen\) \}\)/.test(player),
   'player: 过期重连回调不复活 (定时器里有 generation 守卫)')
 ok(/onUnload: function[\s\S]{0,300}this\.generation\+\+/.test(player), 'player: onUnload 递增 generation 让在途回调失效')
