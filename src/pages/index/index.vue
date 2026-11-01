@@ -227,8 +227,25 @@ export default {
       this.load(false)
     },
     onScroll(e) {
-      const d = e && e.detail ? e.detail : {}
-      if (d && d.scrollBottom != null && d.scrollBottom < 80 && this.items.length > 0 && !this.loading) this.loadMore()
+      // ★ 诊断: 真机上"上滑不自动加载", 需要先确认滚动事件到底给的是什么字段.
+      //   前 5 次打全量结构, 之后只按结果处理.
+      if ((this.scrollLogs || 0) < 5) {
+        this.scrollLogs = (this.scrollLogs || 0) + 1
+        let dump = ''
+        try {
+          const d0 = e && e.detail ? e.detail : e
+          if (d0 && typeof d0 === 'object') {
+            for (const k in d0) { try { dump += k + '=' + d0[k] + ' ' } catch (x) {} }
+          } else dump = String(d0)
+        } catch (x) { dump = 'dump失败:' + x }
+        log('首页', 'scroll 事件: ' + (dump || '(空)'))
+      }
+      const d = e && e.detail ? e.detail : (e || {})
+      // 兼容多种可能的字段名, 哪个有值用哪个
+      const bottom = (d.scrollBottom != null) ? d.scrollBottom
+                   : ((d.bottom != null) ? d.bottom
+                   : ((d.scrollY != null && d.scrollHeight != null) ? (d.scrollHeight - d.scrollY - (d.height || d.viewHeight || 266)) : null))
+      if (bottom != null && bottom < 120 && this.items.length > 0 && !this.loading) this.loadMore()
     },
     openVideo(v) {
       if (!v) return
