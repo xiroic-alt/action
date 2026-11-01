@@ -6,12 +6,15 @@
         <image v-if="isLogin && face !== ''" class="pavimg" :src="face" resize="cover" :style="{ width: '44px', height: '44px', borderRadius: '22px' }"></image>
         <div v-else class="pavph" :style="{ width: '44px', height: '44px', borderRadius: '22px', backgroundColor: U.c.surfaceContainerHighest }"></div>
       </div>
-      <div class="pinfo">
+      <div class="pinfo" :style="{ width: '640px' }">
         <text class="pname" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">{{ nameText }}</text>
         <text class="psub" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ subText }}</text>
       </div>
       <div class="pact" :style="{ backgroundColor: isLogin ? U.c.surfaceContainerHighest : U.c.primary }" @click="onLoginTap">
         <text class="pactt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: isLogin ? U.c.onSurfaceVariant : U.c.onPrimary }">{{ isLogin ? '已登录' : '去登录' }}</text>
+      </div>
+      <div class="pact" :style="{ marginLeft: '8px', backgroundColor: U.c.surfaceContainerHighest }" @click="goSettings">
+        <text class="pactt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">设置</text>
       </div>
     </div>
     <div class="tabs" :style="{ height: '38px' }">
@@ -19,7 +22,7 @@
         <text class="tabt" :lines="1" :style="tabTextStyle(t.id)">{{ t.label }}</text>
       </div>
     </div>
-    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll">
+    <scroller class="list" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll" :style="{ width: '896px', height: '126px' }">
       <div class="rows">
         <div v-if="items.length === 0" class="hint">
           <text class="hintt" :lines="2" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ emptyText }}</text>
@@ -30,7 +33,7 @@
           <div v-else class="rimgfc" :style="{ width: '80px', height: '46px', borderRadius: '6px', backgroundColor: v.kind === 'folder' ? U.c.primaryContainer : U.c.surfaceContainerHigh }">
             <text class="rimgfct" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onPrimaryContainer }">{{ v.kind === 'folder' ? v.fchar : '' }}</text>
           </div>
-          <div class="rmeta">
+          <div class="rmeta" :style="{ width: '770px' }">
             <RichText class="rtitle" :text="v.title" :size="U.f.body" :color="U.c.onSurface" :lines="1" :drop-emoji="false" />
             <text class="rsub" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.sub }}</text>
           </div>
@@ -187,6 +190,7 @@ export default {
       const bottom = (e && e.scrollBottom != null) ? Number(e.scrollBottom) : 0
       if (bottom > 0 && bottom < 60 && this.hasMore && !this.loading) this.loadMore()
     },
+    goSettings() { try { $falcon.navTo('settings', {}) } catch (e) {} },
     onAvatar() {
       if (this.isLogin) return
       try { $falcon.navTo('login', {}) } catch (e) {}
@@ -235,10 +239,10 @@ export default {
 .pav { width: 44px; height: 44px; justify-content: center; align-items: center; margin-right: 10px; }
 .pavimg { }
 .pavph { }
-.pinfo { flex: 1; flex-direction: column; justify-content: center; }
+.pinfo { flex-direction: column; justify-content: center; }
 .pname { }
 .psub { }
-.pact { width: 88px; height: 36px; justify-content: center; align-items: center; border-radius: 16px; }
+.pact { width: 76px; height: 36px; justify-content: center; align-items: center; border-radius: 16px; }
 .pactt { }
 .tabs { flex-direction: row; align-items: center; padding-left: 12px; }
 .tab { }
@@ -250,7 +254,7 @@ export default {
 .row { height: 56px; flex-direction: row; align-items: center; }
 .rimg { margin-right: 10px; }
 .rimgph { margin-right: 10px; }
-.rmeta { flex: 1; flex-direction: column; justify-content: center; }
+.rmeta { flex-direction: column; justify-content: center; }
 .rtitle { }
 .rsub { }
 .rimgfc { margin-right: 10px; justify-content: center; align-items: center; }
