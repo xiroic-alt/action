@@ -10,6 +10,9 @@
   <div class="rt" :style="rootStyle">
     <template v-for="(s, i) in segs">
       <EmojiImg v-if="s.t === 'emoji'" :key="'e' + i" :name="s.k" :size="size" :fallback="s.v"></EmojiImg>
+      <!-- 强制换行: 根容器是 flex(row+wrap), 文本里的 \n 不会生效,
+           必须插一个"整行宽 + 零高"的元素把后续内容挤到下一行. -->
+      <div v-else-if="s.t === 'br'" :key="'b' + i" class="rt-br"></div>
       <text v-else :key="'t' + i" class="rt-t" :lines="lines" :style="textStyle">{{ s.v }}</text>
     </template>
   </div>
@@ -39,7 +42,17 @@ export default {
       const out = []
       for (let i = 0; i < raw.length; i++) {
         const s = raw[i]
-        if (s.t === 'text') { out.push({ t: 'text', v: s.v }); continue }
+        if (s.t === 'text') {
+          // ★ 保留原文换行: 按 \n 切开, 段间插 br 段.
+          //   之前整段直接丢给一个 <text>, 而 flex(row+wrap) 布局不认 \n,
+          //   于是简介里原有的换行全部丢失 (用户反馈"简介没换行").
+          const parts = String(s.v).split('\n')
+          for (let k = 0; k < parts.length; k++) {
+            if (k > 0) out.push({ t: 'br' })
+            if (parts[k] !== '') out.push({ t: 'text', v: parts[k] })
+          }
+          continue
+        }
         if (s.t === 'bili') {
           // B 站表情代码: 没有联网图时退化成 "[名称]" 文字
           out.push({ t: 'text', v: '[' + s.v + ']' })
@@ -69,4 +82,5 @@ export default {
 .rt { flex-direction: row; flex-wrap: wrap; }
 .rt-t { }
 .rt-e { }
+.rt-br { width: 100%; height: 0px; }
 </style>

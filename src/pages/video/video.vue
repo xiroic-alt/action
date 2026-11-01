@@ -38,19 +38,19 @@
         </div>
 
         <!-- 联合投稿: 多人协作时列出协作者 (数据来自 videoDetail 的 staff) -->
-        <div v-if="staffList.length > 0" class="staffrow" :style="{ height: '26px' }">
-          <text class="stafflab" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">联合投稿</text>
+        <div v-if="staffList.length > 0" class="staffrow" :style="{ height: '30px' }">
+          <text class="stafflab" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">联合投稿</text>
           <div v-for="(s, i) in staffList" :key="'st' + i" class="staffcell">
-            <image v-if="s.face !== ''" class="staffimg" :src="s.face" resize="cover" :style="{ width: '22px', height: '22px', borderRadius: '11px' }"></image>
-            <div v-else class="staffimgph" :style="{ width: '22px', height: '22px', borderRadius: '11px', backgroundColor: U.c.surfaceContainerHighest }"></div>
-            <text class="staffnamet" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurface }">{{ s.name }}</text>
+            <image v-if="s.face !== ''" class="staffimg" :src="s.face" resize="cover" :style="{ width: '26px', height: '26px', borderRadius: '13px' }"></image>
+            <div v-else class="staffimgph" :style="{ width: '26px', height: '26px', borderRadius: '13px', backgroundColor: U.c.surfaceContainerHighest }"></div>
+            <text class="staffnamet" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">{{ s.name }}</text>
           </div>
         </div>
 
         <!-- 合集入口: 一个合集包含多个独立视频 (与同一 bvid 下的分P不同) -->
-        <div v-if="seasonInfo" class="seasonrow" :style="{ height: '32px' }" @click="toggleSeason">
-          <div class="seasonchip" :style="{ backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }">
-            <text class="seasont" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSecondaryContainer }">{{ '合集 · ' + seasonInfo.title + ' (' + seasonInfo.count + ')' }}</text>
+        <div v-if="seasonInfo" class="seasonrow" :style="{ height: '34px' }" @click="toggleSeason">
+          <div class="seasonchip" :style="{ height: '26px', backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }">
+            <text class="seasont" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSecondaryContainer }">{{ '合集 · ' + seasonInfo.title + ' (' + seasonInfo.count + ')' }}</text>
           </div>
         </div>
 
@@ -58,13 +58,13 @@
         <div v-if="seasonInfo && seasonOpen" class="seaslist">
           <div v-for="(ep, i) in seasonFlat" :key="ep.bvid + '_' + i" class="seasrow" :style="{ height: '44px' }" @click="openSeasonEp(ep)">
             <image v-if="ep.cover !== ''" class="seasimg" :src="ep.cover" resize="cover" :style="{ width: '56px', height: '34px', borderRadius: '4px' }"></image>
-            <text class="seastitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurface }">{{ ep.title }}</text>
+            <text class="seastitle" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">{{ ep.title }}</text>
           </div>
         </div>
 
         <!-- 分P 列表: 同一个 bvid 内的多个分P (数据来自 videoDetail 的 pages) -->
         <div v-if="pagesList.length > 1" class="partrow">
-          <text class="partlab" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '分P (' + pagesList.length + ')' }}</text>
+          <text class="partlab" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ '分P (' + pagesList.length + ')' }}</text>
           <div v-for="(p, i) in pagesList" :key="'p' + p.page" class="partchip" :style="partStyle(p)" @click="pickPart(p)">
             <text class="partt" :lines="1" :style="partTextStyle(p)">{{ 'P' + p.page }}</text>
           </div>
@@ -82,7 +82,7 @@
         <div v-if="descText !== ''" class="descHit">
           <!-- BV 号放在简介**上方**, 用主色底徽标做明显区分 (用户要求) -->
           <div class="bvchip" :style="{ backgroundColor: U.c.primaryContainer, borderRadius: U.rad.chip + 'px' }">
-            <text class="bvchipt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onPrimaryContainer }">{{ bvid }}</text>
+            <text class="bvchipt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimaryContainer }">{{ bvid }}</text>
           </div>
           <!-- ★ 展开后完全展开, 不再套内层 scroller:
                展开后完全铺开, 由**左栏自己的 scroller** 带动 (不再嵌套一层内部滚动).
@@ -190,7 +190,7 @@
               <div v-else class="relimgph" :style="{ width: '96px', height: '56px', borderRadius: '6px', backgroundColor: U.c.surfaceContainerHigh }"></div>
               <div class="relmeta">
                 <RichText class="reltitle" :text="v.title" :size="U.f.caption" :color="U.c.onSurface" :lines="2" :drop-emoji="false" />
-                <text class="relsub" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.author + '  ' + v.playText }}</text>
+                <text class="relsub" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ v.author + '  ' + v.playText }}</text>
               </div>
             </div>
           </div>
@@ -1184,10 +1184,10 @@ export default {
 .rtab { }
 .rtabt { }
 .relscroll { }
-.relrows { flex-direction: column; padding-left: 8px; padding-right: 8px; }
-.relhint { height: 80px; justify-content: center; align-items: center; }
+.relrows { width: 423px; flex-direction: column; padding-left: 8px; padding-right: 8px; }
+.relhint { width: 423px; height: 80px; justify-content: center; align-items: center; }
 .relhintt { text-align: center; }
-.relrow { height: 64px; flex-direction: row; align-items: center; }
+.relrow { width: 423px; height: 64px; flex-direction: row; align-items: center; }
 .relimg { margin-right: 10px; }
 .relimgph { margin-right: 10px; }
 .relmeta { width: 315px; flex-direction: column; justify-content: center; }
@@ -1199,11 +1199,11 @@ export default {
 .staffimg { margin-right: 4px; }
 .staffimgph { margin-right: 4px; }
 .staffnamet { }
-.seasonrow { justify-content: center; align-items: flex-start; }
+.seasonrow { width: 423px; height: 32px; flex-direction: row; align-items: center; }
 .seasonchip { height: 22px; padding-left: 10px; padding-right: 10px; justify-content: center; align-items: center; }
 .seasont { }
-.seaslist { flex-direction: column; width: 100%; }
-.seasrow { flex-direction: row; align-items: center; }
+.seaslist { width: 423px; flex-direction: column; }
+.seasrow { width: 423px; height: 44px; flex-direction: row; align-items: center; }
 .seasimg { margin-right: 8px; }
 .seastitle { flex: 1; }
 .partrow { flex-direction: row; align-items: center; flex-wrap: wrap; padding-top: 2px; padding-bottom: 2px; }
