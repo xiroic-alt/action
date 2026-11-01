@@ -47,20 +47,6 @@
           </div>
         </div>
 
-        <!-- 合集入口: 一个合集包含多个独立视频 (与同一 bvid 下的分P不同) -->
-        <div v-if="seasonInfo" class="seasonrow" :style="{ height: '34px' }" @click="toggleSeason">
-          <div class="seasonchip" :style="{ height: '26px', backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }">
-            <text class="seasont" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSecondaryContainer }">{{ '合集 · ' + seasonInfo.title + ' (' + seasonInfo.count + ')' }}</text>
-          </div>
-        </div>
-
-        <!-- 合集视频列表 (展开后) -->
-        <div v-if="seasonInfo && seasonOpen" class="seaslist">
-          <div v-for="(ep, i) in seasonFlat" :key="ep.bvid + '_' + i" class="seasrow" :style="{ height: '44px' }" @click="openSeasonEp(ep)">
-            <image v-if="ep.cover !== ''" class="seasimg" :src="ep.cover" resize="cover" :style="{ width: '56px', height: '34px', borderRadius: '4px' }"></image>
-            <text class="seastitle" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">{{ ep.title }}</text>
-          </div>
-        </div>
 
         <!-- 分P 列表: 同一个 bvid 内的多个分P (数据来自 videoDetail 的 pages) -->
         <div v-if="pagesList.length > 1" class="partrow">
@@ -182,6 +168,20 @@
         <scroller v-if="rTab === 'rel'" class="relscroll" scroll-direction="vertical" :show-scrollbar="true"
                   @scroll="onRelScroll" :style="{ width: '439px', height: '148px' }">
           <div class="relrows">
+            <!-- ★ 合集卡片: 放在相关视频列表最前面 (用户要求"把合集添加到相关视频的后面"
+                  —— 实际语义是"进入相关视频这块区域", 所以做成列表首项, 与相关视频同栏可达) -->
+            <div v-if="seasonInfo" class="relseason">
+              <div class="rshead" :style="{ backgroundColor: U.c.secondaryContainer, borderRadius: U.rad.chip + 'px' }" @click="toggleSeason">
+                <text class="rst" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSecondaryContainer }">{{ '合集 · ' + seasonInfo.title + ' (' + seasonInfo.count + ')' + (seasonOpen ? ' ▲' : ' ▼') }}</text>
+              </div>
+              <div v-if="seasonOpen" class="rslist">
+                <div v-for="(ep, i) in seasonFlat" :key="'se' + i" class="rsrow" @click="openSeasonEp(ep)">
+                  <image v-if="ep.cover !== ''" class="rsimg" :src="ep.cover" resize="cover" :style="{ width: '72px', height: '42px', borderRadius: '4px' }"></image>
+                  <div v-else class="rsimgph" :style="{ width: '72px', height: '42px', borderRadius: '4px', backgroundColor: U.c.surfaceContainerHigh }"></div>
+                  <text class="rstitle" :lines="2" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurface }">{{ ep.title }}</text>
+                </div>
+              </div>
+            </div>
             <div v-if="relItems.length === 0" class="relhint">
               <text class="relhintt" :lines="2" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ relStatus }}</text>
             </div>
@@ -1266,4 +1266,14 @@ export default {
 .partlab { margin-right: 8px; }
 .partchip { }
 .partt { }
+/* ---- 合集卡片 (在相关视频列表首项) ---- */
+/* ★ 可点击元素必须同时有 width 和 height, 否则命中区为 0 (本框架的坑) */
+.relseason { width: 423px; flex-direction: column; }
+.rshead { width: 423px; height: 28px; justify-content: center; align-items: center; margin-bottom: 6px; }
+.rst { }
+.rslist { width: 423px; flex-direction: column; }
+.rsrow { width: 423px; height: 48px; flex-direction: row; align-items: center; }
+.rsimg { margin-right: 8px; }
+.rsimgph { margin-right: 8px; }
+.rstitle { width: 335px; }
 </style>
