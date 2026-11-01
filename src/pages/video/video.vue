@@ -909,11 +909,11 @@ export default {
     },
     goPlay() {
       if (!this.bvid) { this.showTip('缺少视频号'); return }
-      try { $falcon.navTo('play', { bvid: this.bvid, title: this.titleText }) } catch (e) {}
+      this.goto('play', { bvid: this.bvid, title: this.titleText })
     },
     openBv(bvid) {
       if (!bvid) return
-      try { $falcon.navTo('video', { bvid: bvid }) } catch (e) {}
+      this.goto('video', { bvid: bvid })
     },
     toggleTitle() { this.titleOpen = !this.titleOpen },
     toggleDesc() { this.descOpen = !this.descOpen },
@@ -936,8 +936,9 @@ export default {
     },
     toggleSeason() { this.seasonOpen = !this.seasonOpen },
     openSeasonEp(ep) {
-      if (!ep || !ep.bvid) return
-      try { $falcon.navTo('video', { bvid: ep.bvid, title: ep.title }) } catch (e) {}
+      log('详情', '点合集剧集 bvid=' + (ep && ep.bvid))
+      if (!ep || !ep.bvid) { log('详情', '❌ 无 bvid, 不跳'); return }
+      this.goto('video', { bvid: ep.bvid, title: ep.title })
     },
     /** 切分P: 只换 cid 并重新起播, 不跳新页面 */
     pickPart(p) {
@@ -992,8 +993,9 @@ export default {
       // 相关视频是一次性返回的 (接口不分页), 所以只做到底提示, 不再拉取
     },
     openRelated(v) {
-      if (!v || !v.bvid) return
-      try { $falcon.navTo('video', { bvid: v.bvid, title: v.title }) } catch (e) {}
+      log('详情', '点相关视频 bvid=' + (v && v.bvid))
+      if (!v || !v.bvid) { log('详情', '❌ 无 bvid, 不跳'); return }
+      this.goto('video', { bvid: v.bvid, title: v.title })
     },
     onBarAction(a) {
       if (a === 'cover') { this.showCover(); return }
@@ -1013,9 +1015,30 @@ export default {
     },
 
     /** 进入 UP 主主页 */
+    /**
+     * 统一跳转 —— 之前的写法是 try { $falcon.navTo(...) } catch (e) {},
+     * **空 catch 把失败原因全吞了**, 表现就是"点了没反应".
+     * 这里把每一步结果都打出来.
+     */
+    goto(page, params) {
+      const hasFalcon = (typeof $falcon !== "undefined" && $falcon)
+      log("跳转", "请求 " + page + " | $falcon=" + (hasFalcon ? "有" : "❌无") + " | navTo=" + (hasFalcon && typeof $falcon.navTo === "function" ? "有" : "❌无") + " | $page=" + (this.$page ? "有" : "❌无"))
+      if (!hasFalcon) { log("跳转", "❌ $falcon 不存在, 无法跳转"); return }
+      if (typeof $falcon.navTo !== "function") { log("跳转", "❌ navTo 不是函数"); return }
+      try {
+        $falcon.navTo(page, params || {})
+        log("跳转", "✅ 已发起 " + page)
+      } catch (e) {
+        log("跳转", "❌ " + page + " 抛出: " + (e && e.message ? e.message : e))
+        // 退回: 用 $page 的跳转 (有些框架版本只在 page 上有)
+        try {
+          if (this.$page && typeof this.$page.navTo === "function") { this.$page.navTo(page, params || {}); log("跳转", "✅ 改用 $page.navTo") }
+        } catch (e2) { log("跳转", "❌ $page.navTo 也失败: " + (e2 && e2.message ? e2.message : e2)) }
+      }
+    },
     openMember() {
       if (!this.mid) { this.showTip('未取到 UP 主 mid'); return }
-      try { $falcon.navTo('member', { mid: this.mid, name: this.upName }) } catch (e) {}
+      this.goto('member', { mid: this.mid, name: this.upName })
     },
 
     openDetail() { this.detailOpen = true },
