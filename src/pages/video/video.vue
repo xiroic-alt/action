@@ -47,13 +47,18 @@
         <!-- ★ 简介永远全部展开, 不收起 (用户要求"不要自动收起, 全部展开").
            所以不再绑点击、不再限高, 高度由 RichText 自己撑开. -->
         <div v-if="descText !== ''" class="descHit">
+          <!-- BV 号放在简介**上方**, 用主色底徽标做明显区分 (用户要求) -->
+          <div class="bvchip" :style="{ backgroundColor: U.c.primaryContainer, borderRadius: U.rad.chip + 'px' }">
+            <text class="bvchipt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onPrimaryContainer }">{{ bvid }}</text>
+          </div>
           <!-- ★ 展开后完全展开, 不再套内层 scroller:
                展开后完全铺开, 由**左栏自己的 scroller** 带动 (不再嵌套一层内部滚动).
                :lines="0" = 不限行数. -->
           <RichText class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant"
                     :lines="0" :drop-emoji="false" />
-          <!-- BV 号 (用户要求写进简介区): 等宽小字, 点一下可复制不存在 -> 只作展示 -->
-          <text class="bvline" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ 'BV号 ' + bvid }}</text>
+          <!-- ★ 防遮挡垫块: 播放按钮是绝对定位常驻在左栏右下角的,
+               不留出这段空间, 它就会压住简介的最后几行 (用户反馈过两次). -->
+          <div class="descpad" :style="{ height: '52px' }"></div>
         </div>
 
       </scroller>
@@ -1028,4 +1033,7 @@ export default {
 .cbar { position: absolute; left: 521px; bottom: 0px; width: 439px; }
 .chevhit { justify-content: center; align-items: center; }
 .bvline { padding-top: 2px; }
+.bvchip { padding-left: 8px; padding-right: 8px; height: 20px; justify-content: center; align-items: center; margin-bottom: 4px; align-self: flex-start; }
+.bvchipt { }
+.descpad { width: 100%; }
 </style>

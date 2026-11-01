@@ -1119,4 +1119,26 @@ export async function subReplies(oid, root, pn, type) {
   const d = (body && body.data) || {}
   const list = (d.replies || []).map(mapReply)
   return { list: list, total: Number((d.page && d.page.count) || 0) }
+}/**
+ * 相关视频 (详情页"相关推荐").
+ * 出处 lib/http/api.dart: /x/web-interface/archive/related?bvid=
+ * 返回 20 条左右, 字段结构与 rcmd 流不同 (pic 是裸 URL, 需要过 F.thumb).
+ */
+export async function relatedVideos(bvid) {
+  const q = await signQuery({ bvid: bvid })
+  const body = await getJson(API + '/x/web-interface/archive/related?' + q, { noError: true })
+  const list = (body && body.data) || []
+  return (Array.isArray(list) ? list : []).map(function (v) {
+    return {
+      bvid: String(v.bvid || ''),
+      aid: Number(v.aid) || 0,
+      title: String(v.title || ''),
+      cover: F.thumb(v.pic || '', 320, 200),
+      author: String((v.owner && v.owner.name) || ''),
+      playText: F.playCount ? F.playCount((v.stat && v.stat.view) || 0) : '',
+      durationText: F.duration ? F.duration(v.duration) : ''
+    }
+  }).filter(function (v) { return v.bvid !== '' })
 }
+
+
