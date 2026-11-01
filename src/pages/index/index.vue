@@ -6,7 +6,7 @@
 
     <!-- ★ 单壳架构: 侧栏固定不动, 只换右侧内容 (用户要求"跟正常手机软件的侧边栏一样").
          nav 状态切换视图, 不做 navTo, 所以没有页面跳转也没有转场动画. -->
-    <ViewMine v-if="nav === 'mine'" :face="face"></ViewMine>
+    <ViewMine v-if="nav === 'mine'" @user="onUser"></ViewMine>
 
     <div v-show="nav === 'home'" class="main">
       <!-- 顶部 TabBar: 规格来自 PiliNara lib/pages/home/view.dart
@@ -146,6 +146,12 @@ export default {
     },
     onReselect(id) { if (id === 'home') this.load(true) },
     onMine() { this.nav = 'mine'; log('首页', '头像 -> 我的') },
+    /** 子视图广播上来的用户信息: 同步给侧栏头像 (用户要求两者一致) */
+    onUser(u) {
+      if (!u) return
+      this.face = u.face || ''
+      log('首页', '同步侧栏头像: ' + (this.face ? '有' : '空') + ' / ' + (u.uname || ''))
+    },
     onSearch() { try { $falcon.navTo('search', {}) } catch (e) {} },
 
     pickTab(t) {

@@ -26,7 +26,10 @@
         </div>
         <div v-for="(v, i) in items" :key="v.key" class="row" @click="openItem(v)">
           <image v-if="v.cover !== ''" class="rimg" :src="v.cover" resize="cover" :style="{ width: '80px', height: '46px', borderRadius: '6px' }"></image>
-          <div v-else class="rimgph" :style="{ width: '80px', height: '46px', borderRadius: '6px', backgroundColor: U.c.surfaceContainerHigh }"></div>
+          <!-- 收藏夹没有封面 (接口不给), 用首字占位而不是空灰块 -->
+          <div v-else class="rimgfc" :style="{ width: '80px', height: '46px', borderRadius: '6px', backgroundColor: v.kind === 'folder' ? U.c.primaryContainer : U.c.surfaceContainerHigh }">
+            <text class="rimgfct" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onPrimaryContainer }">{{ v.kind === 'folder' ? v.fchar : '' }}</text>
+          </div>
           <div class="rmeta">
             <RichText class="rtitle" :text="v.title" :size="U.f.body" :color="U.c.onSurface" :lines="1" :drop-emoji="false" />
             <text class="rsub" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ v.sub }}</text>
@@ -63,6 +66,8 @@ function mapVideo(v, i) {
 
 export default {
   name: 'view-mine',
+  // 把头像/昵称广播给外壳, 让侧栏的头像与"我的"页保持同步
+  emits: ['user'],
   components: { RichText },
   data() {
     return {
@@ -104,6 +109,8 @@ export default {
         this.uname = (me && me.uname) || ''
         this.face = (me && me.face) || ''
         log('视图我的', 'isLogin=' + this.isLogin + ' uname=' + this.uname + ' face=' + (this.face ? '有' : '空'))
+        // ★ 同步给外壳 (侧栏头像)
+        this.$emit('user', { face: this.face, uname: this.uname, isLogin: this.isLogin })
         await this.loadTab(gen)
       } catch (e) {
         log('视图我的', '异常: ' + (e && e.message ? e.message : e))
@@ -132,7 +139,9 @@ export default {
                 bvid: '',
                 title: (fo && fo.title) || '',
                 sub: ((fo && fo.count) || 0) + ' 个内容',
+                // list-all 接口**不返回 cover**, 所以用首字占位 (见模板的 fchar 分支)
                 cover: (fo && fo.cover) || '',
+                fchar: ((fo && fo.title) || '?').charAt(0),
                 kind: 'folder'
               }
             })
@@ -244,4 +253,6 @@ export default {
 .rmeta { flex: 1; flex-direction: column; justify-content: center; }
 .rtitle { }
 .rsub { }
+.rimgfc { margin-right: 10px; justify-content: center; align-items: center; }
+.rimgfct { }
 </style>

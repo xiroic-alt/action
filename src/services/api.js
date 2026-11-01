@@ -24,7 +24,10 @@ export async function nav() {
     isLogin: !!d.isLogin,
     uname: d.uname || '',
     mid: d.mid || 0,
-    face: F.normalizeUrl(d.face || ''),
+    // ★ 必须过 F.thumb: B 站头像 URL 是 .webp, 而设备 <image> 不支持 webp.
+    //   F.thumb 会拼上 @80w_80h_1c.jpg —— 后缀 .jpg 会让图床**转码成 jpg**,
+    //   这才是能显示的格式. (封面一直正常是因为它们本来就走了 F.thumb, 头像漏了.)
+    face: F.thumb(F.normalizeUrl(d.face || ''), 80, 80),
     level: (d.level_info && d.level_info.current_level) || 0,
     coin: Number(d.money) || 0,
     vip: (d.vip && d.vip.status === 1) ? '大会员' : ''
