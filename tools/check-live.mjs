@@ -263,6 +263,18 @@ ok(!/exec\('hal-audio -b/.test(audioSrc), 'audio: 不依赖 hal-audio -b (真机
 ok(/setAudioDeviceType/.test(player), 'player: 音频输出切换只走元素 setAudioDeviceType (唯一有效路径)')
 ok(/killall -9 SoundPlayer/.test(audioSrc), 'audio: 释放音频焦点 (系统播放器同款做法)')
 ok(/releaseAudioFocus\(\)/.test(player), 'player: 起播时释放一次音频焦点')
+// ---- 熄屏/回到应用的恢复 (用户反馈 2026-11-01: 手动熄屏再亮屏, 视频整块消失, 要重启播放器) ----
+ok(/hideWasPlaying/.test(player) && /hidePosMs/.test(player),
+  'player: onHide 记下"在播 + 位置" (原来完全没记, 亮屏后无从恢复)')
+ok(/页面隐藏 \(熄屏\/切走\)/.test(player), 'player: onHide 有日志 (熄屏链路不再不可观测)')
+ok(/restoreAfterShow: function/.test(player) && /rebuildStream: function/.test(player),
+  'player: 亮屏恢复两级手段 (先 play, 2.5s 没起来再重建流)')
+ok(/this\.liveReconnect\('亮屏'\)/.test(player), 'player: 亮屏时直播走重连')
+ok(/this\.playStream\(url, gen\)/.test(player), 'player: 重建流复用已取到的 url (不走网络取流)')
+// 顺序: 恢复用的 seek 必须晚于 applyOnce 的断点 seek, 否则会被数据库断点覆盖回旧位置
+ok(player.indexOf('this.applyOnce()') > 0 &&
+   player.indexOf('this.applyOnce()') < player.indexOf('this.resumeToMs >= 0'),
+  'player: resumeToMs 的 seek 在 applyOnce 之后 (否则被断点 seek 覆盖)')
 // ★★ 血泪约束 (真机炸过两次: 0.9.64 / 0.9.71): native 的 setAudioDeviceType 内部是
 //   unInstallAlsasink()/installAlsasink(); 管线未建时调用 -> "Could not open audio device
 //   for playback", 而且该错误是**全局**的, 之后连扬声器播放也一起挂.

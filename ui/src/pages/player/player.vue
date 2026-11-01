@@ -263,6 +263,11 @@ export default {
       resumeOn: true,        // resumePlay: 断点续播
       wantResumeSec: 0,      // 本次要续播到的秒数 (来自 progress.json)
       appliedOnce: false,    // 倍速/跳片头只在本次起播后应用一次
+      // ---- 熄屏/回到应用后的恢复 (用户反馈 2026-11-01: 熄屏再亮屏视频整块消失) ----
+      hideWasPlaying: false, // 熄屏/切走那一刻是否在播 (决定亮屏后要不要自己接回去)
+      hidePosMs: 0,          // 熄屏瞬间的位置
+      resumeToMs: -1,        // >=0 = 下一次 PLAYING 后补一次 seekto 到这里 (恢复用)
+      playEvtN: 0,           // 收到 PLAYING 的次数 (判断"这次 play() 到底起来没有")
       fallbackTried: false,  // autoFallback: 只在首个错误时换一次线
       srcIndex: 0,           // 当前是第几个候选源 (取流口链)
       pollTimer: null,
@@ -335,6 +340,12 @@ export default {
       }
       if (this.opened && !this.playing) this.showBar()
       this.startPolling()
+      // 熄屏/切走前在播 -> 自己把视频接回去 (原来这里什么都不做, 用户必须重启播放器)
+      if (this.hideWasPlaying) {
+        this.hideWasPlaying = false
+        if (this.isLive) { this.wantPlay = true; this.liveReconnect('亮屏') }
+        else this.restoreAfterShow()
+      }
     },
 
     onNewOptions: function (options) {
@@ -356,6 +367,11 @@ export default {
       this.stopKeepAwake()
       screenon.screenOnStop()
       this.cancelHideBar()
+      // 记下"熄屏/切走时到底在不在播" —— 亮屏后据此决定要不要自己接回去.
+      // 直播走重连 (renderer 面同样会销毁), 点播走 restoreAfterShow().
+      this.hideWasPlaying = !!(this.opened && this.playing)
+      this.hidePosMs = this.curMs || 0
+      try { log('播放器', '页面隐藏 (熄屏/切走): 在播=' + this.hideWasPlaying + ' 位置=' + Math.round(this.hidePosMs / 1000) + 's') } catch (eH) {}
       this.wantPlay = false
       if (this.opened && this.playing) {
         this.elem('pause')
@@ -397,6 +413,41 @@ export default {
         this.elem('stop')
         this.opened = false
       }
+    },
+
+    // ---------------- 熄屏/回到应用后的恢复 ----------------
+    // 背景 (用户反馈 2026-11-01): "手动熄屏后再亮屏, 视频直接消失不见, 要重启播放器才出来".
+    // 原因: 熄屏时 onHide 会 pause; 而 native 的渲染面在屏幕关掉时被销毁 —— 单纯 play()/resume()
+    // 不一定能把面建回来. 所以做两级恢复:
+    //   ① 先 play() 试快的; 2.5s 内没等到新的 PLAYING 事件就说明面没回来
+    //   ② 重建整条流 (stopStream + 同一个 url 再 playStream), 再 PLAYING 后 seek 回熄屏位置
+    // 位置回填靠 resumeToMs + onEvtState 的 s===4 分支 (必须晚于 applyOnce 的断点 seek).
+    restoreAfterShow: function () {
+      var self = this
+      if (!this.opened || !this.src) return
+      this.resumeToMs = this.hidePosMs || 0
+      this.wantPlay = true
+      this.startPolling()
+      this.startKeepAwake()
+      var genAt = this.generation
+      var nAt = this.playEvtN
+      try { log('播放器', '亮屏恢复: 续播 @' + Math.round(this.resumeToMs / 1000) + 's gen=' + genAt) } catch (e) {}
+      this.elem('play')
+      setTimer(this, 2500, function () {
+        if (genAt !== self.generation || !self.$page) return
+        if (self.playEvtN !== nAt) return          // 拿到了新的 PLAYING -> 恢复成功
+        try { log('播放器', '亮屏恢复: play() 没起来 -> 重建流') } catch (e1) {}
+        self.rebuildStream()
+      })
+    },
+
+    // 重建整条流 (复用已取到的 url, 不再走网络取流)
+    rebuildStream: function () {
+      var url = this.src
+      if (!url) return
+      var gen = ++this.generation
+      this.stopStream()          // 注意: 它会置 wantPlay=false, playStream 里会重新置 true
+      this.playStream(url, gen)
     },
 
     // ---------------- 打开与换源 ----------------
@@ -695,8 +746,22 @@ export default {
       if (s === 4) {
         this.playing = true
         this.started = true
+        this.playEvtN++
         this.disarmLiveWatchdog()
         this.applyOnce()
+        // 亮屏/重建流后的"回到原位": 必须放在 applyOnce 之后 —— 它会先按 wantResumeSec
+        // (数据库里的断点) seek, 而熄屏那一刻的位置更准, 由这里覆盖掉.
+        if (this.resumeToMs >= 0) {
+          var back = Math.round(this.resumeToMs / 1000)
+          this.resumeToMs = -1
+          if (back > 0) {
+            this.elem('seekto', back)
+            this.curMs = back * 1000
+            this.posMs = back * 1000
+            this.posAt = Date.now()
+            try { log('播放器', '熄屏恢复: 回到 ' + back + 's') } catch (eR) {}
+          }
+        }
         if (this.statusText !== '' && this.statusText.indexOf('播放错误') !== 0) this.statusText = ''
         if (this.isLive && !this.liveStartedAt) { this.liveStartedAt = Date.now(); this.reconnectCount = 0 }
         if (!this.playLogged) {
