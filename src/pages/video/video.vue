@@ -8,14 +8,9 @@
          左栏固定 520px: UP + 标题 + 数据 + 操作 + 简介
          右栏自适应:     评论 (排序 + 列表)
          960x266 是超宽屏, 上下堆叠会让评论区只剩一条; 分栏后两栏都能吃满 222px -->
-    <!-- ★ 整页一体滚动 (用户: "和 APP 端一样, 整个页面往上滑").
-         做法: 外层一个大 scroller 包住左右两栏, 里面两层 scroller 降级成普通 div,
-         于是任何位置的滑动都移动整页, 而不是只动其中一栏. -->
-    <scroller class="whole" scroll-direction="vertical" :show-scrollbar="true"
-              :style="{ width: '960px', height: S.content + 'px' }" @scroll="onCmtScroll">
-    <div class="content" :style="{ flexDirection: 'row' }">
+    <div class="content" :style="{ height: S.content + 'px', flexDirection: 'row' }">
       <!-- 左栏: 不再自己滚动, 高度由内容撑开 -->
-      <div class="pane" :style="{ width: '520px' }">
+      <scroller class="pane" scroll-direction="vertical" :show-scrollbar="true" :style="{ width: '520px', height: S.content + 'px' }">
         <div class="uprow" :style="{ height: '44px' }" @click="openMember">
           <div class="avwrap" :style="{ width: '44px', height: '44px' }">
             <image v-if="faceUrl !== ''" class="avatar" :src="faceUrl"
@@ -55,9 +50,8 @@
 
         <div v-if="descText !== ''" class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
           <!-- ★ 展开后完全展开, 不再套内层 scroller:
-               整页已经是一体滚动 (外层 <scroller class="whole">),
-               简介自己再滚一层只会把可滑范围锁死在几十像素里 (用户反馈"滑动范围太小").
-               :lines="0" = 不限行数, 全文交给整页滚动. -->
+               展开后完全铺开, 由**左栏自己的 scroller** 带动 (不再嵌套一层内部滚动).
+               :lines="0" = 不限行数. -->
           <RichText class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant"
                     :lines="descOpen ? 0 : 3" :drop-emoji="false" />
         </div>
@@ -68,7 +62,7 @@
             <text class="playt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
           </div>
         </div>
-      </div>
+      </scroller>
 
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
@@ -82,7 +76,7 @@
             </div>
           </div>
         </div>
-        <div class="clistwrap" :style="{ width: '347px' }">
+        <scroller class="cscroll" scroll-direction="vertical" :show-scrollbar="true" @scroll="onCmtScroll" :style="{ width: '347px', height: '178px' }">
           <div class="clist">
             <div v-if="comments.length === 0" class="chint">
               <text class="chintt" :style="U.t.weak">{{ cmtStatus !== '' ? cmtStatus : (loadingCmt ? '加载中…' : '暂无评论') }}</text>
@@ -135,7 +129,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </scroller>
         </div>
 
       </div>
@@ -177,7 +171,6 @@
         </div>
       </div>
     </div>
-    </scroller>
 
         <!-- 常驻输入条: 一直在底部, 点任意处唤起系统输入法发主楼评论.
              笔上没有内嵌可编辑文本组件, 只能"点击 -> 系统输入法"这条路.
