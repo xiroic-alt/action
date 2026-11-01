@@ -82,7 +82,7 @@ import { getVideoDetail, getPlayUrl, parseMessage, getLiveRoomPlayUrl } from '..
 import { bilinet } from '../../services/native.js'
 import { getCfg } from '../../services/config.js'
 import { getProgress, setProgress, flushProgress } from '../../services/progress.js'
-import { btMac, routeBt, routeSpeaker, releaseAudioFocus } from '../../services/audio.js'
+import { btMac, releaseAudioFocus } from '../../services/audio.js'
 import { afterPaint } from '../../base-page.js'
 import { log } from '../../services/log.js'
 
@@ -586,9 +586,10 @@ export default {
               // (PenMusic「关键设计 10」: 蓝牙连上后固件会关掉 rk817 那条通路).
               if (self.audioWasBt) {
                 self.audioWasBt = false
+                // 回扬声器靠元素 API (type=0). 曾经这里还调 hal-audio -b "" 想清系统层绑定,
+                // 实测那是 no-op (见 services/audio.js 头部订正), 已去掉.
                 self.setAudioOut(AUDIO_TYPE_SPEAKER, '')
-                routeSpeaker()
-                try { log('播放器', '音频输出: 蓝牙已断 -> 已清掉系统层绑定, 回扬声器') } catch (e1) {}
+                try { log('播放器', '音频输出: 蓝牙已断 -> 切回扬声器') } catch (e1) {}
                 return
               }
               self.audioRoute = 'speaker(默认)'
@@ -614,9 +615,7 @@ export default {
             self.audioWasBt = true
             self.setAudioOut(AUDIO_TYPE_BLUETOOTH, dev)
             try { log('播放器', '蓝牙音频 ' + (prof ? 'SCO低延迟' : 'A2DP音质优先') + ' · 音画补偿 ' + comp + 'ms(DELAY=' + (comp * 1000) + 'us)') } catch (e3) {}
-            // 系统层同步一次路由: 有些固件上元素 API 只改自己的 sink, 系统层仍认为走扬声器
-            // (PiliPRO 在同设备上就是走 hal-audio -b 的; 这里两条都发, 互相兜底)
-            routeBt(mac)
+            // (原来这里还发一条 hal-audio -b <MAC> 当"系统层兜底", 实测 no-op, 已删)
           }).catch(function () {})
       } catch (e2) {}
     },
@@ -624,12 +623,12 @@ export default {
     // 让整条管线报 "Could not open audio device for playback", 所以串首必须是 17 位 BD 地址
     // (后面可以跟 ,PROFILE=sco / ,DELAY=<us> 这类 bluealsa 参数, 已真机验证可解析).
     setAudioOut: function (type, mac) {
-      // 元素 API 不可用(某些固件版本没有这个方法) -> 落到系统层 hal-audio (PiliPRO 的做法)
+      // 元素 API 不可用 (某些固件版本没有这个方法): 本机**没有**可用的系统层替代 ——
+      // hal-audio -b 实测是 no-op, 所以如实记日志, 不假装切过了.
       var v = this.$refs.vv
       if (!v || typeof v.setAudioDeviceType !== 'function') {
-        try { log('播放器', '元素无 setAudioDeviceType -> 改用系统层路由') } catch (e0) {}
-        if (type === AUDIO_TYPE_BLUETOOTH) routeBt(String(mac).split(',')[0])
-        else routeSpeaker()
+        try { log('播放器', '元素无 setAudioDeviceType, 本固件无法切音频输出 (保持默认)') } catch (e0) {}
+        this.audioRoute = 'unavailable(无 setAudioDeviceType)'
         return undefined
       }
       var r = this.elem('setAudioDeviceType', type, mac)

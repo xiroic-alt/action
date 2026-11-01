@@ -43,16 +43,34 @@ PenMusic 文档「关键设计 10」的实测结论: **蓝牙连上之后, 固�
 系统级的处理工具是 `hal-audio` (本机 `/bin/hal-audio` 存在, 已核对 `--help`):
 
 ```
-hal-audio -l            列出声音设备 / 数字音频设备
-hal-audio -b <MAC>      音频走蓝牙 (a2dp dev mac addr)
-hal-audio -b ""         清掉绑定 (回扬声器)
+hal-audio -l            列出声音设备 / 数字音频设备        <- 能用, 留作诊断
 hal-audio -g/-s         音量读 / 写
+hal-audio -b <MAC>      a2dp dev mac addr                  <- ★ 见下面的证伪
 ```
 
-[同设备项目] PiliPRO 的 `services/audio.js` 用的就是这条路子, 并注明"这是系统其它播放器
-(网易云) 的做法". 我们在应用侧把它作为**兜底与恢复手段**:
-元素 API 可用时仍走 `setAudioDeviceType`, 元素没有这个方法 (或切失败) 时落到 `hal-audio -b`;
-从蓝牙回到扬声器时额外清一次绑定.
+### ★ 订正: `hal-audio -b` **不是**系统层路由接口 [实测, 2026-11-01 证伪]
+
+PiliPRO 的 `services/audio.js` 写着 `hal-audio -b <MAC>` 是"系统层路由", 并推测
+"这是系统其它播放器 (网易云) 的做法". 我们照着写进代码后做了核对, **这条不成立**:
+
+```
+# binary 里 getopt 串是 hlD:t:r:c:b:gs:m -> -b: 确实要参数; 帮助也写 "-b, --bluealsa=# a2dp dev mac addr"
+# 但它的用法行是:  Usage: hal-audio [OPTION]... [FILE/Value]...   <- 它是个「喂文件播放」的工具
+
+hal-audio -b 41:42:7B:07:23:A7            -> file:(null) + usage, 什么都没做
+hal-audio --bluealsa=41:42:7B:07:23:A7    -> 同上
+hal-audio -b41:42:7B:07:23:A7             -> 同上
+hal-audio -b 41:42:7B:07:23:A7 <file>     -> 能喂文件播放, 但输出里**没有** binary 里那条
+                                             "A2DP dev = %s, mac=%s." -> 是否真送到蓝牙无证据
+```
+
+**结论**: 不带 FILE 调用 `hal-audio -b` 是彻底的 no-op, 不能当"设置路由"用.
+`hal-audio -b ""` 同理.**蓝牙/扬声器的切换只认播放器元素的 `setAudioDeviceType`**
+(见本文第 1 节: type=4 + 设备串). 应用侧那两个 `routeBt()/routeSpeaker()` 已删除,
+元素没有 `setAudioDeviceType` 的固件上如实记"本固件无法切音频输出", 不假装切过了.
+
+> 这条订正也应当回填给 PiliPRO —— 它那边仍在使用这个假设.
+> 本文最初就是照着它写的, 属于"抄了未核实的结论", 记在这里以免再犯.
 
 ---
 

@@ -259,8 +259,8 @@ ok(/isFinite\(comp\)\) comp = 200/.test(player), 'player: 设置缺省时兜底 
 ok(/export const SCAN_BT_CMD/.test(audioSrc) && /bilinet\.execAsync/.test(audioSrc),
   'audio: 探测走 execAsync + 命令常量 (同步 exec 会冻死应用)')
 // 系统级路径 (来自同设备上 PenMusic 文档 / PiliPRO audio.js 的实测结论)
-ok(/hal-audio -b /.test(audioSrc), 'audio: 有系统层 hal-audio -b <MAC> 路由 (元素无此 API 时兜底)')
-ok(/hal-audio -b ""/.test(audioSrc), 'audio: 回扬声器时清 bluealsa 绑定 (防"蓝牙断开后扬声器一直哑")')
+ok(!/exec\('hal-audio -b/.test(audioSrc), 'audio: 不依赖 hal-audio -b (真机证伪为 no-op)')
+ok(/setAudioDeviceType/.test(player), 'player: 音频输出切换只走元素 setAudioDeviceType (唯一有效路径)')
 ok(/killall -9 SoundPlayer/.test(audioSrc), 'audio: 释放音频焦点 (系统播放器同款做法)')
 ok(/releaseAudioFocus\(\)/.test(player), 'player: 起播时释放一次音频焦点')
 // ★★ 血泪约束 (真机炸过两次: 0.9.64 / 0.9.71): native 的 setAudioDeviceType 内部是
