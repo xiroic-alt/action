@@ -451,6 +451,7 @@ export default {
     // 框架只转发这两个生命周期
     onShow() {
       this.U = ui()
+      log('详情', 'onShow, $page.options.bvid=' + (((this.$page && this.$page.options) || {}).bvid || '(空)'))
       this.readOptions()
     },
     /**

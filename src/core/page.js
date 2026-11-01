@@ -33,11 +33,22 @@ export class BasePage extends $falcon.Page {
     try { if (p && typeof p.onLoad === 'function') p.onLoad.call(this, options) } catch (e) {}
   }
 
-  /** 页面被再次拉起 (navTo 到已存在的页面) 时的新参数 */
+  /**
+   * 页面被再次拉起 (navTo 到已存在的页面) 时的新参数.
+   *
+   * ★ 真机实证: 从详情页 navTo 到 'video' (同一个页面) 时, 框架**不压新页**,
+   *   而是复用当前页并回调 onNewOptions —— 所以 $falcon.navTo 不抛错、日志显示
+   *   "✅ 已发起", 但页面纹丝不动. 这就是"相关视频/合集点了没反应"的根因.
+   *
+   * ★ 但组件层只认 onShow (框架不把 onNewOptions 转发给组件),
+   *   所以这里把新参数落地后**主动触发一次 onShow**,
+   *   页面的 readOptions() 就能通过 paramKey 变化发现新参数并重新加载.
+   */
   onNewOptions(options) {
     this.options = options || {}
     const p = Object.getPrototypeOf(BasePage.prototype)
     try { if (p && typeof p.onNewOptions === 'function') p.onNewOptions.call(this, options) } catch (e) {}
+    try { if (typeof this.onShow === 'function') this.onShow() } catch (e) {}
   }
 
   /** 登记一次性定时器 (自动释放) */
