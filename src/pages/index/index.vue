@@ -96,9 +96,11 @@ export default {
     },
     onPageUnload() { this.genSeq++ },
 
+    // ★ 侧栏组件现在自己负责跳转 (见 nav-rail.vue 的 go()),
+    //   这里只做"留在本页时要干的事", 不再重复 navTo.
     onNav(id) {
-      if (id === 'mine') this.onMine()
-      else if (id === 'dyn') log('首页', '动态页下一批接入')
+      if (id === 'home') return
+      log('首页', '侧栏切到 ' + id + ' (跳转由 nav-rail 负责)')
     },
     onReselect(id) { if (id === 'home') this.load(true) },
     onMine() { try { $falcon.navTo('mine', {}) } catch (e) {} },

@@ -81,9 +81,33 @@ export default {
       if (it.id === 'dyn') return on ? m.dynOn : m.dyn
       return on ? m.mineOn : m.mine
     },
+    /**
+     * ★ 侧栏自己负责跳转, 不再依赖各页面各写一份 onNav.
+     *
+     * 为什么: 之前每个页面都嵌 NavRail, 但各自实现 onNav —— 首页的"我的"会 navTo('mine'),
+     * 而"我的"页里的"首页"却什么都不做, 于是"另一个页面的侧栏和主页没有关联".
+     * 现在把跳转逻辑收进组件, 任何页面嵌它都得到同一套行为.
+     */
     pick(it) {
       if (it.id === this.current) { this.$emit('reselect', it.id); return }
+      this.go(it.id)
       this.$emit('select', it.id)
+    },
+    /** 统一跳转: 三个一级页都从当前页 finish 后再 navTo, 避免页面栈越堆越深 */
+    go(id) {
+      const target = id === 'home' ? 'index' : (id === 'dyn' ? 'dynamics' : 'mine')
+      // 已经在目标页就不重复跳
+      if (this.current === id) return
+      try {
+        // 先关掉当前页 (首页 index 不能关, 它没有上一页)
+        const cur = this.current
+        if (cur !== 'home') {
+          try { this.$page.finish() } catch (e) {}
+        }
+        $falcon.navTo(target, {})
+      } catch (e) {
+        try { $falcon.navTo(target, {}) } catch (e2) {}
+      }
     },
     destStyle(it) {
       // 未选中保持透明 (Material NavigationRail 原貌: 只有选中项有 indicator)

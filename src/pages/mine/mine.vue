@@ -167,6 +167,7 @@ export default {
         this.isLogin = !!(me && me.isLogin)
         this.uname = (me && me.uname) || ''
         this.face = (me && me.face) || ''
+        log('我的', '头像 URL: ' + (this.face === '' ? '(空)' : this.face.slice(0, 60)))
         log('我的', '状态已写入 isLogin=' + this.isLogin + ' uname=' + this.uname)
         if (!this.isLogin) { this.items = []; return }
         await this.loadTab(gen)
@@ -193,9 +194,11 @@ export default {
             this.hasMore = !!(fr && fr.hasMore)
           } else {
             log('我的', '取收藏夹列表')
-            const list = await favFoldersAll()
+            const fr2 = await favFoldersAll()
             if (gen !== this.genSeq) return
-            const listArr = arr(list)
+            // ★ favFoldersAll 返回的是 { count, list } 对象, 不是数组!
+            //   (之前直接 Array.isArray 判定 -> 恒 false -> 列表永远 0 条)
+            const listArr = arr(fr2 && fr2.list)
             this.folders = listArr
             this.items = listArr.map(function (fo) {
               return { id: fo && fo.id, bvid: '', title: (fo && fo.title) || '', sub: ((fo && fo.count) || 0) + ' 个内容', cover: (fo && fo.cover) || '', kind: 'folder' }
@@ -250,10 +253,8 @@ export default {
     },
     goSettings() { try { $falcon.navTo('settings', {}) } catch (e) {} },
     onSearch() { try { $falcon.navTo('search', {}) } catch (e) {} },
-    onNav(id) {
-      if (id === 'home') { try { $falcon.navTo('index', {}) } catch (e) {} }
-      else if (id === 'dyn') { try { $falcon.navTo('dynamics', {}) } catch (e) {} }
-    },
+    // ★ 跳转由 nav-rail 负责, 这里不再重复 navTo
+    onNav(id) { log('我的', '侧栏切到 ' + id) },
     goBack() { try { this.$page.finish() } catch (e) { try { $falcon.navTo('index', {}) } catch (e2) {} } },
     noop() {},
     openItem(v) {
