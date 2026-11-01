@@ -13,10 +13,14 @@
         <text class="pname" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">{{ nameText }}</text>
         <text class="psub" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ subText }}</text>
       </div>
-      <div class="pact" :style="{ backgroundColor: isLogin ? U.c.surfaceContainerHighest : U.c.primary }" @click="onLoginTap">
-        <text class="pactt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: isLogin ? U.c.onSurfaceVariant : U.c.onPrimary }">{{ isLogin ? '已登录' : '去登录' }}</text>
+      <!-- 登录 / 退出 / 设置: 三个明确按钮 (用户要求"添加退出和登录按钮") -->
+      <div v-if="!isLogin" class="pact actp" @click="goLogin">
+        <text class="pactt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimary }">登录</text>
       </div>
-      <div class="pact" :style="{ marginLeft: '8px', backgroundColor: U.c.surfaceContainerHighest }" @click="goSettings">
+      <div v-else class="pact actn" @click="onLogout">
+        <text class="pactt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">退出</text>
+      </div>
+      <div class="pact actn ml8" @click="goSettings">
         <text class="pactt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">设置</text>
       </div>
     </div>
@@ -52,6 +56,7 @@ import { ui } from '../design/ui.js'
 import { SCREEN } from '../design/tokens.js'
 import { log } from '../core/log.js'
 import { nav, favFoldersAll, favResources, historyCursor, toViewList } from '../services/api.js'
+import { clearLogin } from '../core/auth.js'
 
 const TABS = [
   { id: 'fav', label: '收藏' },
@@ -66,7 +71,8 @@ function mapVideo(v, i) {
     bvid: String((v && v.bvid) || ''),
     title: String((v && v.title) || ''),
     sub: String((v && v.author) || '') + ((v && v.progressText) ? ('  ' + v.progressText) : ''),
-    cover: String((v && v.cover) || ''),
+    // 接口字段名是 pic (不是 cover), 且已过 F.thumb 转 jpg
+    cover: String((v && (v.pic || v.cover)) || ''),
     kind: 'video'
   }
 }
@@ -195,6 +201,29 @@ export default {
       const bottom = (e && e.scrollBottom != null) ? Number(e.scrollBottom) : 0
       if (bottom > 0 && bottom < 60 && this.hasMore && !this.loading) this.loadMore()
     },
+    goLogin() { try { $falcon.navTo('login', {}) } catch (e) {} },
+    async onLogout() {
+      log('视图我的', '退出登录')
+      try {
+        await clearLogin()
+        this.isLogin = false
+        this.uname = ""
+        this.face = ""
+        this.items = []
+        this.folderId = 0
+        this.folderTitle = ""
+        this.$emit('user', { face: '', uname: '', isLogin: false })
+        this.showTip('已退出登录')
+      } catch (e) {
+        log('视图我的', '退出失败: ' + (e && e.message ? e.message : e))
+      }
+    },
+    showTip(s) {
+      const self = this
+      this.status = String(s || '')
+      if (this._stT) { try { clearTimeout(this._stT) } catch (e) {} }
+      this._stT = setTimeout(function () { self.status = '' }, 2000)
+    },
     goSettings() { try { $falcon.navTo('settings', {}) } catch (e) {} },
     onAvatar() {
       if (this.isLogin) return
@@ -264,4 +293,7 @@ export default {
 .rsub { }
 .rimgfc { margin-right: 10px; justify-content: center; align-items: center; }
 .rimgfct { }
+.actp { background-color: #FB7299; }
+.actn { background-color: transparent; }
+.ml8 { margin-left: 8px; }
 </style>
