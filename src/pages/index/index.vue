@@ -4,7 +4,11 @@
     <NavRail :current="nav" :face="face" @select="onNav" @reselect="onReselect"
              @search="onSearch" @avatar="onMine"></NavRail>
 
-    <div class="main">
+    <!-- ★ 单壳架构: 侧栏固定不动, 只换右侧内容 (用户要求"跟正常手机软件的侧边栏一样").
+         nav 状态切换视图, 不做 navTo, 所以没有页面跳转也没有转场动画. -->
+    <ViewMine v-if="nav === 'mine'" :face="face"></ViewMine>
+
+    <div v-show="nav === 'home'" class="main">
       <!-- 顶部 TabBar: 规格来自 PiliNara lib/pages/home/view.dart
            高度 42 / 上间距 4 / 无分隔线 / 居中 / splash 圆角 10 -->
       <div class="tabbar" :style="{ backgroundColor: U.c.surface }">
@@ -15,10 +19,9 @@
       </div>
 
       <scroller class="body" scroll-direction="vertical" :show-scrollbar="true" @scroll="onScroll">
-        <div v-if="loading && items.length === 0 && status === ''" class="hint">
-          <text class="hintt" :style="U.t.weak">加载中…</text>
-        </div>
-        <div v-else-if="status !== '' && items.length === 0" class="hint">
+        <!-- 用户要求: 不要加载动画, 只做简单切换.
+             所以列表为空时不再显示"加载中…"占位, 只有真出错才提示一句. -->
+        <div v-if="items.length === 0 && status !== ''" class="hint">
           <text class="hintt" :style="U.t.weak">{{ status }}</text>
         </div>
         <div v-else class="grid">
@@ -29,10 +32,17 @@
         </div>
         <div v-if="items.length > 0" class="foot">
           <div class="more" :style="U.action" @click="loadMore">
-            <text class="moret" :style="U.t.body">{{ loading ? '加载中…' : '加载更多' }}</text>
+            <text class="moret" :style="U.t.body">{{ loading ? '加载更多' : '加载更多' }}</text>
           </div>
         </div>
       </scroller>
+    </div>
+
+    <!-- 动态: 视图待补, 先给明确占位 (不留空白页) -->
+    <div v-if="nav === 'dyn'" class="main">
+      <div class="hint">
+        <text class="hintt" :style="U.t.weak">动态页开发中</text>
+      </div>
     </div>
   </div>
 </template>
@@ -41,6 +51,7 @@
 // 首页 —— PiliNara 结构: NavigationRail(侧栏) + 页内 TabBar + 卡片网格
 // 布局依据见 docs/design-spec.md (逐条标注了上游出处)
 import NavRail from '../../components/nav-rail.vue'
+import ViewMine from '../../components/view-mine.vue'
 import VideoCard from '../../components/video-card.vue'
 import { ui } from '../../design/ui.js'
 import { SCREEN, SPEC } from '../../design/tokens.js'
@@ -55,7 +66,7 @@ const CONTENT_W = SCREEN.width - SCREEN.navRail - SPEC.safeSpace
 const COL = 4
 
 export default {
-  components: { NavRail, VideoCard },
+  components: { NavRail, VideoCard, ViewMine },
   name: 'index',
   data() {
     return {
@@ -96,14 +107,15 @@ export default {
     },
     onPageUnload() { this.genSeq++ },
 
-    // ★ 侧栏组件现在自己负责跳转 (见 nav-rail.vue 的 go()),
-    //   这里只做"留在本页时要干的事", 不再重复 navTo.
+    // ★ 单壳架构: 侧栏点击只切 nav 状态, 不 navTo.
+    //   侧栏永远不动, 右侧内容按 nav 切换 —— 这就是"正常手机软件的侧边栏"行为.
     onNav(id) {
-      if (id === 'home') return
-      log('首页', '侧栏切到 ' + id + ' (跳转由 nav-rail 负责)')
+      log('首页', '侧栏切到 ' + id)
+      this.nav = id
+      if (id === 'home' && this.items.length === 0) this.load(true)
     },
     onReselect(id) { if (id === 'home') this.load(true) },
-    onMine() { try { $falcon.navTo('mine', {}) } catch (e) {} },
+    onMine() { this.nav = 'mine'; log('首页', '头像 -> 我的') },
     onSearch() { try { $falcon.navTo('search', {}) } catch (e) {} },
 
     pickTab(t) {

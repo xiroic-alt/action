@@ -90,7 +90,6 @@ export default {
      */
     pick(it) {
       if (it.id === this.current) { this.$emit('reselect', it.id); return }
-      this.go(it.id)
       this.$emit('select', it.id)
     },
     /** 统一跳转: 三个一级页都从当前页 finish 后再 navTo, 避免页面栈越堆越深 */
