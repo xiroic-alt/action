@@ -20,7 +20,7 @@
           </div>
           <div class="upmeta">
             <RichText class="upname" :text="upName" :size="U.f.subtitle" :color="U.c.onSurface" :lines="1" :drop-emoji="false" />
-            <text class="upfans" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ fansLine }}</text>
+            <text class="upfans" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ fansLine }}</text>
           </div>
           <div class="followHit" :style="{ width: '84px', height: '44px' }" @click="toggleFollow">
             <div class="follow" :style="followStyle">
@@ -36,7 +36,7 @@
 
         <!-- 数据行常显: 展开标题时也不隐藏 (用户明确要求) -->
         <div class="metarow" :style="{ height: '20px' }">
-          <text class="meta" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
+          <text class="meta" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ metaLine }}</text>
         </div>
 
         <div class="acts" :style="{ height: '52px' }">
@@ -49,9 +49,9 @@
         <div v-if="descText !== ''" class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
           <scroller v-if="descOpen" class="descScroll" scroll-direction="vertical" :show-scrollbar="true"
                     :style="{ height: (descH - 6) + 'px' }">
-            <RichText class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
+            <RichText class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="0" :drop-emoji="false" />
           </scroller>
-          <RichText v-else class="desc" :text="descText" :size="U.f.tiny" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
+          <RichText v-else class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant" :lines="3" :drop-emoji="false" />
         </div>
 
         <!-- 播放按钮: 浮动在左栏右下, 不占布局高度 (双栏重排时漏掉过, 这里补回) -->
@@ -907,6 +907,8 @@ export default {
 .actt { margin-top: 2px; }
 .descHit { padding-left: 4px; padding-top: 4px; }
 .descScroll { width: 100%; height: 100%; }
+/* 给播放按钮让位: 否则最后一行文字会被压住 */
+.descpad { height: 50px; }
 .desc { }
 
 /* ---- 评论区 ---- */
@@ -934,7 +936,8 @@ export default {
 .cfoot { width: 100%; justify-content: center; align-items: center; padding-top: 4px; padding-bottom: 8px; }
 
 /* ---- 底部播放按钮 ---- */
-.playHit { position: absolute; right: 12px; bottom: 6px; justify-content: center; align-items: center; }
+/* 播放按钮: 悬浮左栏右下角. 注意描述区要留出底部空间, 否则会压住文字 */
+.playHit { position: absolute; right: 14px; bottom: 10px; justify-content: center; align-items: center; }
 .play { flex-direction: row; justify-content: center; align-items: center; }
 .plic { margin-right: 6px; }
 .plt { }
@@ -973,7 +976,7 @@ export default {
 .coverTip { position: absolute; bottom: 6px; left: 0px; width: 960px; text-align: center;
             font-size: 12px; color: #ffffff; }
 .pane { position: relative; }
-.playHit { position: absolute; right: 14px; bottom: 10px; }
+/* (已合并到上一条, 此处不再重复定义) */
 .play { flex-direction: row; justify-content: center; align-items: center; }
 .playt { font-size: 15px; font-weight: bold; }
 .cops { flex-direction: row; align-items: center; margin-top: 2px; }
