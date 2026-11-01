@@ -30,10 +30,6 @@
 
         <div class="titlerow" :style="{ height: titleRowH + 'px' }">
           <RichText class="title" :text="titleText" :size="U.f.subtitle" :color="U.c.onSurface" :lines="titleLines" :drop-emoji="false" />
-          <!-- 只让这个小箭头可点: 原来整行 @click 会让整行出现点击高亮框 (用户要去掉) -->
-          <div class="chevhit" :style="{ width: '28px', height: '28px' }" @click="toggleTitle">
-            <image class="chev" :src="MI.chevron" :style="{ width: '16px', height: '16px' }"></image>
-          </div>
         </div>
 
         <!-- 数据行常显: 展开标题时也不隐藏 (用户明确要求) -->
@@ -48,21 +44,27 @@
           </div>
         </div>
 
-        <div v-if="descText !== ''" class="descHit" :style="{ height: descH + 'px' }" @click="toggleDesc">
+        <!-- ★ 简介永远全部展开, 不收起 (用户要求"不要自动收起, 全部展开").
+           所以不再绑点击、不再限高, 高度由 RichText 自己撑开. -->
+        <div v-if="descText !== ''" class="descHit">
           <!-- ★ 展开后完全展开, 不再套内层 scroller:
                展开后完全铺开, 由**左栏自己的 scroller** 带动 (不再嵌套一层内部滚动).
                :lines="0" = 不限行数. -->
           <RichText class="desc" :text="descText" :size="U.f.caption" :color="U.c.onSurfaceVariant"
-                    :lines="descOpen ? 0 : 3" :drop-emoji="false" />
+                    :lines="0" :drop-emoji="false" />
+          <!-- BV 号 (用户要求写进简介区): 等宽小字, 点一下可复制不存在 -> 只作展示 -->
+          <text class="bvline" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ 'BV号 ' + bvid }}</text>
         </div>
 
-        <!-- 播放按钮: 浮动在左栏右下, 不占布局高度 (双栏重排时漏掉过, 这里补回) -->
-        <div class="playHit" :style="playHitStyle" @click="goPlay">
-          <div class="play" :style="playStyle">
-            <text class="playt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
-          </div>
-        </div>
       </scroller>
+      <!-- ★ 播放按钮: 常驻左栏右下角, **不随页面滚动** (用户明确要求).
+           所以必须放在 <scroller class="pane"> 的**外面** —— 放里面就会跟着内容滚走.
+           定位相对 .page: left 410 = 520(左栏) - 96(按钮宽) - 14(右边距). -->
+      <div class="playHit" :style="playHitStyle" @click="goPlay">
+        <div class="play" :style="playStyle">
+          <text class="playt" :lines="1" :style="{ fontSize: U.f.body + 'px', color: U.c.onPrimary }">播放</text>
+        </div>
+      </div>
 
       <div class="vsep" :style="{ width: '1px', height: S.content + 'px', backgroundColor: U.c.outlineVariant }"></div>
 
@@ -119,9 +121,6 @@
               </div>
             </div>
             <div class="cwrite">
-              <div class="cwbtn" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px', height: '34px' }" @click="writeComment">
-                <text class="cwbtnt" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onPrimary }">写评论</text>
-              </div>
             </div>
             <div v-if="comments.length > 0" class="cfoot">
               <div class="cmore" :style="U.action" @click="loadComments(false)">
@@ -322,10 +321,11 @@ export default {
     MIc() {
       return { close: this.U.dark ? MI.closeW : MI.closeD }
     },
-    titleLines() { return this.titleOpen ? 0 : 2 },
+    titleLines() { return 2 },  // 箭头已删, 固定两行不再需要展开
     titleRowH() { return this.titleOpen ? 62 : 40 },
-    // 展开时给足高度让全文铺开 (整页滚动负责滑动), 收起时只露 3 行
-    descH() { return this.descOpen ? 420 : 58 },
+    // 收起时露 3 行; 展开时**不给固定高度** —— 写死 420 会在文字下方留一大片空白
+    // (用户反馈). 让 RichText 自己撑开, 高度交给左栏的 scroller.
+    descH() { return this.descOpen ? 0 : 58 },
     replyTotalText() { return this.replyTotal > 0 ? playCount(this.replyTotal) : '--' },
     fansLine() {
       const t = this.up.fansText
@@ -949,7 +949,8 @@ export default {
 
 /* ---- 底部播放按钮 ---- */
 /* 播放按钮: 悬浮左栏右下角. 注意描述区要留出底部空间, 否则会压住文字 */
-.playHit { position: absolute; right: 14px; bottom: 10px; justify-content: center; align-items: center; }
+/* 常驻左栏右下角: 左侧 410px = 520 - 96 - 14, 底部 10px */
+.playHit { position: absolute; left: 410px; bottom: 10px; width: 96px; height: 44px; justify-content: center; align-items: center; }
 .play { flex-direction: row; justify-content: center; align-items: center; }
 .plic { margin-right: 6px; }
 .plt { }
@@ -1026,4 +1027,5 @@ export default {
 /* 输入条已在 scroller 外部, 用绝对定位钉在页面底部 (左栏 520 + 1px 分隔线 = 521) */
 .cbar { position: absolute; left: 521px; bottom: 0px; width: 439px; }
 .chevhit { justify-content: center; align-items: center; }
+.bvline { padding-top: 2px; }
 </style>
