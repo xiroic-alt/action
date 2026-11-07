@@ -337,6 +337,50 @@ export async function like(aid, on) {
 }
 
 /** 投币 */
+/**
+ * 不喜欢 (踩 / 减少此类推荐).
+ * 出处 PiliNara lib/pages/video/introduction/ugc/view.dart:495 actionDislikeVideo
+ * 参考源里它是一个**可切换**状态 (selectStatus: hasDislike).
+ * 接口: POST /x/v2/view/dislike  aid + dislike(0 取消 / 1 踩) + csrf
+ */
+export async function dislike(aid, on) {
+  const s = authState()
+  if (!s || !s.biliJct) { const e = new Error('需要登录 (缺少 csrf)'); e.kind = 'biz'; throw e }
+  return postForm(API + '/x/v2/view/dislike',
+    'aid=' + aid + '&dislike=' + (on ? 1 : 0) + '&csrf=' + encodeURIComponent(s.biliJct))
+}
+
+/**
+ * AI 视频总结 (B 站官方 Web API, 不是第三方 AI).
+ * 出处 PiliNara lib/pages/video/ai_conclusion/view.dart + controller.dart
+ * 接口: GET /x/web-interface/view/conclusion/get  (wbi 签名)
+ *   bvid / cid / up_mid
+ * 返回:
+ *   { has: 是否有总结, modelResult: { summary, outline[] } }
+ *   outline 每项 { title, partOutlineContent, timestamp } —— 可点击跳转到对应时间点.
+ * 无总结时 B 站返回 code=0 但 data.code=-1, 这里统一归一成 has=false.
+ */
+export async function videoConclusion(bvid, cid, upMid) {
+  const q = await signQuery({ bvid: bvid, cid: cid, up_mid: upMid || 0 })
+  const body = await getJson(API + '/x/web-interface/view/conclusion/get?' + q, { noError: true })
+  const d = (body && body.data) || {}
+  const mr = d.model_result || {}
+  const outline = (mr.outline || []).map(function (o) {
+    return {
+      title: String(o.title || ''),
+      content: String(o.part_outline_content || ''),
+      // timestamp 是秒数; 有些项没有
+      ts: Number(o.timestamp) || 0
+    }
+  })
+  return {
+    // data.code === 0 才算有总结 (无总结时是 -1)
+    has: Number(d.code) === 0 && (outline.length > 0 || !!mr.summary),
+    summary: String(mr.summary || ''),
+    outline: outline
+  }
+}
+
 export async function coin(aid, multiply, alsoLike) {
   const s = authState()
   return postForm(API + '/x/web-interface/coin/add',

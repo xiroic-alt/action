@@ -207,6 +207,38 @@
       </div>
     </div>
 
+    <!-- AI 视频总结面板 (参考源 lib/pages/video/ai_conclusion)
+         数据来自 B站官方 Web API /x/web-interface/view/conclusion/get, 不是第三方 AI. -->
+    <div v-if="aiOpen" class="aiMask" @click="closeAi">
+      <div class="aiSheet" :style="{ backgroundColor: U.c.surfaceContainerLow }" @click="noopTap">
+        <div class="aiHead">
+          <text class="aiTitle" :lines="1" :style="{ fontSize: U.f.subtitle + 'px', color: U.c.onSurface }">AI 视频总结</text>
+          <div class="aiClose" @click="closeAi">
+            <image class="aiCloseIc" :src="MIc.close" :style="{ width: '20px', height: '20px' }"></image>
+          </div>
+        </div>
+        <div v-if="aiLoading" class="aiHint">
+          <text class="aiHintT" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">正在生成总结…</text>
+        </div>
+        <div v-else-if="aiMsg !== ''" class="aiHint">
+          <text class="aiHintT" :lines="2" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ aiMsg }}</text>
+        </div>
+        <scroller v-else class="aiBody" scroll-direction="vertical" :show-scrollbar="true">
+          <div class="aiRows">
+            <text v-if="aiSummary !== ''" class="aiSummary" :lines="0" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface }">{{ aiSummary }}</text>
+            <div v-for="(s, i) in aiOutline" :key="'ao' + i" class="aiSeg" @click="pickAiSeg(s)">
+              <div class="aiSegIdx" :style="{ backgroundColor: U.c.primaryContainer, borderRadius: U.rad.chip + 'px' }">
+                <text class="aiSegIdxT" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onPrimaryContainer }">{{ i + 1 }}</text>
+              </div>
+              <div class="aiSegBody">
+                <text class="aiSegTitle" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurface, fontWeight: 'bold' }">{{ s.title }}</text>
+                <text class="aiSegTxt" :lines="2" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ s.content }}</text>
+              </div>
+            </div>
+          </div>
+        </scroller>
+      </div>
+    </div>
     <!-- 投币选择 (1/2 枚) -->
     <div v-if="coinOpen" class="pickMask" @click="closeCoin">
       <div class="pickBox" :style="{ backgroundColor: U.c.surfaceContainerHigh, borderRadius: U.rad.card + 'px' }" @click="noop">
@@ -288,7 +320,7 @@ import { createIME } from '../../services/ime.js'
 import RichText from '../../components/rich-text.vue'
 import { ui } from '../../design/ui.js'
 import { SCREEN } from '../../design/tokens.js'
-import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies, commentLike, commentAdd, subReplies, relatedVideos } from '../../services/api.js'
+import { videoDetail, userCard, relationModify, favFolders, fav, like, coin, replies, commentLike, commentAdd, subReplies, relatedVideos, dislike, videoConclusion } from '../../services/api.js'
 import { splitByVideoIds } from '../../services/bv.js'
 import { playCount } from '../../services/format.js'
 import { hasCookie } from '../../core/auth.js'
@@ -304,6 +336,10 @@ const MI = {
   fav: require('../../assets/mi/fav_24_m.png'),
   favOn: require('../../assets/mi/fav_24_p.png'),
   share: require('../../assets/mi/share_24_m.png'),
+  dislike: require('../../assets/mi/dislike_24_m.png'),
+  dislikeOn: require('../../assets/mi/dislike_24_p.png'),
+  ai: require('../../assets/mi/ai_24_m.png'),
+  aiOn: require('../../assets/mi/ai_24_p.png'),
   play: require('../../assets/mi/play_28_w.png'),
   chevron: require('../../assets/mi/chevron_20_m.png'),
   closeW: require('../../assets/mi/close_24_w.png'),
@@ -372,6 +408,9 @@ export default {
       descOpen: false,
       // 右侧切换: 'cmt' 评论 / 'rel' 相关视频
       rTab: 'cmt',
+      disliked: false,
+      // AI 总结面板
+      aiOpen: false, aiLoading: false, aiHas: false, aiSummary: '', aiOutline: [], aiMsg: '',
       // 联合投稿 / 合集 / 分P (都来自 videoDetail 一次响应)
       staffList: [], seasonInfo: null, seasonOpen: false, seasonFlat: [], pagesList: [], curPage: 1, relItems: [], relStatus: '', relOffset: 0, relMore: false,
       detailOpen: false,
@@ -427,12 +466,15 @@ export default {
       }
     },
     actions() {
-      // 顺序对齐 PiliNara action_item: 点赞 / 投币 / 收藏 / 转发
+      // 顺序对齐 PiliNara lib/pages/video/introduction/ugc/view.dart 的 action_item:
+      //   点赞(L484) / 不喜欢(L495) / 投币(L509) / 收藏(L524) / [下载L529-平台不可行] /
+      //   [分享L549-用户明确不做] / AI分析(L557)
       return [
         { id: 'like', on: this.liked, text: playCount(this.cnt.like) },
+        { id: 'dislike', on: this.disliked, text: '不喜欢' },
         { id: 'coin', on: this.coined, text: playCount(this.cnt.coin) },
         { id: 'fav', on: this.faved, text: playCount(this.cnt.fav) },
-        { id: 'share', on: false, text: playCount(this.cnt.share) }
+        { id: 'ai', on: this.aiOpen, text: 'AI' }
       ]
     },
     playHitStyle() { return { width: '96px', height: '44px' } },
@@ -680,10 +722,56 @@ export default {
 
     onAction(id) {
       if (id === 'like') this.doLike()
+      else if (id === 'dislike') this.doDislike()
       else if (id === 'coin') this.openCoin()
       else if (id === 'fav') this.openFav()
-      // share: 只显示数量, 不做分享 (用户约束), 不挂动作
+      else if (id === 'ai') this.openAi()
     },
+
+    /** 不喜欢 (参考源 actionDislikeVideo): 可切换状态 */
+    async doDislike() {
+      if (!this.aid) return
+      if (!hasCookie()) { this.showTip('请先登录'); return }
+      const want = !this.disliked
+      try {
+        await dislike(this.aid, want)
+        this.disliked = want
+        this.showTip(want ? '已标记不喜欢' : '已取消')
+        log('详情', '不喜欢 = ' + want)
+      } catch (e) {
+        this.showTip('操作失败: ' + String((e && e.message) || e))
+        log('详情', '不喜欢失败: ' + String((e && e.message) || e))
+      }
+    },
+
+    /** AI 总结面板 (参考源 ai_conclusion): 打开即拉取, 无总结给明确提示 */
+    openAi() {
+      if (!this.aid) return
+      if (this.aiOpen) { this.aiOpen = false; return }
+      this.aiOpen = true
+      if (this.aiOutline.length === 0 && !this.aiSummary) this.loadAi()
+    },
+    async loadAi() {
+      this.aiLoading = true; this.aiMsg = ''
+      try {
+        const r = await videoConclusion(this.bvid, this.cid, this.mid)
+        this.aiHas = !!(r && r.has)
+        this.aiSummary = (r && r.summary) || ''
+        this.aiOutline = (r && r.outline) || []
+        if (!this.aiHas) this.aiMsg = '当前视频不支持 AI 视频总结'
+        log('详情', 'AI总结 has=' + this.aiHas + ' 大纲 ' + this.aiOutline.length + ' 段')
+      } catch (e) {
+        this.aiMsg = 'AI 总结获取失败: ' + String((e && e.message) || e)
+        log('详情', 'AI总结失败: ' + this.aiMsg)
+      } finally { this.aiLoading = false }
+    },
+    /** 点大纲跳到对应时间点 (只更新展示用文案; 真正跳转由播放页 seek 完成) */
+    pickAiSeg(seg) {
+      if (!seg) return
+      this.showTip('第 ' + seg.ts + ' 秒: ' + seg.title)
+    },
+    closeAi() { this.aiOpen = false },
+    noopTap() {},
 
     /** 投币: 弹出 1/2 枚选择 (对齐 PiliNara 的投币弹窗) */
     openCoin() {
@@ -1295,4 +1383,22 @@ export default {
 .seasonenter { width: 100%; height: 30px; flex-direction: row; align-items: center; }
 .seasonenterchip { height: 24px; padding-left: 10px; padding-right: 10px; justify-content: center; align-items: center; }
 .seasonentert { }
+/* ---- AI 总结面板 ---- */
+.aiMask { position: absolute; left: 0px; top: 0px; width: 960px; height: 266px; justify-content: center; align-items: center; background-color: #000000b0; }
+.aiSheet { width: 720px; height: 220px; flex-direction: column; border-radius: 16px; padding-left: 14px; padding-right: 14px; }
+.aiHead { height: 36px; flex-direction: row; align-items: center; }
+.aiTitle { width: 660px; }
+.aiClose { width: 32px; height: 32px; justify-content: center; align-items: center; }
+.aiCloseIc { }
+.aiHint { height: 160px; justify-content: center; align-items: center; }
+.aiHintT { text-align: center; }
+.aiBody { width: 692px; height: 172px; }
+.aiRows { width: 692px; flex-direction: column; padding-bottom: 10px; }
+.aiSummary { padding-bottom: 8px; }
+.aiSeg { width: 692px; flex-direction: row; padding-top: 5px; padding-bottom: 5px; }
+.aiSegIdx { width: 20px; height: 20px; justify-content: center; align-items: center; margin-right: 8px; }
+.aiSegIdxT { }
+.aiSegBody { width: 660px; flex-direction: column; }
+.aiSegTitle { }
+.aiSegTxt { }
 </style>

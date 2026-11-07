@@ -75,7 +75,16 @@ const ICONS = [
   { file: 'chevron_20_m', icon: 'chevron_right', size: 20, color: 'm' },
   // 详情页"看封面"动作
   { file: 'image_24_w', icon: 'image', size: 24, color: 'w' },
-  { file: 'image_24_d', icon: 'image', size: 24, color: 'd' }
+  { file: 'image_24_d', icon: 'image', size: 24, color: 'd' },
+  // ---- 详情页操作条补全 (对齐 PiliNara action_item) ----
+  // 不喜欢: 参考源 view.dart:495 actionDislikeVideo
+  { file: 'dislike_24_m', icon: 'thumb_down', size: 24, color: 'm' },
+  { file: 'dislike_24_p', icon: 'thumb_down-fill', size: 24, color: 'p' },
+  { file: 'dislike_24_d', icon: 'thumb_down', size: 24, color: 'd' },
+  // AI 总结: 参考源 view.dart:557 semanticsLabel 'AI分析'
+  { file: 'ai_24_m', icon: 'summarize', size: 24, color: 'm' },
+  { file: 'ai_24_p', icon: 'summarize-fill', size: 24, color: 'p' },
+  { file: 'ai_24_d', icon: 'summarize', size: 24, color: 'd' }
 ]
 
 const require_ = createRequire(import.meta.url)
