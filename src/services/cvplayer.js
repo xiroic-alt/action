@@ -27,19 +27,29 @@
 //   (aiot-vue-cli/src/rollup-plugins/falcon-module.js).
 // 运行侧: 真机实测**能解析** —— root=object keys=[CVPlayer], 且应用正常启动.
 // 这里仍做一层兜底, 万一将来固件移除了它, 页面可以退回旧 <video>.
-import { CVPlayer } from 'cvplayer'
+// ★★ 必须是**命名空间导入**, 不能写 import { CVPlayer } from 'cvplayer'.
+//   实测 (2026-11-08): 命名导入会让整个应用**黑屏** —— 链接期就解析不到,
+//   而命名空间导入 root=object keys=[CVPlayer] 完全正常.
+//   教训与 native.js 里那条一致: 静态 import 解析失败 = 应用起不来, 只能在 JS 里兜底不了.
+import * as CV_MOD from 'cvplayer'
 import { log } from '../core/log.js'
 
 /** 模块是否可用 (解析得到构造器) */
 export function cvAvailable() {
-  return typeof CVPlayer === 'function'
+  return !!(CV_MOD && typeof CV_MOD.CVPlayer === 'function')
+}
+
+/** 取构造器 (不可用时 null) */
+function Ctor() {
+  return (CV_MOD && typeof CV_MOD.CVPlayer === 'function') ? CV_MOD.CVPlayer : null
 }
 
 /** 建一个播放器实例; 不可用时返回 null (调用方据此退回旧路径) */
 export function createCVPlayer(handlers) {
-  if (!cvAvailable()) { log('cvplayer', '模块不可用, 返回 null'); return null }
+  const C = Ctor()
+  if (!C) { log('cvplayer', '模块不可用, 返回 null'); return null }
   try {
-    const p = new CVPlayer()
+    const p = new C()
     const h = handlers || {}
     // 事件属性直接赋值; 每个都包一层 try, 免得某个回调异常把播放打断
     const bind = function (name, fn) {
@@ -73,10 +83,11 @@ export function call(player, name) {
 
 /** 能力快照 (设置页/排障用) */
 export function cvStatus() {
-  const out = { ok: cvAvailable(), methods: [], events: [] }
-  if (!out.ok) return out
+  const C = Ctor()
+  const out = { ok: !!C, methods: [], events: [] }
+  if (!C) return out
   try {
-    const p = new CVPlayer()
+    const p = new C()
     out.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(p) || {})
       .filter(function (k) { return k !== 'constructor' })
     out.events = ['onState', 'onInfo', 'onPosition', 'onComplete', 'onResume']
