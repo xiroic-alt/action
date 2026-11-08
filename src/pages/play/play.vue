@@ -377,6 +377,25 @@ export default {
      *  目的: 确认自定义 libjsapi_gstplayer.so 到底提供了哪些能力 ——
      *  官方 cvplayer 有 setAudioDeviceType(蓝牙热切), 我们之前探到"没有",
      *  但可能只是方法名不同. 列全名再判断, 别再靠猜. */
+    /** 播放开始时自动静音: 只在设置打开时压到 0; 关闭则完全不动音量 */
+    applyAutoMute() {
+      if (getCfg('autoMuteOnStart') !== true) {
+        log('音频', '自动静音=关, 不改音量')
+        return
+      }
+      // 元素层音量优先; 没有就退到系统层 hal-audio -s 0
+      const r = this.elem('setVolume', 0)
+      if (r !== undefined) {
+        log('音频', '自动静音=开, 元素音量已置 0')
+        this.mutedByAuto = true
+        return
+      }
+      log('音频', '自动静音=开, 但元素无 setVolume; 尝试系统层')
+      try {
+        audio.applySystemRoute('mute', '')
+      } catch (e) { log('音频', '系统层静音失败: ' + e) }
+    },
+
     probeElem() {
       if (this._elemProbed) return
       this._elemProbed = true
@@ -397,7 +416,10 @@ export default {
     },
 
     async prepareAudio() {
-      this.probeElem()   // 首次进播放页时打一次
+      this.probeElem()
+      // 播放开始时自动静音 (设置项 autoMuteOnStart).
+      // ★ 关掉时**什么都不做** —— 不静音, 正常出声 (用户明确要求).
+      this.applyAutoMute()   // 首次进播放页时打一次
       // 0) ★ 音频通路自愈 —— 本机出厂是**整机静音**, 两道闸门都关着:
       //      Playback Path = OFF (card0, numid=45) / aw_dev_0_switch = Disable (card1)
       //    不打开的话 aplay 在跑、PCM state=RUNNING、Master 88%, 扬声器完全无声.
