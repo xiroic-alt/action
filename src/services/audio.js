@@ -33,33 +33,61 @@ export const AUDIO_TYPE_BLUETOOTH = 4
 //      必须 `devices` 再逐个 `info`.
 //   3. 本机 `bluealsa-aplay -L` 实测返回空 (旧固件上更是直接栈溢出 abort),
 //      所以 PCM 名自己拼: bluealsa:DEV=<MAC>,PROFILE=a2dp
-const SCAN_CMD = 'for m in $(bluetoothctl devices 2>/dev/null | sed -n "s/^Device \([0-9A-Fa-f:]\{17\}\).*/\\1/p"); do ' +
-  'I=$(bluetoothctl info "$m" 2>/dev/null); ' +
-  'echo "$I" | grep -q "Connected: yes" || continue; ' +
-  'echo "$I" | grep -q "Audio Sink" || continue; ' +
-  'n=$(echo "$I" | sed -n "s/^[[:space:]]*Name: //p" | head -1); ' +
-  'echo "$m|$n|bluealsa:DEV=$m,PROFILE=a2dp"; done'
+// ★ 蓝牙扫描必须**写成脚本文件再执行**.
+//   为什么: `bilinet.execAsync(<复杂命令>)` 对带 $( ) / 管道 / continue / 重定向的
+//   命令会返回 "execAsync: 空响应 (rc=-1)" —— 这套 MiniApp 上反复踩过.
+//   实测: 同一条命令用 adb shell 跑完美输出 "TWS", 交给 execAsync 就是空.
+//   可靠写法只有一种: writeFile(脚本) + execAsync('sh ' + 路径).
+const SCAN_SCRIPT = [
+  '#!/bin/sh',
+  '# 枚举"已连接且具备 A2DP Sink"的蓝牙设备, 输出 MAC|名称|完整ALSA设备串',
+  'bluetoothctl devices 2>/dev/null | sed -n "s/^Device \\([0-9A-Fa-f:]\\{17\\}\\).*/\\1/p" > /tmp/btd.list',
+  'while read m; do',
+  '  I=$(bluetoothctl info "$m" 2>/dev/null)',
+  '  echo "$I" | grep -q "Connected: yes" || continue',
+  '  echo "$I" | grep -q "Audio Sink" || continue',
+  '  n=$(echo "$I" | sed -n "s/^[[:space:]]*Name: //p" | head -1)',
+  '  echo "$m|$n|bluealsa:DEV=$m,PROFILE=a2dp"',
+  'done < /tmp/btd.list',
+  'echo SCAN_DONE'
+].join(String.fromCharCode(10))
+
+/** 把扫描脚本落到 data 目录并返回路径 (深色主题下写一次即可, 内容固定) */
+function scanScriptPath() {
+  const p = dataDir() + '/btscan.sh'
+  try {
+    bilinet.mkdirs(dataDir())
+    bilinet.writeFile(p, SCAN_SCRIPT, false)
+    bilinet.exec('chmod 755 ' + p + ' 2>/dev/null')
+  } catch (e) { log('音频', '写扫描脚本失败: ' + (e && e.message ? e.message : e)) }
+  return p
+}
 
 /**
- * 枚举已连接的蓝牙设备.
- * @returns {Promise<Array<{mac:string,name:string}>>}
+ * 枚举"已连接且具备 A2DP Sink"的蓝牙设备.
+ * @returns {Promise<Array<{mac:string,name:string,pcm:string}>>}
  */
 export function btDevices() {
   return new Promise(function (resolve) {
     if (!bilinet || typeof bilinet.execAsync !== 'function') { resolve([]); return }
     try {
-      bilinet.execAsync(SCAN_CMD).then(function (out) {
+      const sp = scanScriptPath()
+      bilinet.execAsync('sh ' + sp).then(function (out) {
         const list = []
-        const lines = String(out || '').split('\n')
+        const lines = String(out || '').split(String.fromCharCode(10))
         for (let i = 0; i < lines.length; i++) {
-          const t = lines[i].trim()
-          if (!t || t.indexOf('|') < 0) continue
-          const parts = t.split('|')
+          const row = lines[i].trim()
+          if (!row || row.indexOf('|') < 0) continue
+          const parts = row.split('|')
           if (!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(parts[0])) continue
           list.push({ mac: parts[0], name: parts[1] || parts[0], pcm: parts[2] || '' })
         }
+        log('音频', '蓝牙扫描: 命中 ' + list.length + ' 台' + (list.length ? (' (' + list[0].name + ')') : ''))
         resolve(list)
-      }).catch(function () { resolve([]) })
+      }).catch(function (e) {
+        log('音频', '蓝牙扫描 execAsync 失败: ' + (e && e.message ? e.message : e))
+        resolve([])
+      })
     } catch (e) { resolve([]) }
   })
 }
@@ -80,15 +108,16 @@ export function btPowerState() {
  * 通知设备: 音频走哪.
  * @param videoEl 播放器元素 (必须有 setAudioDeviceType)
  * @param {'speaker'|'bluetooth'} mode
- * @param {string} [mac] 蓝牙 mac (mode=bluetooth 时必填)
+ * @param {string} [mac] 蓝牙 mac
+ * @param {string} [pcm] 完整 ALSA 设备串 (bluealsa:DEV=...,PROFILE=a2dp)
  * @returns {{ok:boolean, msg:string, type?:number}}
  */
 export async function applyAudioRoute(videoEl, mode, mac, pcm) {
   // ★ 两条路, 按可用性选:
-  //   ① 元素 API setAudioDeviceType —— 本机固件**没有**这个方法 (真机报过
-  //      "当前固件播放器没有 setAudioDeviceType");
-  //   ② 系统层 hal-audio —— 系统自带, 也是其它播放器(网易云)走的路子, 本机可用.
-  //   所以元素 API 不可用时不再报错, 直接落到系统路由.
+  //   ① 元素 API setAudioDeviceType —— 真机实测**有** (2026-11-08 元素方法探测):
+  //      setAudioDeviceType=function / setVideoSurface=function / play/pause/stop/seekto/setRate=function
+  //   ② 系统层 hal-audio —— 元素 API 真不可用时才落这里.
+  //
   if (!videoEl || typeof videoEl.setAudioDeviceType !== 'function') {
     log('音频', '播放器无 setAudioDeviceType, 改用系统层路由 (hal-audio)')
     return applySystemRoute(mode === 'bluetooth' ? 'bt' : 'speaker', mac)
