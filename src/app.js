@@ -10,6 +10,7 @@
 //   7. useDefaultBasePageClass(BasePage) 替换框架页基类
 import { BasePage } from './core/page.js'
 import { ensureEmoji } from './services/bili-emoji.js'
+import { logCvStatus } from './services/cvplayer.js'
 import { installConsoleBridge, initLog, setLogLevel, log } from './core/log.js'
 import { initStore, storeStatus } from './core/store.js'
 import { initAuth } from './core/auth.js'
@@ -56,6 +57,7 @@ class App extends $falcon.App {
     // 异步加载 B 站表情表 ([doge] 这类): 不阻塞启动, 首次成功后写进 KV, 之后离线可用.
     // 富文本是同步渲染的, 拿不到异步结果时退回 [名称] 文字, 所以这里 fire-and-forget.
     try { ensureEmoji() } catch (e) { log('应用', '表情初始化异常: ' + e) }
+    try { logCvStatus() } catch (e) { log('cvplayer', '探测异常: ' + e) }
     // ★ jsapi 探测 (一次性): Falcon 的官方模块接入是 import x from '$jsapi/x'
     //   它编译成 $falcon.jsapi['x']. 这里把实际可用的模块名列出来, 决定能不能用 cvplayer
     //   (官方视频播放器用的就是 cvplayer, 它有 setAudioDeviceType 能做蓝牙热切).

@@ -18,7 +18,8 @@
   "options": {
     "external": [
       "bilinet",
-      "brightness"
+      "brightness",
+      "cvplayer"
     ]
   },
   "props": {
