@@ -26,6 +26,38 @@ export function cvStatus() {
     const getMgr = (CVP && CVP.getCVPlayerManager) || root.getCVPlayerManager
     out.cvpType = typeof CVP
     out.getMgrType = typeof getMgr
+    // ★ CVPlayer 可能是构造器, 也可能是个带静态方法的命名空间 —— 三种姿势都试
+    out.cvpSelfKeys = CVP ? Object.keys(CVP) : []
+    out.cvpProtoKeys = (CVP && CVP.prototype) ? Object.getOwnPropertyNames(CVP.prototype) : []
+    out.cvpTypeOf = typeof CVP
+    // 静态
+    if (typeof getMgr !== 'function' && CVP) {
+      const statics = Object.getOwnPropertyNames(CVP).filter(function (k) {
+        return typeof CVP[k] === 'function' && k !== 'prototype' && k !== 'length' && k !== 'name'
+      })
+      out.cvpStatics = statics
+    }
+    // 实例
+    if (typeof getMgr !== 'function' && typeof CVP === 'function') {
+      try {
+        const inst = new CVP()
+        out.instKeys = inst ? Object.keys(inst) : []
+        out.instFns = inst ? Object.getOwnPropertyNames(Object.getPrototypeOf(inst) || {}) : []
+        // 实例上找管理器
+        const m2 = inst && (inst.getCVPlayerManager || inst.getManager || inst.manager)
+        out.instMgrType = typeof m2
+        if (typeof m2 === 'function') {
+          const mm = m2.call(inst)
+          out.mgrKeys = mm ? Object.keys(mm) : []
+          out.ok = !!mm
+          if (mm) { probed = out; return out }
+        } else if (m2) {
+          out.mgrKeys = Object.keys(m2)
+          out.ok = true
+          probed = out; return out
+        }
+      } catch (e4) { out.instErr = String((e4 && e4.message) || e4).slice(0, 80) }
+    }
     if (typeof getMgr === 'function') {
       try {
         const mgr = getMgr()
@@ -44,5 +76,8 @@ export function logCvStatus() {
   const s = cvStatus()
   log('cvplayer', 'ok=' + s.ok + ' root=' + s.rootType + ' keys=[' + s.keys.join(',') + ']')
   log('cvplayer', 'getMgr=' + s.getMgrType + ' mgrKeys=[' + s.mgrKeys.join(',') + '] err=' + s.err)
+  log('cvplayer', 'CVPlayer typeof=' + s.cvpTypeOf + ' self=[' + (s.cvpSelfKeys || []).join(',') + ']')
+  log('cvplayer', 'CVPlayer proto=[' + (s.cvpProtoKeys || []).join(',') + '] statics=[' + (s.cvpStatics || []).join(',') + ']')
+  log('cvplayer', '实例 keys=[' + (s.instKeys || []).join(',') + '] fns=[' + (s.instFns || []).join(',') + '] mgr=' + s.instMgrType + ' err=' + (s.instErr || ''))
   return s
 }
