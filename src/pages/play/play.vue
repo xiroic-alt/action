@@ -100,7 +100,7 @@ import RichText from '../../components/rich-text.vue'
 //   暂停后 getPosition() 返回 0 -> 暂停时必须停轮询, 否则进度条被打回 0
 import { ui } from '../../design/ui.js'
 import { getCfg, setCfg } from '../../core/config.js'
-import { releaseAudioFocus } from '../../services/audio.js'
+import { releaseAudioFocus, ensureAudioRoute } from '../../services/audio.js'
 import { log, logDebug } from '../../core/log.js'
 import { videoDetail, playUrl, danmakuXml, subtitleBody, sponsorSegments, liveRoomPlayUrl } from '../../services/api.js'
 import { shouldSkip } from '../../services/sponsorblock.js'
@@ -174,7 +174,7 @@ export default {
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
       // 音频输出
-      btDevices: [], btLabel: '', audioMode: 'speaker', audioMsg: '',
+      btDevices: [], btLabel: '', audioMode: 'speaker', routeState: null, audioMsg: '',
       // 内部
       genSeq: 0,
       h5Tried: false,
@@ -374,6 +374,11 @@ export default {
     //              ② 播放器元素的 setAudioDeviceType (实时改 ALSA sink, 不用重起播)
     // 所以"抢占"= 起播前先全局停一次; "实时切换"= 播放中直接调 setAudioDeviceType.
     async prepareAudio() {
+      // 0) ★ 音频通路自愈 —— 本机出厂是**整机静音**, 两道闸门都关着:
+      //      Playback Path = OFF (card0, numid=45) / aw_dev_0_switch = Disable (card1)
+      //    不打开的话 aplay 在跑、PCM state=RUNNING、Master 88%, 扬声器完全无声.
+      //    幂等: 已经是 SPK/Enable 就不动 (绝不把用户手选的耳机抢回扬声器).
+      try { this.routeState = await ensureAudioRoute() } catch (e) { log('音频', '通路自愈异常: ' + e) }
       // 1) 抢占: 停掉其它应用/页面正在播的内容
       if (getCfg('audioPreempt') !== false) {
         try {

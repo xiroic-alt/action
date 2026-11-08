@@ -18,15 +18,27 @@
 
 import { bilinet } from './native.js'
 import { log } from '../core/log.js'
+import { dataDir } from '../core/paths.js'
 
 // ALSA 设备串 (取证见文件头)
 export const AUDIO_TYPE_SPEAKER = 0
 export const AUDIO_TYPE_BLUETOOTH = 4
 
-// 扫描已连接的蓝牙设备: 输出 "MAC 名称" 若干行
-const SCAN_CMD = 'for m in $(bluetoothctl devices 2>/dev/null | cut -d" " -f2); do ' +
-  'n=$(bluetoothctl info $m 2>/dev/null | sed -n "s/^\\s*Name: //p" | head -1); ' +
-  'bluetoothctl info $m 2>/dev/null | grep -q "Connected: yes" && echo "$m|$n"; done'
+// 扫描已连接的蓝牙**音频**设备: 输出 "MAC|名称|pcm" 若干行.
+//
+// ★ 判据来自 PenBili docs/x6pro-video-playback.md §5.3 (逐条都是踩过的坑):
+//   1. 只看 "Connected: yes" 不够 —— AVRCP-only 设备能连上但放不出声,
+//      选它等于静默无声, 比不选更坑. 必须**同时**命中 Audio Sink UUID.
+//   2. 不要用 `bluetoothctl devices Connected` —— 这版 BlueZ 报 "Too many arguments",
+//      必须 `devices` 再逐个 `info`.
+//   3. 本机 `bluealsa-aplay -L` 实测返回空 (旧固件上更是直接栈溢出 abort),
+//      所以 PCM 名自己拼: bluealsa:DEV=<MAC>,PROFILE=a2dp
+const SCAN_CMD = 'for m in $(bluetoothctl devices 2>/dev/null | sed -n "s/^Device \([0-9A-Fa-f:]\{17\}\).*/\\1/p"); do ' +
+  'I=$(bluetoothctl info "$m" 2>/dev/null); ' +
+  'echo "$I" | grep -q "Connected: yes" || continue; ' +
+  'echo "$I" | grep -q "Audio Sink" || continue; ' +
+  'n=$(echo "$I" | sed -n "s/^[[:space:]]*Name: //p" | head -1); ' +
+  'echo "$m|$n|bluealsa:DEV=$m,PROFILE=a2dp"; done'
 
 /**
  * 枚举已连接的蓝牙设备.
@@ -44,7 +56,7 @@ export function btDevices() {
           if (!t || t.indexOf('|') < 0) continue
           const parts = t.split('|')
           if (!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(parts[0])) continue
-          list.push({ mac: parts[0], name: parts[1] || parts[0] })
+          list.push({ mac: parts[0], name: parts[1] || parts[0], pcm: parts[2] || '' })
         }
         resolve(list)
       }).catch(function () { resolve([]) })
@@ -99,6 +111,72 @@ export async function applyAudioRoute(videoEl, mode, mac) {
     return { ok: false, msg: '切换失败: ' + String(e).slice(0, 60) }
   }
 }
+
+/* ==================== 音频通路自愈 (PenBili 实证) ==================== */
+//
+// ★★ 本机出厂状态是**整机静音**, 两道闸门都关着 (实测):
+//      amixer -c 0 cget name='Playback Path'   ->  ; Item #0 'OFF'      (: values=0)
+//      amixer -c 1 cget name='aw_dev_0_switch' ->  ; Item #0 'Disable'
+//    这时 aplay 在跑、PCM 状态 RUNNING、Master 88%, 扬声器**完全无声**.
+//    X5 上有系统音频守护进程代劳; X6 Pro 的 PulseAudio 连不上, 没人设.
+//
+// ★★★ 解析坑 (PenBili v2.3.0 自愈静默失效的真因):
+//      `amixer cget` 的**第一行**也被单引号包着:
+//        numid=45,iface=MIXER,name='Playback Path'     <- 首行! 控件名也在引号里
+//          ; type=ENUMERATED,...
+//          ; Item #0 'OFF'                             <- 值在这里
+//      v2.3.0 取"第一对单引号" -> 拿到 'Playback Path', 与 "OFF" 永不相等
+//      -> 代码看着完全正确, 实际一次都没触发过.
+//      正确姿势: **只认 "; Item #" 那一行**, 在该行内取第一对单引号.
+//
+// ★ 策略: 只在当前值是 OFF 时才写 SPK —— 绝不把用户手动选的耳机抢回扬声器.
+//   (PenBili: 已经是 HP/HP_NO_MIC/BT/SPK 一律不动)
+
+/** 生成自愈脚本内容 (写成文件再执行: 多行命令直接塞给 execAsync 在真机上不生效) */
+function routeScript() {
+  return [
+    "#!/bin/sh",
+    "# 读当前选中值: ★ 必须用 sget 的 \"Item0:\" 行.",
+    "#   cget 会把**全部** items 都列成 \"; Item #N 'X'\", 取第一行永远得到第一项,",
+    "#   跟真实选中值无关 (本机实测: cget 第一行恒为 OFF, 而 sget 的 Item0 才是真值).",
+    "RD() { amixer -c \"$1\" sget \"$2\" 2>/dev/null | sed -n \"s/^[[:space:]]*Item0: '\\([^']*\\)'.*/\\1/p\" | head -1; }",
+    "V=$(RD 0 'Playback Path')",
+    "FIXED=0",
+    "if [ \"$V\" = \"OFF\" ]; then amixer -c 0 sset 'Playback Path' 'SPK' >/dev/null 2>&1 && FIXED=1; fi",
+    "W=$(RD 1 'aw_dev_0_switch')",
+    "if [ \"$W\" = \"Disable\" ]; then amixer -c 1 sset 'aw_dev_0_switch' 'Enable' >/dev/null 2>&1 && FIXED=1; fi",
+    "V2=$(RD 0 'Playback Path')",
+    "echo \"PATH=$V2 BEFORE=$V FIXED=$FIXED\""
+  ].join('\n')
+}
+
+/**
+ * 确保音频通路是通的 (扬声器出声).
+ * 幂等: 已经是 SPK 就不动; 失败静默返回, 不影响播放.
+ * @returns {Promise<{ok:boolean, path:string, fixed:boolean}>}
+ */
+export async function ensureAudioRoute() {
+  if (!bilinet) return { ok: false, path: '', fixed: false }
+  let out = ''
+  try {
+    const sp = (typeof dataDir === 'function' ? dataDir() : '/userdisk') + '/audiofix.sh'
+    bilinet.mkdirs((typeof dataDir === 'function' ? dataDir() : '/userdisk'))
+    bilinet.writeFile(sp, routeScript(), false)
+    bilinet.exec('chmod 755 ' + sp + ' 2>/dev/null')
+    out = (typeof bilinet.execAsync === 'function') ? await bilinet.execAsync('sh ' + sp) : bilinet.exec('sh ' + sp)
+  } catch (e) {
+    log('音频', '通路自愈失败: ' + (e && e.message ? e.message : e))
+    return { ok: false, path: '', fixed: false }
+  }
+  const s = String(out || '')
+  const m = s.match(/PATH=(\S*)/)
+  const fixedM = s.match(/FIXED=(\d)/)
+  const path = m ? m[1] : ''
+  const fixed = fixedM ? fixedM[1] === '1' : false
+  log('音频', '通路自愈: PlaybackPath=' + (path || '?') + ' 本次修正=' + fixed)
+  return { ok: path !== '' && path !== 'OFF', path: path, fixed: fixed }
+}
+
 /* ==================== 系统级音频路由 (hal-audio) ==================== */
 //
 // 背景: 固件播放器元素**没有** setAudioDeviceType (真机报"当前固件播放器没有

@@ -56,6 +56,35 @@ class App extends $falcon.App {
     // 异步加载 B 站表情表 ([doge] 这类): 不阻塞启动, 首次成功后写进 KV, 之后离线可用.
     // 富文本是同步渲染的, 拿不到异步结果时退回 [名称] 文字, 所以这里 fire-and-forget.
     try { ensureEmoji() } catch (e) { log('应用', '表情初始化异常: ' + e) }
+    // ★ jsapi 探测 (一次性): Falcon 的官方模块接入是 import x from '$jsapi/x'
+    //   它编译成 $falcon.jsapi['x']. 这里把实际可用的模块名列出来, 决定能不能用 cvplayer
+    //   (官方视频播放器用的就是 cvplayer, 它有 setAudioDeviceType 能做蓝牙热切).
+    try {
+      const j = ($falcon && $falcon.jsapi) || null
+      if (!j) { log('jsapi 探测', '❌ $falcon.jsapi 不存在') }
+      else {
+        const keys = Object.keys(j)
+        log('jsapi 探测', '共 ' + keys.length + ' 个: ' + keys.join(','))
+        const want = ['cvplayer', 'videoplayer', 'volume', 'bluetooth', 'headSetInfo', 'sound_player', 'global', 'systemInfo']
+        const has = want.filter(function (k) { return !!j[k] })
+        const miss = want.filter(function (k) { return !j[k] })
+        log('jsapi 探测', '关键模块有: ' + (has.join(',') || '(无)'))
+        log('jsapi 探测', '关键模块缺: ' + (miss.join(',') || '(无)'))
+        // cvplayer 的方法面
+        const cv = j.cvplayer
+        if (cv) {
+          log('jsapi 探测', 'cvplayer 方法: ' + Object.keys(cv).join(','))
+          const mgrFn = cv.getCVPlayerManager
+          log('jsapi 探测', 'getCVPlayerManager 类型: ' + (typeof mgrFn))
+          if (typeof mgrFn === 'function') {
+            try {
+              const mgr = mgrFn()
+              log('jsapi 探测', '管理器方法: ' + (mgr ? Object.keys(mgr).join(',') : 'null'))
+            } catch (e2) { log('jsapi 探测', '取管理器失败: ' + (e2 && e2.message ? e2.message : e2)) }
+          }
+        }
+      }
+    } catch (e) { log('jsapi 探测', '异常: ' + (e && e.message ? e.message : e)) }
     log('应用', '启动完成 · ' + storeStatus())
     $falcon.useDefaultBasePageClass(BasePage)
   }
