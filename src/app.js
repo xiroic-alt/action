@@ -59,7 +59,8 @@ class App extends $falcon.App {
     try { ensureEmoji() } catch (e) { log('应用', '表情初始化异常: ' + e) }
     try {
       const cs = cvStatus()
-      log('cvplayer', '可用=' + cs.ok + ' 方法=[' + (cs.methods || []).join(',') + ']' + (cs.err ? (' err=' + cs.err) : ''))
+      log('cvplayer', '可用=' + cs.ok + ' 形状: ' + (cs.shape || '?') + (cs.err ? (' err=' + cs.err) : ''))
+      log('cvplayer', '方法=[' + (cs.methods || []).join(',') + ']')
     } catch (e) { log('cvplayer', '状态探测异常: ' + e) }
     // ★ jsapi 探测 (一次性): Falcon 的官方模块接入是 import x from '$jsapi/x'
     //   它编译成 $falcon.jsapi['x']. 这里把实际可用的模块名列出来, 决定能不能用 cvplayer

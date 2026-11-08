@@ -39,9 +39,20 @@ export function cvAvailable() {
   return !!(CV_MOD && typeof CV_MOD.CVPlayer === 'function')
 }
 
-/** 取构造器 (不可用时 null) */
+/**
+ * 取构造器 (不可用时 null).
+ * ★ 必须同时查 CV_MOD.CVPlayer 与 CV_MOD.default.CVPlayer ——
+ *   实测: 命名空间导入拿到的是被 default 包了一层的形式,
+ *   15:03 那次能用正是因为写了 CV.default || CV 两层兜底,
+ *   后来简化成只查 CV_MOD.CVPlayer 就变成 undefined (可用=false).
+ */
 function Ctor() {
-  return (CV_MOD && typeof CV_MOD.CVPlayer === 'function') ? CV_MOD.CVPlayer : null
+  if (!CV_MOD) return null
+  const cands = [CV_MOD.CVPlayer, CV_MOD.default && CV_MOD.default.CVPlayer, CV_MOD.default]
+  for (let i = 0; i < cands.length; i++) {
+    if (typeof cands[i] === 'function') return cands[i]
+  }
+  return null
 }
 
 /** 建一个播放器实例; 不可用时返回 null (调用方据此退回旧路径) */
@@ -84,7 +95,15 @@ export function call(player, name) {
 /** 能力快照 (设置页/排障用) */
 export function cvStatus() {
   const C = Ctor()
-  const out = { ok: !!C, methods: [], events: [] }
+  const out = { ok: !!C, methods: [], events: [], shape: '' }
+  try {
+    // 把模块的真实形状记下来 —— 这次就是因为没记录形状才多绕一轮
+    if (CV_MOD) {
+      const top = Object.keys(CV_MOD)
+      const hasDef = CV_MOD.default ? Object.keys(CV_MOD.default) : []
+      out.shape = 'top=[' + top.join(',') + '] default=[' + hasDef.join(',') + ']'
+    }
+  } catch (e5) { out.shape = 'err:' + e5 }
   if (!C) return out
   try {
     const p = new C()
