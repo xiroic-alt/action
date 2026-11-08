@@ -322,6 +322,14 @@ export default {
           this._resumeAt = getProgress(this.bvid)
         }
         await this.prepareAudio()
+      // ★★ 音频路由必须在**起播之前**下发.
+      //   为什么: setAudioDeviceType 会触发元素内部的 rebuildAudio_ (拆掉 ALSA sink
+      //   重建). 播放中途重建 = 音频重新起算 = **音画不同步**.
+      //   真机日志实证: 13:17:52 起播 -> 13:17:54 才切蓝牙 -> 立刻报
+      //   "Could not open audio device" 且画面声音错位.
+      //   提前下发 = 建管线时就带上正确的 sink, 不需要重建.
+      //   失败只提示, 不中断起播.
+      try { await this.applyAudioNow() } catch (e) { log('音频', '起播前下发路由失败: ' + e) }
         if (gen !== this.genSeq) return
         this.playStream(p.url, gen)
         // 弹幕 / 字幕 / 赞助片段 (都不阻塞起播)
@@ -544,10 +552,10 @@ export default {
         this.startPoll()
         if (!this._applied) {
           this._applied = true
-          // 起播成功后再下发音频路由: 元素此时才真的持有 ALSA sink.
-          // applyAudioNow 是 async 的, 这里不阻塞起播, 失败也不影响播放.
-          const self2 = this
-          this.applyAudioNow().catch(function () {})
+          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
+          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
+          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
+          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
           if (this.rate !== 1) this.elem('setRate', this.rate)
           const at = (this._resumeAt || 0) > 0 ? this._resumeAt : (Number(getCfg('skipIntroSec')) || 0)
           if (at > 0) { this.elem('seekto', at); this.curMs = at * 1000; this.posMs = at * 1000; this.posAt = Date.now() }
