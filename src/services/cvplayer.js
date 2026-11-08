@@ -1,83 +1,87 @@
-// cvplayer 探测层 (官方视频播放器用的那个模块, 固件 libjsapi_export.so 提供)
+// cvplayer 能力层 —— 官方视频播放器用的那个模块 (固件 libjsapi_export.so 提供)
 //
-// 为什么单独一层: 它是**外部原生模块**, 解析不到就是 undefined —— 不能让它污染播放页.
-// 所有对 cvplayer 的访问都从这里走, 上层只看到 "有没有能力".
+// ══════════════ 为什么换它 (合并解码) ══════════════
+// 官方管线是**一个** uridecodebin 同时出音视频:
+//   uridecodebin ──┬─ video: mymppvideodec ! videoconvert ! videoscale -> waylandsink
+//                  └─ audio: audioconvert ! resample -> alsasink
+// 而现在用的自定义 <video> (libjsapi_gstplayer.so) 音频多过一层 decodebin:
+//   video: qtdemux>vparse>mppvideodec>vqueue>videoconvert:kmssink  (直连)
+//   audio: decodebin>acaps_early>audioconvert>audioresample>volume>alsasink
+// 两条链**不共享缓冲** -> 结构性音画错位. 换成 cvplayer 才能根治.
 //
-// 官方用法 (从播放器字节码原子表还原):
-//   cvplayer | CVPlayer | getCVPlayerManager
-//   setDataSource | setVideoSurface | setAudioDeviceType | seekto | setRate
-//   onCvplayerState | onCvplayerInfo | onCvplayerPosition | onCvplayerComplete
-//   onAudioDeviceTypeChanged | onCvplayerResume
-import * as CV from 'cvplayer'
+// ══════════════ API (2026-11-08 真机内省实测, 不是猜的) ══════════════
+//   const p = new CVPlayer()          <- 是**构造器**, 没有 getCVPlayerManager
+//   实例方法 (原型上, 11 个):
+//     setDataSource(url)             建管线; 之后才会有 onState
+//     setVideoSurface(x, y, h)       3 个 int (来自 .so: "setVideoSurface %d, %d, %d")
+//     videoCrop(l, t, w, h)          4 个 int
+//     play() / pause() / stop() / resume()
+//     seek(pos)                      seekto 语义
+//     setRate(r) / getRate()
+//     setAudioDeviceType(type, mac)  蓝牙热切; type 4 = bluealsa, 参数传**裸 MAC**
+//   实例事件属性 (5 个, 直接赋值函数):
+//     onState(state) / onInfo(...) / onPosition(pos) / onComplete() / onResume()
+//
+// ══════════════ 解析不到怎么办 ══════════════
+// 构建侧: 未解析的 import 只会被标 external + 打 warn, 不会让构建失败
+//   (aiot-vue-cli/src/rollup-plugins/falcon-module.js).
+// 运行侧: 真机实测**能解析** —— root=object keys=[CVPlayer], 且应用正常启动.
+// 这里仍做一层兜底, 万一将来固件移除了它, 页面可以退回旧 <video>.
+import { CVPlayer } from 'cvplayer'
 import { log } from '../core/log.js'
 
-/** 探测结果 (只跑一次) */
-let probed = null
+/** 模块是否可用 (解析得到构造器) */
+export function cvAvailable() {
+  return typeof CVPlayer === 'function'
+}
 
-export function cvStatus() {
-  if (probed) return probed
-  const root = (CV && (CV.default || CV)) || null
-  const out = { ok: false, rootType: typeof root, keys: [], mgrKeys: [], err: '' }
+/** 建一个播放器实例; 不可用时返回 null (调用方据此退回旧路径) */
+export function createCVPlayer(handlers) {
+  if (!cvAvailable()) { log('cvplayer', '模块不可用, 返回 null'); return null }
   try {
-    if (!root) { out.err = 'cvplayer 模块解析为 undefined'; probed = out; return out }
-    out.keys = Object.keys(root)
-    // 找 CVPlayer 或 getCVPlayerManager
-    const CVP = root.CVPlayer || root.default || root
-    const getMgr = (CVP && CVP.getCVPlayerManager) || root.getCVPlayerManager
-    out.cvpType = typeof CVP
-    out.getMgrType = typeof getMgr
-    // ★ CVPlayer 可能是构造器, 也可能是个带静态方法的命名空间 —— 三种姿势都试
-    out.cvpSelfKeys = CVP ? Object.keys(CVP) : []
-    out.cvpProtoKeys = (CVP && CVP.prototype) ? Object.getOwnPropertyNames(CVP.prototype) : []
-    out.cvpTypeOf = typeof CVP
-    // 静态
-    if (typeof getMgr !== 'function' && CVP) {
-      const statics = Object.getOwnPropertyNames(CVP).filter(function (k) {
-        return typeof CVP[k] === 'function' && k !== 'prototype' && k !== 'length' && k !== 'name'
-      })
-      out.cvpStatics = statics
+    const p = new CVPlayer()
+    const h = handlers || {}
+    // 事件属性直接赋值; 每个都包一层 try, 免得某个回调异常把播放打断
+    const bind = function (name, fn) {
+      if (typeof fn !== 'function') return
+      p[name] = function () {
+        try { fn.apply(null, Array.prototype.slice.call(arguments)) }
+        catch (e) { log('cvplayer', name + ' 回调异常: ' + (e && e.message ? e.message : e)) }
+      }
     }
-    // 实例
-    if (typeof getMgr !== 'function' && typeof CVP === 'function') {
-      try {
-        const inst = new CVP()
-        out.instKeys = inst ? Object.keys(inst) : []
-        out.instFns = inst ? Object.getOwnPropertyNames(Object.getPrototypeOf(inst) || {}) : []
-        // 实例上找管理器
-        const m2 = inst && (inst.getCVPlayerManager || inst.getManager || inst.manager)
-        out.instMgrType = typeof m2
-        if (typeof m2 === 'function') {
-          const mm = m2.call(inst)
-          out.mgrKeys = mm ? Object.keys(mm) : []
-          out.ok = !!mm
-          if (mm) { probed = out; return out }
-        } else if (m2) {
-          out.mgrKeys = Object.keys(m2)
-          out.ok = true
-          probed = out; return out
-        }
-      } catch (e4) { out.instErr = String((e4 && e4.message) || e4).slice(0, 80) }
-    }
-    if (typeof getMgr === 'function') {
-      try {
-        const mgr = getMgr()
-        out.mgrKeys = mgr ? Object.keys(mgr) : []
-        out.ok = !!mgr
-        if (!mgr) out.err = 'getCVPlayerManager() 返回空'
-      } catch (e2) { out.err = '取管理器失败: ' + (e2 && e2.message ? e2.message : e2) }
-    } else { out.err = '没有 getCVPlayerManager' }
-  } catch (e) { out.err = '探测异常: ' + (e && e.message ? e.message : e) }
-  probed = out
+    bind('onState', h.onState)
+    bind('onInfo', h.onInfo)
+    bind('onPosition', h.onPosition)
+    bind('onComplete', h.onComplete)
+    bind('onResume', h.onResume)
+    log('cvplayer', '实例已建')
+    return p
+  } catch (e) {
+    log('cvplayer', '建实例失败: ' + (e && e.message ? e.message : e))
+    return null
+  }
+}
+
+/** 安全调用实例方法 (方法不存在/抛异常时返回 undefined, 不打断播放) */
+export function call(player, name) {
+  if (!player) return undefined
+  const fn = player[name]
+  if (typeof fn !== 'function') { log('cvplayer', '无方法 ' + name); return undefined }
+  try { return fn.apply(player, Array.prototype.slice.call(arguments, 2)) }
+  catch (e) { log('cvplayer', name + ' 失败: ' + (e && e.message ? e.message : e)); return undefined }
+}
+
+/** 能力快照 (设置页/排障用) */
+export function cvStatus() {
+  const out = { ok: cvAvailable(), methods: [], events: [] }
+  if (!out.ok) return out
+  try {
+    const p = new CVPlayer()
+    out.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(p) || {})
+      .filter(function (k) { return k !== 'constructor' })
+    out.events = ['onState', 'onInfo', 'onPosition', 'onComplete', 'onResume']
+  } catch (e) { out.err = String((e && e.message) || e).slice(0, 80) }
   return out
 }
 
-/** 打一条探测日志 (app 启动时调一次) */
-export function logCvStatus() {
-  const s = cvStatus()
-  log('cvplayer', 'ok=' + s.ok + ' root=' + s.rootType + ' keys=[' + s.keys.join(',') + ']')
-  log('cvplayer', 'getMgr=' + s.getMgrType + ' mgrKeys=[' + s.mgrKeys.join(',') + '] err=' + s.err)
-  log('cvplayer', 'CVPlayer typeof=' + s.cvpTypeOf + ' self=[' + (s.cvpSelfKeys || []).join(',') + ']')
-  log('cvplayer', 'CVPlayer proto=[' + (s.cvpProtoKeys || []).join(',') + '] statics=[' + (s.cvpStatics || []).join(',') + ']')
-  log('cvplayer', '实例 keys=[' + (s.instKeys || []).join(',') + '] fns=[' + (s.instFns || []).join(',') + '] mgr=' + s.instMgrType + ' err=' + (s.instErr || ''))
-  return s
-}
+export default { cvAvailable, createCVPlayer, call, cvStatus }
