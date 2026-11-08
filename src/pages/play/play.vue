@@ -174,7 +174,7 @@ export default {
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
       // 音频输出
-      btDevices: [], btLabel: '', audioMode: 'speaker', routeState: null, audioMsg: '',
+      btDevices: [], btLabel: '', audioMode: 'speaker', routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
       // 内部
       genSeq: 0,
       h5Tried: false,
@@ -463,6 +463,9 @@ export default {
       //   路由函数一直收到 undefined, 于是每次都落到"没有 setAudioDeviceType"那一支.
       const el = this.$refs.vv || null
       let r = await audio.applyAudioRoute(el, this.audioMode, mac, pcm)
+      // 记录这一次用的是哪种参数格式, 供 onError 里的回退判断
+      if (r && r.ok && r.param) { this.btParamUsed = r.param; this.btParamRetried = false }
+      else if (this.audioMode === 'bluetooth') { this.btParamUsed = 'MAC'; this.btParamRetried = false }
       if (!r || !r.ok) {
         // ★ 必须走 showTipLocal: 直接赋值 this.audioMsg 不会设定时器, 提示永不消失
         this.showTipLocal((r && r.msg) ? r.msg : '切换失败')
@@ -600,6 +603,26 @@ export default {
         const self = this
         setTimeout(function () { self.reloadH5() }, 300)
         return
+      }
+      // ★ 蓝牙参数回退: 元素报错是**事件**不是异常, 所以 applyAudioRoute 里的
+      //   try/catch 抓不到 —— 回退只能挂在这里.
+      //   真机 2026-11-08: 传完整 ALSA 串 -> {"code":100,"msg":"Could not open
+      //   audio device for playback."}; 而 ALSA 侧 aplay 直连同一串是通的,
+      //   说明是元素对参数格式的口味问题. 换另一种格式再试一次.
+      if (!this.btParamRetried && /could not open audio device/i.test(raw) && this.audioMode === 'bluetooth') {
+        this.btParamRetried = true
+        const bt = this.btDevices.length ? this.btDevices[0] : null
+        if (bt) {
+          const alt = (this.btParamUsed === 'MAC') ? String(bt.pcm || '') : String(bt.mac || '')
+          if (alt !== '') {
+            const altLabel = (this.btParamUsed === 'MAC') ? 'PCM' : 'MAC'
+            this.btParamUsed = altLabel
+            log('音频', '蓝牙参数回退 [' + altLabel + ']=' + alt)
+            try { this.elem('setAudioDeviceType', 4, alt) } catch (e2) { log('音频', '回退调用异常: ' + e2) }
+            this.statusText = '正在切换音频输出…'
+            return
+          }
+        }
       }
       this.statusText = '播放出错'
       this.playing = false

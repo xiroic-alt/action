@@ -125,15 +125,29 @@ export async function applyAudioRoute(videoEl, mode, mac, pcm) {
   try {
     if (mode === 'bluetooth') {
       if (!mac) return { ok: false, msg: '没有已连接的蓝牙设备' }
-      // ★ 参数格式是这套代码最容易翻车的地方:
-      //   历史报错 {"code":100,"msg":"Could not open audio device for playback."}
-      //   就是"用猜的参数调 setAudioDeviceType"的结果 —— 而且**会把整条管线带崩**.
-      //   元素内部是拆掉 ALSA sink 重建, 所以要的是**完整 ALSA 设备串**,
-      //   不是裸 MAC. 优先传 bluealsa:DEV=<mac>,PROFILE=a2dp, 拿不到才退回 MAC.
-      const dev = String(pcm || '').trim() !== '' ? String(pcm).trim() : mac
-      videoEl.setAudioDeviceType(AUDIO_TYPE_BLUETOOTH, dev)
-      log('音频', '已切蓝牙输出 pcm=' + dev)
-      return { ok: true, msg: '已切到蓝牙', type: AUDIO_TYPE_BLUETOOTH }
+      // ★ 参数格式是这套代码最容易翻车的地方.
+      //   真机实测 (2026-11-08):
+      //     - ALSA 侧没问题: aplay -D 'bluealsa:DEV=<mac>,PROFILE=a2dp' 退出码 0,
+      //       bluealsa 正常起 IO 线程 —— 说明设备串本身是对的.
+      //     - 但把这个完整串交给元素 -> {"code":100,"msg":"Could not open audio
+      //       device for playback."} (历史 11-06 也报过同一条).
+      //   官方播放器字节码里的字面量是 **macAddress**(裸 MAC), 元素内部自己拼设备串.
+      //   所以主路径传裸 MAC; 万一固件版本不同, 再回退到完整 ALSA 串.
+      const cands = []
+      cands.push({ p: String(mac || '').trim(), label: 'MAC' })
+      const fullPcm = String(pcm || '').trim()
+      if (fullPcm !== '' && fullPcm !== cands[0].p) cands.push({ p: fullPcm, label: 'PCM' })
+      let lastErr = null
+      for (let i = 0; i < cands.length; i++) {
+        try {
+          videoEl.setAudioDeviceType(AUDIO_TYPE_BLUETOOTH, cands[i].p)
+          log('音频', '已切蓝牙输出 [' + cands[i].label + ']=' + cands[i].p)
+          return { ok: true, msg: '已切到蓝牙', type: AUDIO_TYPE_BLUETOOTH, param: cands[i].label }
+        } catch (e) { lastErr = e; log('音频', '蓝牙参数 ' + cands[i].label + ' 被拒: ' + e) }
+      }
+      // 全失败: 回滚扬声器, 不让管线留在坏状态
+      try { videoEl.setAudioDeviceType(AUDIO_TYPE_SPEAKER, '') } catch (e3) {}
+      return { ok: false, msg: '蓝牙设备打不开: ' + String(lastErr).slice(0, 50) }
     }
     // 回扬声器: 类型 + 空 mac (旧项目验证过空 mac 对 0 是安全的)
     videoEl.setAudioDeviceType(AUDIO_TYPE_SPEAKER, '')
