@@ -373,7 +373,31 @@ export default {
     // 但有两样可用: ① $falcon.stopVideoPlayer() 全局停止播放器 (系统自己用 _videoplayer_mutex 做互斥)
     //              ② 播放器元素的 setAudioDeviceType (实时改 ALSA sink, 不用重起播)
     // 所以"抢占"= 起播前先全局停一次; "实时切换"= 播放中直接调 setAudioDeviceType.
+    /** ★ 一次性: 把 <video> 元素的全量方法名打出来.
+     *  目的: 确认自定义 libjsapi_gstplayer.so 到底提供了哪些能力 ——
+     *  官方 cvplayer 有 setAudioDeviceType(蓝牙热切), 我们之前探到"没有",
+     *  但可能只是方法名不同. 列全名再判断, 别再靠猜. */
+    probeElem() {
+      if (this._elemProbed) return
+      this._elemProbed = true
+      try {
+        const v = this.$refs.vv
+        if (!v) { log('元素方法探测', '❌ $refs.vv 为空'); return }
+        const own = Object.keys(v)
+        const proto = Object.getOwnPropertyNames(Object.getPrototypeOf(v) || {})
+        const fns = own.filter(function (k) { return typeof v[k] === 'function' })
+        const nonFn = own.filter(function (k) { return typeof v[k] !== 'function' })
+        log('元素方法探测', '自身键(' + own.length + '): ' + own.join(','))
+        log('元素方法探测', '函数(' + fns.length + '): ' + fns.join(','))
+        log('元素方法探测', '非函数: ' + nonFn.join(','))
+        log('元素方法探测', '原型: ' + proto.join(','))
+        const want = ['setAudioDeviceType', 'setVolume', 'getVolume', 'setMute', 'mute', 'setRate', 'setSpeed', 'play', 'pause', 'stop', 'seek', 'seekto', 'setDataSource', 'setVideoSurface']
+        log('元素方法探测', '关键方法: ' + want.map(function (k) { return k + '=' + (typeof v[k]) }).join(' '))
+      } catch (e) { log('元素方法探测', '异常: ' + (e && e.message ? e.message : e)) }
+    },
+
     async prepareAudio() {
+      this.probeElem()   // 首次进播放页时打一次
       // 0) ★ 音频通路自愈 —— 本机出厂是**整机静音**, 两道闸门都关着:
       //      Playback Path = OFF (card0, numid=45) / aw_dev_0_switch = Disable (card1)
       //    不打开的话 aplay 在跑、PCM state=RUNNING、Master 88%, 扬声器完全无声.
