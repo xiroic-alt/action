@@ -130,11 +130,27 @@
               <image v-if="c.face !== ''" class="cav" :src="c.face" :style="{ width: '28px', height: '28px', borderRadius: '14px' }"></image>
               <div v-else class="cav ph" :style="{ width: '28px', height: '28px', borderRadius: '14px', backgroundColor: U.c.surfaceContainerHighest }"></div>
               <div class="cbody">
-                <div class="chead">
-                  <text class="cname" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ c.author }}</text>
-                  <text v-if="c.timeText !== ''" class="ctime" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.timeText }}</text>
-                </div>
-                <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="3" :drop-emoji="false" />
+          <div class="chead">
+            <text class="cname" :lines="1" :style="{ fontSize: U.f.caption + 'px', color: U.c.onSurfaceVariant }">{{ c.author }}</text>
+            <!-- 等级徽标 (对应参考源 BiliUtils.levelPicture) -->
+            <div v-if="c.level > 0" class="clv" :style="lvStyle(c.level)">
+              <text class="clvt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.inverseOnSurface }">{{ c.levelText }}</text>
+            </div>
+            <!-- 粉丝牌 (对应参考源 fansMedal) -->
+            <div v-if="c.medalName !== ''" class="cmedal" :style="{ backgroundColor: U.c.surfaceContainerHighest, borderRadius: U.rad.chip + 'px' }">
+              <text class="cmedalt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.medalName + (c.medalLevel > 0 ? c.medalLevel : '') }}</text>
+            </div>
+            <!-- UP 主标识 (对应参考源 upReply) -->
+            <div v-if="c.isUp" class="cup" :style="{ backgroundColor: U.c.primary, borderRadius: U.rad.chip + 'px' }">
+              <text class="cupt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onPrimary }">UP</text>
+            </div>
+            <text v-if="c.timeText !== ''" class="ctime" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ c.timeText }}</text>
+          </div>
+          <RichText class="ctext" :text="c.text" :size="U.f.body" :color="U.c.onSurface" :lines="3" :drop-emoji="false" />
+          <!-- 图片评论 (对应参考源 ImageGridView): 最多显示 3 张缩略图 -->
+          <div v-if="c.pics && c.pics.length > 0" class="cpics">
+            <image v-for="(p, pi) in c.pics.slice(0, 3)" :key="'cp' + pi" class="cpic" :src="p" resize="cover" :style="{ width: '72px', height: '72px', borderRadius: '6px' }"></image>
+          </div>
                 <!-- 操作条: 点赞 / 回复 / 展开楼中楼 -->
                 <div class="cops">
                   <div class="cop" :style="{ height: '44px' }" @click="likeComment(c)">
@@ -145,7 +161,7 @@
                     <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">回复</text>
                   </div>
                   <div v-if="c.replyCount > 0" class="cop" :style="{ height: '30px' }" @click="toggleSub(c)">
-                    <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.primary }">{{ c.subOpen ? '收起' : ('展开 ' + c.replyCount + ' 条回复') }}</text>
+                    <text class="copt" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.primary }">{{ c.subOpen ? '收起' : ('共' + c.replyCount + '条回复') }}</text>
                   </div>
                 </div>
                 <!-- 楼中楼 -->
@@ -939,7 +955,8 @@ export default {
       try {
         const r = await replies(this.aid, this.cmtPage, this.sort, 1)
         if (gen !== this.cmtGen) return
-        const list = (r.list || []).map(prepReply)
+        const upMid = this.mid
+        const list = (r.list || []).map(prepReply).map(function (c) { c.isUp = (c.mid === upMid); return c })
         this.comments = reset ? list : this.comments.concat(list)
         if (r.total > 0) this.replyTotal = r.total
         // 拿满一页 (接口默认 20 条) 才认为还有下一页; 空页或不足一页 = 到底了
@@ -1080,6 +1097,16 @@ export default {
         this.rTab = want
         log('详情', '横向滑动 -> ' + want + ' (x=' + x + ')')
         if (want === 'rel' && this.relItems.length === 0) this.loadRelated()
+      }
+    },
+    /** 等级徽标配色: 对齐 B 站等级色阶 (0灰 1灰 2蓝 3青 4绿 5橙 6红) */
+    lvStyle(lv) {
+      const n = Number(lv) || 0
+      const palette = ['#9aa4b2', '#9aa4b2', '#5aa9e6', '#1abc9c', '#2ecc71', '#f39c12', '#e74c3c']
+      return {
+        height: '14px', minWidth: '26px', paddingLeft: '4px', paddingRight: '4px',
+        marginLeft: '4px', borderRadius: '3px', justifyContent: 'center', alignItems: 'center',
+        backgroundColor: palette[n > 6 ? 6 : n]
       }
     },
     pickRTab(id) {
@@ -1421,4 +1448,13 @@ export default {
 .aiSegTxt { }
 .rpages { }
 .rpage { }
+/* ---- 评论条目四件套 (对齐参考源 reply_item_grpc) ---- */
+.clv { }
+.clvt { }
+.cmedal { height: 14px; padding-left: 4px; padding-right: 4px; margin-left: 4px; justify-content: center; align-items: center; }
+.cmedalt { }
+.cup { height: 14px; padding-left: 4px; padding-right: 4px; margin-left: 4px; justify-content: center; align-items: center; }
+.cupt { }
+.cpics { flex-direction: row; padding-top: 4px; }
+.cpic { margin-right: 4px; }
 </style>

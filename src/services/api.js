@@ -448,17 +448,33 @@ export async function replies(aid, pn, sort, type) {
 function mapReply(r) {
   const m = r.member || {}
   const c = r.content || {}
+  const lv = (m.level_info && Number(m.level_info.current_level)) || Number(m.level) || 0
+  const fm = m.fans_medal || {}
+  // 图片评论: content.pictures[] {img_src, ...}
+  const pics = (c.pictures || []).map(function (p) {
+    return F.thumb((p && (p.img_src || p.imgSrc)) || '', 240, 240)
+  }).filter(function (u) { return u !== '' })
   return {
     rpid: r.rpid || 0,
     author: String(m.uname || ''),
     mid: Number(m.mid) || 0,
     face: F.thumb(m.avatar || '', 60, 60),
+    // ★ 对齐参考源 reply_item_grpc.dart 的头部三件套:
+    //   等级 (BiliUtils.levelPicture) / 粉丝牌 (fansMedalLevel+name) / UP标识 (upReply)
+    level: lv,
+    levelText: lv > 0 ? ('Lv' + lv) : '',
+    medalName: String(fm.medal_name || ''),
+    medalLevel: Number(fm.level) || 0,
+    medalColor: Number(fm.medal_color) || 0,
+    // 是否是 UP 主本人的评论 (由调用方按视频 owner mid 判定; 这里先留字段)
+    isUp: false,
     text: String(c.message || ''),
+    pics: pics,
     liked: Number(r.action) === 1,
     likeText: F.playCount(r.like),
     replyCount: Number(r.rcount) || 0,
     timeText: F.relative(r.ctime),
-    isUp: false
+    location: String(r.reply_control && r.reply_control.location || '')
   }
 }
 
