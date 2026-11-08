@@ -110,7 +110,9 @@
             <text class="rtabt" :lines="1" :style="rtabTextStyle('rel')">相关视频</text>
           </div>
         </div>
-        <div class="cmain" v-show="rTab === 'cmt'">
+        <scroller class="rpages" scroll-direction="horizontal" :show-scrollbar="false" @scroll="onRSwipe" :style="{ width: '439px', height: '148px' }">
+        <div class="rpage" :style="{ width: '439px' }">
+        <div class="cmain">
         <div class="sortcol" :style="{ width: '92px' }">
           <text class="sortTitle" :lines="1" :style="{ fontSize: U.f.tiny + 'px', color: U.c.onSurfaceVariant }">{{ '评论 ' + replyTotalText }}</text>
           <div v-for="s in sorts" :key="s.id" class="sortHit" :style="{ height: '44px' }" @click="pickSort(s.id)">
@@ -171,9 +173,11 @@
           </div>
         </scroller>
         </div>
+        </div>
+        <div class="rpage" :style="{ width: '439px' }">
 
         <!-- 相关视频 (与评论同栏, 由顶部切换条或左右滑动切换) -->
-        <scroller v-if="rTab === 'rel'" class="relscroll" scroll-direction="vertical" :show-scrollbar="true"
+        <scroller class="relscroll" scroll-direction="vertical" :show-scrollbar="true"
                   @scroll="onRelScroll" :style="{ width: '439px', height: '148px' }">
           <div class="relrows">
             <!-- ★ 合集卡片: 放在相关视频列表最前面 (用户要求"把合集添加到相关视频的后面"
@@ -205,6 +209,7 @@
         </scroller>
 
       </div>
+        </scroller>
     </div>
 
     <!-- AI 视频总结面板 (参考源 lib/pages/video/ai_conclusion)
@@ -303,6 +308,7 @@
   </div>
 </template>
 
+  </div>
 <script>
 // 视频详情页 —— 对齐 PiliNara lib/pages/video/introduction/ugc/view.dart
 //
@@ -1064,6 +1070,18 @@ export default {
     partTextStyle(p) {
       return { fontSize: this.U.f.tiny + 'px', color: p.page === this.curPage ? this.U.c.onPrimary : this.U.c.onSurfaceVariant }
     },
+    /** 横向滑动联动: 按 contentOffset.x 判断当前页 (0=评论, 439=相关) */
+    onRSwipe(e) {
+      const d2 = (e && e.detail) ? e.detail : (e || {})
+      const off = d2.contentOffset || {}
+      const x = Number(off.x != null ? off.x : (off.left != null ? off.left : 0)) || 0
+      const want = x > 219 ? 'rel' : 'cmt'
+      if (want !== this.rTab) {
+        this.rTab = want
+        log('详情', '横向滑动 -> ' + want + ' (x=' + x + ')')
+        if (want === 'rel' && this.relItems.length === 0) this.loadRelated()
+      }
+    },
     pickRTab(id) {
       if (this.rTab === id) return
       this.rTab = id
@@ -1401,4 +1419,6 @@ export default {
 .aiSegBody { width: 660px; flex-direction: column; }
 .aiSegTitle { }
 .aiSegTxt { }
+.rpages { }
+.rpage { }
 </style>
