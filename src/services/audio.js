@@ -83,7 +83,7 @@ export function btPowerState() {
  * @param {string} [mac] 蓝牙 mac (mode=bluetooth 时必填)
  * @returns {{ok:boolean, msg:string, type?:number}}
  */
-export async function applyAudioRoute(videoEl, mode, mac) {
+export async function applyAudioRoute(videoEl, mode, mac, pcm) {
   // ★ 两条路, 按可用性选:
   //   ① 元素 API setAudioDeviceType —— 本机固件**没有**这个方法 (真机报过
   //      "当前固件播放器没有 setAudioDeviceType");
@@ -96,8 +96,14 @@ export async function applyAudioRoute(videoEl, mode, mac) {
   try {
     if (mode === 'bluetooth') {
       if (!mac) return { ok: false, msg: '没有已连接的蓝牙设备' }
-      videoEl.setAudioDeviceType(AUDIO_TYPE_BLUETOOTH, mac)
-      log('音频', '已切蓝牙输出 ' + mac)
+      // ★ 参数格式是这套代码最容易翻车的地方:
+      //   历史报错 {"code":100,"msg":"Could not open audio device for playback."}
+      //   就是"用猜的参数调 setAudioDeviceType"的结果 —— 而且**会把整条管线带崩**.
+      //   元素内部是拆掉 ALSA sink 重建, 所以要的是**完整 ALSA 设备串**,
+      //   不是裸 MAC. 优先传 bluealsa:DEV=<mac>,PROFILE=a2dp, 拿不到才退回 MAC.
+      const dev = String(pcm || '').trim() !== '' ? String(pcm).trim() : mac
+      videoEl.setAudioDeviceType(AUDIO_TYPE_BLUETOOTH, dev)
+      log('音频', '已切蓝牙输出 pcm=' + dev)
       return { ok: true, msg: '已切到蓝牙', type: AUDIO_TYPE_BLUETOOTH }
     }
     // 回扬声器: 类型 + 空 mac (旧项目验证过空 mac 对 0 是安全的)

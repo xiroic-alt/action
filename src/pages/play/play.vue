@@ -456,11 +456,13 @@ export default {
      * applyAudioRoute 是 async 的 (元素 API 不可用时会落到系统层 hal-audio), 必须 await.
      */
     async applyAudioNow() {
-      const mac = this.audioMode === 'bluetooth' && this.btDevices.length ? this.btDevices[0].mac : ''
+      const bt = (this.audioMode === 'bluetooth' && this.btDevices.length) ? this.btDevices[0] : null
+      const mac = bt ? bt.mac : ''
+      const pcm = bt ? (bt.pcm || '') : ''
       // ★ 元素必须用 $refs.vv 取 —— 之前写的 this.video 根本不存在,
       //   路由函数一直收到 undefined, 于是每次都落到"没有 setAudioDeviceType"那一支.
       const el = this.$refs.vv || null
-      let r = await audio.applyAudioRoute(el, this.audioMode, mac)
+      let r = await audio.applyAudioRoute(el, this.audioMode, mac, pcm)
       if (!r || !r.ok) {
         // ★ 必须走 showTipLocal: 直接赋值 this.audioMsg 不会设定时器, 提示永不消失
         this.showTipLocal((r && r.msg) ? r.msg : '切换失败')
