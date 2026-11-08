@@ -556,7 +556,18 @@ export default {
           // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
           // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
           // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
-          if (this.rate !== 1) this.elem('setRate', this.rate)
+          // ★ 速率归一 + 探测 (用户提示"把解码速度提到 1x").
+          //   为什么值得查: 若管线实际速率不是精确 1.0, 音视频会**持续漂移**,
+          //   表现就是"一直对不上"而不是"固定差一点".
+          //   setRate 走的是 GStreamer seek (TRICKMODE), 传 1 就是正常速度.
+          try {
+            const before = this.elem('getRate')
+            // 无论设置里选的多少, 先探真实值
+            log('播放', '速率探测 getRate=' + before + ' 期望=' + this.rate)
+          } catch (e3) { log('播放', '速率探测失败: ' + e3) }
+          this.elem('setRate', this.rate)
+          const after = this.elem('getRate')
+          log('播放', '速率已下发 setRate(' + this.rate + ') -> getRate=' + after)
           const at = (this._resumeAt || 0) > 0 ? this._resumeAt : (Number(getCfg('skipIntroSec')) || 0)
           if (at > 0) { this.elem('seekto', at); this.curMs = at * 1000; this.posMs = at * 1000; this.posAt = Date.now() }
         }
