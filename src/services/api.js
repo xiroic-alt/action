@@ -338,6 +338,43 @@ export async function like(aid, on) {
 
 /** 投币 */
 /**
+ * B 站表情面板 (评论/动态里 [xxx] 形式的表情图).
+ * 出处 PiliNara lib/pages/emote/ —— 参考源会把面板缓存在本地, 这里同理.
+ * 接口: GET /x/emote/user/panel/web?business=reply
+ * 返回: { 名称: 图片URL } —— 名称就是 [xxx] 里的 xxx
+ *   (取最高清的一档: meta.size 里挑最大的, 否则退回 url)
+ */
+export async function emotePanel(business) {
+  const biz = business || 'reply'
+  const body = await getJson(API + '/x/emote/user/panel/web?business=' + biz, { noError: true })
+  const d = (body && body.data) || {}
+  const pkgs = d.packages || []
+  const map = {}
+  for (let i = 0; i < pkgs.length; i++) {
+    const list = pkgs[i].emote || []
+    for (let k = 0; k < list.length; k++) {
+      const e = list[k]
+      const name = String(e.text || '')
+      if (name === '') continue
+      // 优先取 meta.size 里最大的一档 (更清晰), 没有就用 url
+      let u = String(e.url || '')
+      if (e.meta && e.meta.size) {
+        let best = 0, bestU = u
+        for (const key in e.meta.size) {
+          const it = e.meta.size[key]
+          const w = Number(it && it.width) || 0
+          if (w > best) { best = w; bestU = String((it && it.url) || '') }
+        }
+        if (bestU !== '') u = bestU
+      }
+      if (u === '') continue
+      map[name] = F.thumb(u, 60, 60)
+    }
+  }
+  return map
+}
+
+/**
  * 不喜欢 (踩 / 减少此类推荐).
  * 出处 PiliNara lib/pages/video/introduction/ugc/view.dart:495 actionDislikeVideo
  * 参考源里它是一个**可切换**状态 (selectStatus: hasDislike).

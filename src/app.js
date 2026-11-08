@@ -9,6 +9,7 @@
 //   6. runFeatureInits() 功能模块启动钩子 (依赖设置已就绪)
 //   7. useDefaultBasePageClass(BasePage) 替换框架页基类
 import { BasePage } from './core/page.js'
+import { ensureEmoji } from './services/bili-emoji.js'
 import { installConsoleBridge, initLog, setLogLevel, log } from './core/log.js'
 import { initStore, storeStatus } from './core/store.js'
 import { initAuth } from './core/auth.js'
@@ -52,6 +53,9 @@ class App extends $falcon.App {
     try { initAuth() } catch (e) { log('应用', '登录态初始化异常: ' + e) }
     setLogLevel(getCfg('logLevel'))
     try { runFeatureInits() } catch (e) { log('应用', '功能初始化异常: ' + e) }
+    // 异步加载 B 站表情表 ([doge] 这类): 不阻塞启动, 首次成功后写进 KV, 之后离线可用.
+    // 富文本是同步渲染的, 拿不到异步结果时退回 [名称] 文字, 所以这里 fire-and-forget.
+    try { ensureEmoji() } catch (e) { log('应用', '表情初始化异常: ' + e) }
     log('应用', '启动完成 · ' + storeStatus())
     $falcon.useDefaultBasePageClass(BasePage)
   }

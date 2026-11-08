@@ -10,6 +10,8 @@
   <div class="rt" :style="rootStyle">
     <template v-for="(s, i) in segs">
       <EmojiImg v-if="s.t === 'emoji'" :key="'e' + i" :name="s.k" :size="size" :fallback="s.v"></EmojiImg>
+      <!-- B 站表情 ([doge] 这类): 表里有就渲染真图, 没有才退回文字 -->
+      <image v-else-if="s.t === 'biliimg'" :key="'bi' + i" class="rt-eb" :src="s.u" :style="{ width: size + 'px', height: size + 'px' }"></image>
       <!-- 强制换行: 根容器是 flex(row+wrap), 文本里的 \n 不会生效,
            必须插一个"整行宽 + 零高"的元素把后续内容挤到下一行. -->
       <div v-else-if="s.t === 'br'" :key="'b' + i" class="rt-br"></div>
@@ -22,6 +24,7 @@
 // 纯逻辑在 services/text.js (可在 Node 门禁里单测), 这里只负责渲染
 import { segment } from '../services/text.js'
 import EmojiImg from './emoji-img.vue'
+import { emojiMap } from '../services/bili-emoji.js'
 
 export default {
   name: 'rich-text',
@@ -38,7 +41,7 @@ export default {
   },
   computed: {
     segs() {
-      const raw = segment(this.text)
+      const raw = segment(this.text, { biliEmoji: emojiMap() })
       const out = []
       for (let i = 0; i < raw.length; i++) {
         const s = raw[i]
@@ -54,7 +57,10 @@ export default {
           continue
         }
         if (s.t === 'bili') {
-          // B 站表情代码: 没有联网图时退化成 "[名称]" 文字
+          // ★ 表里有图就渲染真图; 没有 (首次还没加载完 / 该表情不在面板里) 才退化成 [名称] 文字.
+          //   之前这里**无条件**退化成文字, 所以评论里的 [doge] 一直显示成 "[doge]" ——
+          //   用户反馈的"表情无法加载"就是这个.
+          if (s.url) { out.push({ t: 'biliimg', v: s.v, u: s.url }); continue }
           out.push({ t: 'text', v: '[' + s.v + ']' })
           continue
         }
@@ -83,4 +89,5 @@ export default {
 .rt-t { }
 .rt-e { }
 .rt-br { width: 100%; height: 0px; }
+.rt-eb { margin-left: 2px; margin-right: 2px; }
 </style>
