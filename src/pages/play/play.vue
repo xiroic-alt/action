@@ -175,7 +175,7 @@ export default {
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
       // 音频输出
-      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
+      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, cvFailed: false, _lastUrl: '', _cvGotState: false, _cvWd: null, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
       // 内部
       genSeq: 0,
       h5Tried: false,
@@ -256,6 +256,35 @@ export default {
       log('播放', '已启用 cvplayer 后端 (合并解码)')
       // 视频矩形给原生 (3 个 int: x, y, h —— 来自 .so 的 "setVideoSurface %d, %d, %d")
       this.syncCVSurface()
+    },
+
+    /**
+     * cvplayer 起播看门狗.
+     * 判据: 8 秒内必须收到过一次 onState (说明管线真的起来了);
+     *       没收到就判定后端不可用, 切回 <video> 重放一次.
+     * 为什么用 onState 而不是 onInfo/onPosition: onState 是管线状态机最早发的信号.
+     */
+    cvWatchdog(gen) {
+      const self = this
+      if (this._cvWd) { clearTimeout(this._cvWd); this._cvWd = null }
+      this._cvGotState = false
+      this._cvWd = setTimeout(function () {
+        self._cvWd = null
+        if (gen !== self.genSeq) return
+        if (self._cvGotState) return                      // 正常, 不动
+        log('播放', 'cvplayer 8 秒内无 onState, 判定不可用 -> 退回 <video> 重放')
+        self.cvFailed = true
+        // 拆掉 cvplayer, 回到元素后端
+        try { cvCall(self.cv, 'stop') } catch (e) {}
+        self.cv = null
+        self.cvMode = false
+        self._applied = false
+        // 等 Vue 把 <video> 渲染出来再重放
+        setTimeout(function () {
+          if (gen !== self.genSeq) return
+          if (self._lastUrl) self.playStream(self._lastUrl, self.genSeq)
+        }, 400)
+      }, 8000)
     },
 
     /** 把当前视频矩形同步给 cvplayer */
@@ -593,6 +622,7 @@ export default {
       this.statusText = '缓冲中…'
       this.started = false
       this._applied = false
+      this._lastUrl = url
       const self = this
       if (this.cv) {
         // ★ cvplayer 后端: 没有 :src 绑定这回事, 必须显式 setVideoSurface + setDataSource.
@@ -608,6 +638,12 @@ export default {
           self.startPoll()
           screenon.screenOnStart()
           log('播放', '起播(cvplayer) ' + self.bvid)
+          // ★★ 看门狗: cvplayer 实例**没有 onError**, 失败是静默的 ——
+          //   真机实测过 setVideoSurface/setDataSource/play 全返回 undefined
+          //   (原生 void 的正常返回) 却一个事件都不回来, 画面永远卡在"缓冲中…".
+          //   所以必须在 N 秒内没等到 onState 时**自动退回 <video>**,
+          //   否则用户面对的就是一个不能播的页面.
+          self.cvWatchdog(gen)
         }, 600)
         return
       }
@@ -627,6 +663,7 @@ export default {
     onState(e) {
       const s = Number(e && (e.state != null ? e.state : e.value))
       if (!isFinite(s)) return
+      this._cvGotState = true          // 看门狗判据: 收到过状态就说明管线活着
       // ★ 状态串语义: 'pause' 包含 'play', 所以先判暂停再判播放
       if (s === 1) {                       // 暂停
         this.playing = false
