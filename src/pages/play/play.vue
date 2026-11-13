@@ -340,13 +340,9 @@ export default {
       if (!p) return undefined
       if (name === 'setVolume') return undefined          // cvplayer 无音量接口
       if (name === 'seekto') return cvCall(p, 'seek', args[0])
-      if (name === 'play') {
-        // 旧元素 play(posSec): 0 表示从头. cvplayer 的 play() 不带参,
-        // 所以要播放位置就先 seek 再 play.
-        const at = Number(args[0]) || 0
-        if (at > 0) cvCall(p, 'seek', at)
-        return cvCall(p, 'play')
-      }
+      // ★ play 直通: 真机实证 cvplayer 的签名就是 play(pos) —— 与旧元素一致.
+      //   之前我擅自改成"无参 play", 结果报 "play 失败: pos should be number!",
+      //   起播直接卡在"缓冲中…". 名字和参数都对得上就不要多加一层.
       return cvCall.apply(null, [p, name].concat(args))
     },
 
@@ -539,7 +535,10 @@ export default {
       const pcm = bt ? (bt.pcm || '') : ''
       // ★ 元素必须用 $refs.vv 取 —— 之前写的 this.video 根本不存在,
       //   路由函数一直收到 undefined, 于是每次都落到"没有 setAudioDeviceType"那一支.
-      const el = this.$refs.vv || null
+      // ★ 后端无关: cvplayer 模式下没有 $refs.vv, 但 cvplayer 实例同样有
+      //   setAudioDeviceType —— 把它当作"播放器对象"传下去就行.
+      //   否则每次切蓝牙/扬声器都会落到 hal-audio 系统层 (而那条路对蓝牙是 no-op).
+      const el = this.cv || this.$refs.vv || null
       let r = await audio.applyAudioRoute(el, this.audioMode, mac, pcm)
       // 记录这一次用的是哪种参数格式, 供 onError 里的回退判断
       if (r && r.ok && r.param) { this.btParamUsed = r.param; this.btParamRetried = false }
