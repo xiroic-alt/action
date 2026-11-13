@@ -36,7 +36,12 @@ import { log } from '../core/log.js'
 
 /** 模块是否可用 (解析得到构造器) */
 export function cvAvailable() {
-  return !!(CV_MOD && typeof CV_MOD.CVPlayer === 'function')
+  // ★★ 必须复用 Ctor(), 不能在别处再判一次形状 ——
+  //   2026-11-13 就是这样翻车的: Ctor 补了 default 兜底, 而 cvAvailable
+  //   还写着 CV_MOD.CVPlayer, 于是同一模块在 app.js 报"可用"、
+  //   在 play.vue 报"不可用", 白白多绕一轮.
+  //   形状实测: top=[default] default=[CVPlayer].
+  return Ctor() !== null
 }
 
 /**
