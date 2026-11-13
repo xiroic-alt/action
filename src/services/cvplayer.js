@@ -34,6 +34,36 @@
 import * as CV_MOD from 'cvplayer'
 import { log } from '../core/log.js'
 
+/**
+ * 彻底探测 getCVPlayerManager.
+ * ★ 为什么专门做这一步: 官方 app 的字节码原子表里, CVPlayer 是配 getCVPlayerManager 用的
+ *   (同一模式还有 LogManager.getLogManager / SoundPlayer.getSoundPlayerManager /
+ *    Brightness.getBrightnessManager ...). 而我之前用 new CVPlayer() 建出来的对象
+ *   虽然"成功"且带 11 个方法, 但原生侧可能不认 —— 调 setDataSource 后事件一个都不回.
+ *   ★ 另一个坑: 我第一版探测用 Object.getOwnPropertyNames, 对原生绑定对象
+ *   **拿不到非枚举/继承属性**, 所以 statics=[] 不能说明它不存在. 这次换 in 运算符彻查.
+ */
+export function probeManager() {
+  const out = { ctor: '', inOp: false, typeOf: '', ownNames: [], protoNames: [], callErr: '', mgrKeys: [], mgrProto: [] }
+  const C = Ctor()
+  if (!C) { out.callErr = 'Ctor 为空'; return out }
+  out.ctor = 'CVPlayer'
+  try { out.inOp = ('getCVPlayerManager' in C) } catch (e) { out.inOp = 'err' }
+  try { out.typeOf = typeof C.getCVPlayerManager } catch (e) { out.typeOf = 'err' }
+  try { out.ownNames = Object.getOwnPropertyNames(C) } catch (e) {}
+  try { out.protoNames = C.prototype ? Object.getOwnPropertyNames(C.prototype) : [] } catch (e) {}
+  try {
+    const fn = C.getCVPlayerManager
+    if (typeof fn === 'function') {
+      const mgr = fn.call(C)
+      out.mgrKeys = mgr ? Object.keys(mgr) : []
+      out.mgrProto = mgr ? Object.getOwnPropertyNames(Object.getPrototypeOf(mgr) || {}) : []
+      out.mgrOk = !!mgr
+    } else { out.callErr = 'getCVPlayerManager 不是函数' }
+  } catch (e) { out.callErr = String((e && e.message) || e).slice(0, 100) }
+  return out
+}
+
 /** 模块是否可用 (解析得到构造器) */
 export function cvAvailable() {
   // ★★ 必须复用 Ctor(), 不能在别处再判一次形状 ——
