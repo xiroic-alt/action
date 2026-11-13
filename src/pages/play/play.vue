@@ -3,7 +3,7 @@
     <!-- 视频面: 框架内置 <video>. 设备侧把 waylandsink 做成宿主主 surface 的 subsurface
          并 place_below —— 视频恒在 UI 之下, 所以 UI 元素天然压在画面上 (设备契约, 见 docs/device-contract.md)
          单位: position 事件 / info.duration 都是秒; play(sec)/seekto(sec) 也吃秒 -->
-    <video ref="vv" class="vsurf" :style="vrectStyle" :src="src"
+    <video v-if="!cvMode" ref="vv" class="vsurf" :style="vrectStyle" :src="src"
            @state="onState" @info="onInfo" @position="onPosition"
            @complete="onComplete" @error="onError" @bufferPercent="onBuffer"></video>
     <!-- 挖洞: 把视频矩形在 UI 面清成透明, 视频从下面透出 -->
@@ -101,6 +101,7 @@ import RichText from '../../components/rich-text.vue'
 import { ui } from '../../design/ui.js'
 import { getCfg, setCfg } from '../../core/config.js'
 import { releaseAudioFocus, ensureAudioRoute } from '../../services/audio.js'
+import { createCVPlayer, call as cvCall, cvAvailable } from '../../services/cvplayer.js'
 import { log, logDebug } from '../../core/log.js'
 import { videoDetail, playUrl, danmakuXml, subtitleBody, sponsorSegments, liveRoomPlayUrl } from '../../services/api.js'
 import { shouldSkip } from '../../services/sponsorblock.js'
@@ -174,7 +175,7 @@ export default {
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
       // 音频输出
-      btDevices: [], btLabel: '', audioMode: 'speaker', routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
+      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
       // 内部
       genSeq: 0,
       h5Tried: false,
@@ -222,11 +223,53 @@ export default {
   },
   mounted() {
     // ★ 设备框架只转发 onShow, mounted 不保证触发 —— 参数必须两边都读
+    this.initCVPlayer()
     this.readOptions()
   },
   methods: {
+    /**
+     * 建 cvplayer 后端.
+     * 为什么用它: 官方管线是**一个 uridecodebin 同时出音视频**(合并解码),
+     * 而旧的 <video> 元素音频多过一层 decodebin, 两条链不共享缓冲 ->
+     * 结构性音画错位. 拿到实例后 elem() 会自动走 cvCall 分发.
+     * 事件参数形状要**转成和旧元素一致**, 这样 onState/onInfo/onPosition/onComplete
+     * 四个处理函数一行都不用改.
+     */
+    initCVPlayer() {
+      if (this.cv) return
+      if (!cvAvailable()) { log('播放', 'cvplayer 不可用, 退回 <video> 元素'); return }
+      const self = this
+      const p = createCVPlayer({
+        onState: function (s) { self.onState({ state: s }) },
+        onInfo: function (a, b, c) {
+          // .so 里是 onInfo(int,int,int), 语义 duration / video_width / video_height
+          // (逆向文档 §7.3 的注释如此, 真机按位置传)
+          self.onInfo({ duration: a, video_width: b, video_height: c })
+        },
+        onPosition: function (pos) { self.onPosition({ position: pos }) },
+        onComplete: function () { self.onComplete() },
+        onResume: function () { log('播放', 'cvplayer onResume') }
+      })
+      if (!p) { log('播放', 'cvplayer 建实例失败, 退回 <video> 元素'); return }
+      this.cv = p
+      this.cvMode = true
+      log('播放', '已启用 cvplayer 后端 (合并解码)')
+      // 视频矩形给原生 (3 个 int: x, y, h —— 来自 .so 的 "setVideoSurface %d, %d, %d")
+      this.syncCVSurface()
+    },
+
+    /** 把当前视频矩形同步给 cvplayer */
+    syncCVSurface() {
+      if (!this.cv) return
+      const r = this.vrect
+      cvCall(this.cv, 'setVideoSurface', Math.round(r.x), Math.round(r.y), Math.round(r.h))
+    },
+
     onShow() {
       this.U = ui()
+      // ★ 兜底: 真机上 mounted 不保证触发 (框架只稳定转发 onShow),
+      //   少了这句就可能整页退回 <video> 而没人发现.
+      this.initCVPlayer()
       // ★ 真机上 mounted 不一定被调用, 页面参数在这里读才不会出现"缺少视频参数"
       this.readOptions()
     },
@@ -269,15 +312,42 @@ export default {
     },
 
     // 元素方法安全调用 (元素没挂上/固件不支持时静默)
+    /**
+     * 播放后端统一出口.
+     * ★ 所有播放控制都从这里走, 所以换后端只需要改这一个函数 —— 页面其余逻辑完全不动.
+     *   cvplayer (官方, uridecodebin 单 bin 合并解码) 优先; 没有它才退回 <video> 元素.
+     * 方法名映射 (cvplayer 与旧元素的差异只有两处):
+     *   seekto    -> seek        (改名)
+     *   setVolume -> 跳过        (cvplayer 没有音量接口)
+     *   其余 play/pause/resume/stop/setRate/getRate/setAudioDeviceType 同名
+     */
     elem(name) {
+      const args = Array.prototype.slice.call(arguments, 1)
+      if (this.cv) return this.cvCall(name, args)
       const v = this.$refs.vv
       if (!v) return undefined
       const fn = v[name]
       if (typeof fn !== 'function') return undefined
-      try { return fn.apply(v, Array.prototype.slice.call(arguments, 1)) } catch (e) {
+      try { return fn.apply(v, args) } catch (e) {
         logDebug('播放', '元素方法 ' + name + ' 失败: ' + (e && e.message ? e.message : e))
         return undefined
       }
+    },
+
+    /** 把"元素方法名"翻译成 cvplayer 调用 */
+    cvCall(name, args) {
+      const p = this.cv
+      if (!p) return undefined
+      if (name === 'setVolume') return undefined          // cvplayer 无音量接口
+      if (name === 'seekto') return cvCall(p, 'seek', args[0])
+      if (name === 'play') {
+        // 旧元素 play(posSec): 0 表示从头. cvplayer 的 play() 不带参,
+        // 所以要播放位置就先 seek 再 play.
+        const at = Number(args[0]) || 0
+        if (at > 0) cvCall(p, 'seek', at)
+        return cvCall(p, 'play')
+      }
+      return cvCall.apply(null, [p, name].concat(args))
     },
 
     async load() {
@@ -517,10 +587,26 @@ export default {
     playStream(url, gen) {
       if (gen !== this.genSeq) return
       this.statusText = '缓冲中…'
-      this.src = url
       this.started = false
       this._applied = false
       const self = this
+      if (this.cv) {
+        // ★ cvplayer 后端: 没有 :src 绑定这回事, 必须显式 setVideoSurface + setDataSource.
+        //   顺序要紧: 先给矩形再给数据源, 免得管线先建在默认位置上又挪一次.
+        this.src = url
+        this.syncCVSurface()
+        cvCall(this.cv, 'setDataSource', url)
+        setTimeout(function () {
+          if (gen !== self.genSeq) return
+          self.elem('play', 0)
+          self.opened = true
+          self.startPoll()
+          screenon.screenOnStart()
+          log('播放', '起播(cvplayer) ' + self.bvid)
+        }, 600)
+        return
+      }
+      this.src = url
       // src 绑定后元素要等下一次属性 diff 才建管线, 稍后再 play(0)
       setTimeout(function () {
         if (gen !== self.genSeq) return
@@ -552,10 +638,7 @@ export default {
         this.startPoll()
         if (!this._applied) {
           this._applied = true
-          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
-          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
-          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
-          // (音频路由已在起播前下发, 这里**不要**再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
+          // (音频路由已在起播前下发, 这里不要再调一次 —— 会触发 rebuildAudio_ 造成音画错位)
           // ★ 速率归一 + 探测 (用户提示"把解码速度提到 1x").
           //   为什么值得查: 若管线实际速率不是精确 1.0, 音视频会**持续漂移**,
           //   表现就是"一直对不上"而不是"固定差一点".
@@ -588,6 +671,8 @@ export default {
         this.dmAreaW = r.w
         this.dmAreaH = r.h
         this.rebuildDanmaku()
+        // 矩形变了要重新告诉原生, 否则画面还按旧位置铺
+        this.syncCVSurface()
       }
     },
     onPosition(e) {
