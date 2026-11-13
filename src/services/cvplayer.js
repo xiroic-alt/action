@@ -174,3 +174,31 @@ export function probeBrightness(B) {
   } catch (e) { out.sample = 'err:' + e }
   return out
 }
+
+
+/**
+ * 深层形状 dump: 把模块从顶层到底层的所有键都列出来 (含 default 链).
+ * ★ 为什么要这个: brightness 与 cvplayer 的形状**模式完全相同** ({<类名>: 实体}),
+ *   而 brightness 是我们早已声明且正常使用的模块 —— 说明这就是框架暴露原生模块
+ *   的标准方式, 之前"拿到的不是原生模块"的判断是错的.
+ *   那就必须把底层真正的键找出来 (getCVPlayerManager 可能藏得更深).
+ */
+export function deepShape(M, depth) {
+  const out = []
+  function walk(o, path, d) {
+    if (d > (depth || 3) || !o) return
+    let keys = []
+    try { keys = Object.keys(o) } catch (e) { keys = [] }
+    let names = []
+    try { names = Object.getOwnPropertyNames(o) } catch (e) { names = [] }
+    out.push(path + ' type=' + typeof o + ' keys=[' + keys.join(',') + '] own=[' + names.slice(0, 15).join(',') + ']')
+    // 只对前几个键递归, 避免爆掉
+    keys.slice(0, 4).forEach(function (k) {
+      let v = null
+      try { v = o[k] } catch (e) { return }
+      if (v && (typeof v === 'object' || typeof v === 'function')) walk(v, path + '.' + k, d + 1)
+    })
+  }
+  walk(M, 'root', 0)
+  return out
+}
