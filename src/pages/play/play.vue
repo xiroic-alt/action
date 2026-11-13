@@ -262,7 +262,8 @@ export default {
     syncCVSurface() {
       if (!this.cv) return
       const r = this.vrect
-      cvCall(this.cv, 'setVideoSurface', Math.round(r.x), Math.round(r.y), Math.round(r.h))
+      const rs = cvCall(this.cv, 'setVideoSurface', Math.round(r.x), Math.round(r.y), Math.round(r.h))
+      log('cvplayer', 'setVideoSurface(' + Math.round(r.x) + ',' + Math.round(r.y) + ',' + Math.round(r.h) + ') -> ' + JSON.stringify(rs))
     },
 
     onShow() {
@@ -339,11 +340,15 @@ export default {
       const p = this.cv
       if (!p) return undefined
       if (name === 'setVolume') return undefined          // cvplayer 无音量接口
-      if (name === 'seekto') return cvCall(p, 'seek', args[0])
-      // ★ play 直通: 真机实证 cvplayer 的签名就是 play(pos) —— 与旧元素一致.
-      //   之前我擅自改成"无参 play", 结果报 "play 失败: pos should be number!",
-      //   起播直接卡在"缓冲中…". 名字和参数都对得上就不要多加一层.
-      return cvCall.apply(null, [p, name].concat(args))
+      if (name === 'seekto') {
+        const rr0 = cvCall(p, 'seek', args[0])
+        log('cvplayer', 'seek(' + args[0] + ') -> ' + JSON.stringify(rr0))
+        return rr0
+      }
+      const rr = cvCall.apply(null, [p, name].concat(args))
+      log('cvplayer', name + '(' + args.join(',') + ') -> ' + JSON.stringify(rr))
+      return rr;
+
     },
 
     async load() {
@@ -594,7 +599,8 @@ export default {
         //   顺序要紧: 先给矩形再给数据源, 免得管线先建在默认位置上又挪一次.
         this.src = url
         this.syncCVSurface()
-        cvCall(this.cv, 'setDataSource', url)
+        const rd = cvCall(this.cv, 'setDataSource', url)
+        log('cvplayer', 'setDataSource(' + String(url).slice(0, 60) + '...) -> ' + JSON.stringify(rd))
         setTimeout(function () {
           if (gen !== self.genSeq) return
           self.elem('play', 0)
