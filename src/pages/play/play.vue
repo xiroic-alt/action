@@ -279,11 +279,15 @@ export default {
         self.cv = null
         self.cvMode = false
         self._applied = false
-        // 等 Vue 把 <video> 渲染出来再重放
+        // 等 Vue 把 <video> 渲染出来再重放.
+        // ★★ 必须先把 src 清空一帧再设回来 ——
+        //   否则若 this.src 已经等于目标 url, Vue 的 diff 不认为有变化,
+        //   元素的 :src 属性不更新, 元素根本不会去加载 (实测退回后仍卡"缓冲中…").
+        self.src = ''
         setTimeout(function () {
           if (gen !== self.genSeq) return
           if (self._lastUrl) self.playStream(self._lastUrl, self.genSeq)
-        }, 400)
+        }, 500)
       }, 8000)
     },
 
@@ -627,7 +631,9 @@ export default {
       if (this.cv) {
         // ★ cvplayer 后端: 没有 :src 绑定这回事, 必须显式 setVideoSurface + setDataSource.
         //   顺序要紧: 先给矩形再给数据源, 免得管线先建在默认位置上又挪一次.
-        this.src = url
+        //   ★ 这里**不要**动 this.src —— 它是给 <video> 的 :src 绑定用的.
+        //     之前设了, 结果看门狗退回时 src 值没变化, Vue 的 diff 认为无需更新,
+        //     元素的 :src 不重新加载 -> 退回后照样卡"缓冲中…"(实测).
         this.syncCVSurface()
         const rd = cvCall(this.cv, 'setDataSource', url)
         log('cvplayer', 'setDataSource(' + String(url).slice(0, 60) + '...) -> ' + JSON.stringify(rd))
