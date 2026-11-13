@@ -150,3 +150,27 @@ export function cvStatus() {
 }
 
 export default { cvAvailable, createCVPlayer, call, cvStatus }
+
+
+/**
+ * 对照组: brightness.
+ * ★ 为什么拿它做对照: 它也注册在同一个固件导出包 /etc/miniapp/jsapis/libjsapi_export.so 里,
+ *   而且我们 app.json 的 external 早就声明了它.
+ *   如果 brightness 解析出来是**原生对象**(有非 length/name/prototype 的键),
+ *   说明"从 export 包拿原生模块"这条路是通的 -> 那 cvplayer 的问题就在别处;
+ *   如果 brightness 也只是个 length/name/prototype 的壳, 说明这条路整体不通.
+ */
+export function probeBrightness(B) {
+  const out = { got: false, typeOf: '', own: [], inKeys: [], sample: '' }
+  if (!B) { out.sample = '模块为空'; return out }
+  out.got = true
+  out.typeOf = typeof B
+  try { out.own = Object.keys(B) } catch (e) {}
+  try {
+    // 用 in 探几个常见方法名 (Object.keys 对原生对象不可靠)
+    const names = ['setBrightness', 'getBrightness', 'setScreenBrightness', 'getBrightnessManager', 'setBacklight', 'getScreenMode']
+    out.inKeys = names.filter(function (n) { return n in B }).map(function (n) { return n + ':' + typeof B[n] })
+    out.sample = Object.getOwnPropertyNames(B).slice(0, 12).join(',')
+  } catch (e) { out.sample = 'err:' + e }
+  return out
+}

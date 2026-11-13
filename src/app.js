@@ -10,7 +10,8 @@
 //   7. useDefaultBasePageClass(BasePage) 替换框架页基类
 import { BasePage } from './core/page.js'
 import { ensureEmoji } from './services/bili-emoji.js'
-import { cvStatus, probeManager } from './services/cvplayer.js'
+import { cvStatus, probeManager, probeBrightness } from './services/cvplayer.js'
+import * as BR_MOD from 'brightness'
 import { installConsoleBridge, initLog, setLogLevel, log } from './core/log.js'
 import { initStore, storeStatus } from './core/store.js'
 import { initAuth } from './core/auth.js'
@@ -67,6 +68,11 @@ class App extends $falcon.App {
       log('cvplayer', 'getCVPlayerManager: in=' + pm.inOp + ' typeof=' + pm.typeOf + ' own=[' + (pm.ownNames || []).join(',') + ']')
       log('cvplayer', 'mgr: ok=' + pm.mgrOk + ' keys=[' + (pm.mgrKeys || []).join(',') + '] proto=[' + (pm.mgrProto || []).join(',') + '] err=' + pm.callErr)
     } catch (e) { log('cvplayer', '管理器探测异常: ' + e) }
+    try {
+      const br = probeBrightness(BR_MOD && (BR_MOD.default || BR_MOD))
+      log('对照brightness', 'got=' + br.got + ' typeof=' + br.typeOf + ' keys=[' + (br.own || []).join(',') + ']')
+      log('对照brightness', 'in探: ' + ((br.inKeys || []).join(' | ') || '(无命中)') + ' ownProps=[' + br.sample + ']')
+    } catch (e) { log('对照brightness', '探测异常: ' + e) }
     // ★ jsapi 探测 (一次性): Falcon 的官方模块接入是 import x from '$jsapi/x'
     //   它编译成 $falcon.jsapi['x']. 这里把实际可用的模块名列出来, 决定能不能用 cvplayer
     //   (官方视频播放器用的就是 cvplayer, 它有 setAudioDeviceType 能做蓝牙热切).
