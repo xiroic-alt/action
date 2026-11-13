@@ -237,7 +237,10 @@ export default {
      */
     initCVPlayer() {
       if (this.cv) return
-      if (!cvAvailable()) { log('播放', 'cvplayer 不可用, 退回 <video> 元素'); return }
+      // ★ 默认关闭: cvplayer 接入尚未调通 (静默失败, 无 onError), 默认走已验证的 <video>.
+      //   想要联调就打开设置里的"使用官方 cvplayer 后端".
+      if (getCfg('useCVPlayer') !== true) { log('播放', 'cvplayer 后端未启用 (设置里可开), 用 <video>'); return }
+      if (!cvAvailable()) { log('播放', 'cvplayer 不可用, 用 <video> 元素'); return }
       const self = this
       const p = createCVPlayer({
         onState: function (s) { self.onState({ state: s }) },

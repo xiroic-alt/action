@@ -35,6 +35,13 @@ const SPEC = {
   // 播放开始时自动静音: 打开后进播放页先压到 0, 手动调音量才恢复.
   // 关掉则正常出声. (用户要求: 按钮关了就不要静音)
   autoMuteOnStart: [false, 'bool'],
+  // 用官方 cvplayer 后端播放 (uridecodebin 单 bin 合并解码).
+  // ★ 默认**关**: 该模块虽然在固件里 (可用=true, 11 个方法齐全), 但接入尚未调通 ——
+  //   真机实测 setVideoSurface/setDataSource/play 全部返回 undefined(无报错),
+  //   onState/onInfo/onPosition 却一个都不来, 画面停在"缓冲中…";
+  //   实例又没有 onError, 失败完全静默. 所以默认走已验证的 <video>,
+  //   cvplayer 留作可选项, 方便继续联调而不影响正常使用.
+  useCVPlayer: [false, 'bool'],
   autoQuality: [false, 'bool'],
   resumePlay: [true, 'bool'],
   skipIntroSec: [0, 'int', [0, 300]],
