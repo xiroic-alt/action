@@ -176,7 +176,7 @@ export default {
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
       // 音频输出
-      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, gstMode: false, gstPos: 0, gstAt: 0, gstTimer: null, cvFailed: false, _lastUrl: '', _cvGotState: false, _cvWd: null, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
+      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, gstMode: false, dim: null, gstPos: 0, gstAt: 0, gstTimer: null, cvFailed: false, _lastUrl: '', _cvGotState: false, _cvWd: null, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
       // 内部
       genSeq: 0,
       h5Tried: false,
@@ -475,6 +475,15 @@ export default {
         if (!this.titleText) this.titleText = d.title
         const cid = d.cid
         this.cid = cid
+        // 记下画幅: gst 后端起播前就要算好视频矩形 (它收不到 onInfo)
+        if (d.dimension && d.dimension.width > 0) {
+          this.dim = d.dimension
+          const rr = fitRect(d.dimension.width, d.dimension.height)
+          this.vrect = rr
+          this.dmAreaW = rr.w
+          this.dmAreaH = rr.h
+          log('播放', '画幅 ' + d.dimension.width + 'x' + d.dimension.height + ' -> rect ' + rr.x + ',' + rr.y + ',' + rr.w + ',' + rr.h)
+        }
         if (!cid) throw new Error('未取到 cid')
         // 取流口: web 口能给出更高的可选档位 (H5 口通常只到 480P), 所以默认走 web;
         // 清晰度用设置里的 defaultQuality, 但不得超过设备解码上限.

@@ -160,6 +160,14 @@ export async function videoDetail(bvid) {
     bvid: d.bvid || bvid,
     aid: Number(d.aid) || 0,
     cid: Number(d.cid) || (pages[0] && pages[0].cid) || 0,
+    // ★ 视频画幅: gst 后端 (gst-play 独立进程) 拿不到 onInfo 事件,
+    //   所以视频矩形必须**起播前**就知道, 只能从这里取.
+    //   /x/web-interface/view 的 dimension 就是 {width,height,rotate}.
+    dimension: {
+      width: Number((d.dimension && d.dimension.width) || 0) || 0,
+      height: Number((d.dimension && d.dimension.height) || 0) || 0,
+      rotate: Number((d.dimension && d.dimension.rotate) || 0) || 0
+    },
     title: String(d.title || ''),
     pic: F.thumb(d.pic || '', 640, 400),
     desc: String(d.desc || ''),

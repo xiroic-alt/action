@@ -75,7 +75,10 @@ function buildScript(o) {
   L.push('. /etc/profile.d/gst.sh 2>/dev/null')
   L.push('')
   const rect = '<' + o.x + ',' + o.y + ',' + o.w + ',' + o.h + '>'
-  L.push('VS="waylandsink render-rectangle=' + rect + '"')
+  // ★ layer=bottom 必须有: waylandsink 默认 layer=normal(1), 会盖在 Falcon UI **之上**,
+  //   表现为"一开始画面压在页面上, 点一下才沉下去"(点击触发合成重排).
+  //   枚举: (0)top (1)normal (2)bottom —— 我们要 bottom.
+  L.push('VS="waylandsink render-rectangle=' + rect + ' layer=bottom sync=false"')
   let as = 'alsasink'
   if (o.audioDevice) as += ' device=' + o.audioDevice
   if (o.btOn) {
