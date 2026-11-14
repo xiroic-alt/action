@@ -81,7 +81,13 @@ function buildScript(o) {
   //   图层问题的正确解法见 WAYLANDSINK_PLACE_ABOVE / 合成时序, 不要碰 layer.
   //   sync 也保持默认: 1946faa 那条 "sync=false 修首帧停住" 是配合 layer=bottom 用的,
   //   单独加没有收益且有风险.
-  L.push('VS="waylandsink render-rectangle=' + rect + '"')
+  // ★★ 必须显式串 videoconvert ! videoscale, 不能只给 waylandsink.
+  //   原因: waylandsink 支持 dmabuf, 解码器直出原生分辨率 (如 4K) 时它会**绕过缩放**,
+  //   于是 473x266 的窗口里只显示 4K 帧的左上角 —— 真机表现就是
+  //   "视频只显示在上半个屏幕, 下半个不显示" (用户 2026-11-14 反馈).
+  //   旧 .so 的管线里本来就有 videoconvert/videoscale, playbin 不保证插.
+  //   gst-play 的 --videosink 接受**bin 描述**, 所以直接串起来即可.
+  L.push('VS="videoconvert ! videoscale ! waylandsink render-rectangle=' + rect + '"')
   let as = 'alsasink'
   if (o.audioDevice) as += ' device=' + o.audioDevice
   if (o.btOn) {
