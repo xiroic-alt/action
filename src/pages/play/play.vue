@@ -704,6 +704,14 @@ export default {
       this._applied = false
       this._lastUrl = url
       const self = this
+      if (this.gstMode) {
+        // ★ gst 后端: 独立进程, 没有 :src 绑定这回事.
+        //   直接交给 gstPlayAt 起播; **必须 return**, 否则会继续走到 <video> 分支
+        //   变成两个后端同时起播 (真机实证: 日志里"起播(gst)"和"起播"同时出现).
+        this.elem('play', 0)
+        screenon.screenOnStart()
+        return
+      }
       if (this.cv) {
         // ★ cvplayer 后端: 没有 :src 绑定这回事, 必须显式 setVideoSurface + setDataSource.
         //   顺序要紧: 先给矩形再给数据源, 免得管线先建在默认位置上又挪一次.
