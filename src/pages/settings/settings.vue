@@ -161,6 +161,7 @@ const BASE_GROUPS = [
       { k: 'audioRoute', t: 'choice', label: '输出设备', opts: [['auto', '自动'], ['speaker', '扬声器'], ['bluetooth', '蓝牙']] },
       { k: 'audioPreempt', t: 'switch', label: '自动抢占音频', desc: '起播时停掉其它应用的播放 (系统无音频焦点 API, 用全局停止实现)' },
       { k: 'autoMuteOnStart', t: 'switch', label: '播放开始时自动静音', desc: '打开后进入播放页先把声音压到 0; 关掉则正常出声' },
+      { k: 'useGstPlayer', t: 'switch', label: '用系统 gst-play 播放', desc: '合并解码 (playbin/uridecodebin), 支持蓝牙音画补偿; 建议保持开启' },
       { k: 'useCVPlayer', t: 'switch', label: '使用官方 cvplayer 后端', desc: '官方 uridecodebin 合并解码; 目前联调中, 打开后若 8 秒无响应会自动退回' },
       { k: 'btScan', t: 'action', label: '已连接蓝牙', desc: '点右侧刷新', actText: '刷新' },
       { t: 'text', label: '蓝牙状态', value: '' }

@@ -42,6 +42,11 @@ const SPEC = {
   //   实例又没有 onError, 失败完全静默. 所以默认走已验证的 <video>,
   //   cvplayer 留作可选项, 方便继续联调而不影响正常使用.
   useCVPlayer: [false, 'bool'],
+  // ★ 用系统 gst-play-1.0 做播放引擎 (纯 JS 驱动, 不依赖任何自研 .so).
+  //   它内部是 playbin -> uridecodebin, 一个 bin 同时出音视频 = **合并解码**,
+  //   与官方 cvplayer 同形态; 且 alsasink 的 ts-offset 能做蓝牙音画补偿.
+  //   默认**开** —— 这是目前唯一同时满足"合并解码 + 蓝牙补偿 + 可维护"的方案.
+  useGstPlayer: [true, 'bool'],
   autoQuality: [false, 'bool'],
   resumePlay: [true, 'bool'],
   skipIntroSec: [0, 'int', [0, 300]],

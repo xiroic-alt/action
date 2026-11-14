@@ -3,7 +3,7 @@
     <!-- 视频面: 框架内置 <video>. 设备侧把 waylandsink 做成宿主主 surface 的 subsurface
          并 place_below —— 视频恒在 UI 之下, 所以 UI 元素天然压在画面上 (设备契约, 见 docs/device-contract.md)
          单位: position 事件 / info.duration 都是秒; play(sec)/seekto(sec) 也吃秒 -->
-    <video v-if="!cvMode" ref="vv" class="vsurf" :style="vrectStyle" :src="src"
+    <video v-if="!cvMode && !gstMode" ref="vv" class="vsurf" :style="vrectStyle" :src="src"
            @state="onState" @info="onInfo" @position="onPosition"
            @complete="onComplete" @error="onError" @bufferPercent="onBuffer"></video>
     <!-- 挖洞: 把视频矩形在 UI 面清成透明, 视频从下面透出 -->
@@ -102,6 +102,7 @@ import { ui } from '../../design/ui.js'
 import { getCfg, setCfg } from '../../core/config.js'
 import { releaseAudioFocus, ensureAudioRoute } from '../../services/audio.js'
 import { createCVPlayer, call as cvCall, cvAvailable } from '../../services/cvplayer.js'
+import * as gst from '../../services/gstplayer.js'
 import { log, logDebug } from '../../core/log.js'
 import { videoDetail, playUrl, danmakuXml, subtitleBody, sponsorSegments, liveRoomPlayUrl } from '../../services/api.js'
 import { shouldSkip } from '../../services/sponsorblock.js'
@@ -175,7 +176,7 @@ export default {
       // SponsorBlock
       sbSegs: [], sbLastSkipAt: 0,
       // 音频输出
-      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, cvFailed: false, _lastUrl: '', _cvGotState: false, _cvWd: null, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
+      btDevices: [], btLabel: '', audioMode: 'speaker', // cvplayer 后端 (官方 uridecodebin 单 bin 合并解码); 为 null 时退回 <video> 元素 cv: null, cvMode: false, gstMode: false, gstPos: 0, gstAt: 0, gstTimer: null, cvFailed: false, _lastUrl: '', _cvGotState: false, _cvWd: null, routeState: null, btParamUsed: '', btParamRetried: false, audioMsg: '',
       // 内部
       genSeq: 0,
       h5Tried: false,
@@ -239,6 +240,13 @@ export default {
       if (this.cv) return
       // ★ 默认关闭: cvplayer 接入尚未调通 (静默失败, 无 onError), 默认走已验证的 <video>.
       //   想要联调就打开设置里的"使用官方 cvplayer 后端".
+      // ★★ 优先 gst 后端 (纯 JS 驱动系统 gst-play-1.0, 合并解码, 无需任何 .so)
+      if (getCfg('useGstPlayer') !== false) {
+        this.gstMode = true
+        log('播放', '启用 gst 后端 (gst-play-1.0 合并解码)')
+        try { gst.refreshBtAudioMs() } catch (e) {}
+        return
+      }
       if (getCfg('useCVPlayer') !== true) { log('播放', 'cvplayer 后端未启用 (设置里可开), 用 <video>'); return }
       if (!cvAvailable()) { log('播放', 'cvplayer 不可用, 用 <video> 元素'); return }
       const self = this
@@ -360,6 +368,7 @@ export default {
      */
     elem(name) {
       const args = Array.prototype.slice.call(arguments, 1)
+      if (this.gstMode) return this.gstCall(name, args)
       if (this.cv) return this.cvCall(name, args)
       const v = this.$refs.vv
       if (!v) return undefined
@@ -370,6 +379,70 @@ export default {
         return undefined
       }
     },
+
+    /**
+     * gst 后端的方法分发.
+     * gst-play 是**独立进程**, 能表达的动作只有 起播/暂停/恢复/停止/跳转;
+     * 音量/速率无对应 (gst-play 有 --volume 但改它要重启, 不值得), 直接忽略.
+     */
+    gstCall(name, args) {
+      if (name === 'pause') { gst.pause(); this.gstStopClock(); return }
+      if (name === 'resume') { gst.resume(); this.gstStartClock(); return }
+      if (name === 'stop') { gst.stop(); this.gstStopClock(); return }
+      if (name === 'seekto') { this.gstSeek(Number(args[0]) || 0); return }
+      if (name === 'setRate' || name === 'getRate') return name === 'getRate' ? 1 : undefined
+      if (name === 'setAudioDeviceType') { log('播放', 'gst: 音频设备由起播参数决定, 运行时忽略'); return }
+      if (name === 'setVolume') return undefined
+      if (name === 'play') { this.gstPlayAt(Number(args[0]) || 0); return }
+      log('播放', 'gst 后端无此方法: ' + name)
+    },
+    /** 起播 (at=起播位置秒) */
+    gstPlayAt(at) {
+      const r = this.vrect
+      const bt = this.audioMode === 'bluetooth'
+      const dev = bt && this.btDevices.length ? (this.btDevices[0].pcm || ('bluealsa:DEV=' + this.btDevices[0].mac + ',PROFILE=a2dp')) : ''
+      this.gstPos = at
+      this.gstAt = Date.now()
+      gst.start({
+        url: this._lastUrl,
+        x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h),
+        startSec: at, audioDevice: dev, btOn: bt, btMs: gst.currentBtMs()
+      })
+      this.gstStartClock()
+      this.opened = true
+      this.statusText = ''
+      this.playing = true
+      this.started = true
+      log('播放', '起播(gst) ' + this.bvid)
+    },
+    /** 跳转: gst-play 用 -s 重启 */
+    gstSeek(sec) {
+      log('播放', 'gst 跳转到 ' + sec + 's')
+      this.gstPlayAt(sec)
+    },
+    /** 位置推进 (JS 侧计时; 起播/seek/暂停时校准) */
+    gstStartClock() {
+      this.gstStopClock()
+      const self = this
+      this.gstAt = Date.now()
+      this.gstTimer = setInterval(function () {
+        if (!self.playing) return
+        const ms = self.gstPos * 1000 + (Date.now() - self.gstAt)
+        self.posMs = ms
+        self.curMs = ms
+        // 自然结束: 进程没了就算播完
+        gst.isAlive().then(function (alive) {
+          if (!alive && self.playing) {
+            self.playing = false
+            self.statusText = '播放结束'
+            self.stopPoll()
+            self.gstStopClock()
+            log('播放', 'gst 进程结束')
+          }
+        })
+      }, 1000)
+    },
+    gstStopClock() { if (this.gstTimer) { clearInterval(this.gstTimer); this.gstTimer = null } },
 
     /** 把"元素方法名"翻译成 cvplayer 调用 */
     cvCall(name, args) {
