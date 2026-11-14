@@ -3,7 +3,7 @@
     <!-- 视频面: 框架内置 <video>. 设备侧把 waylandsink 做成宿主主 surface 的 subsurface
          并 place_below —— 视频恒在 UI 之下, 所以 UI 元素天然压在画面上 (设备契约, 见 docs/device-contract.md)
          单位: position 事件 / info.duration 都是秒; play(sec)/seekto(sec) 也吃秒 -->
-    <video v-if="!cvMode && !gstMode" ref="vv" class="vsurf" :style="vrectStyle" :src="src"
+    <video v-if="!cvMode" ref="vv" class="vsurf" :style="vrectStyle" :src="src"
            @state="onState" @info="onInfo" @position="onPosition"
            @complete="onComplete" @error="onError" @bufferPercent="onBuffer"></video>
     <!-- 挖洞: 把视频矩形在 UI 面清成透明, 视频从下面透出 -->
@@ -227,6 +227,8 @@ export default {
     this.initCVPlayer()
     this.readOptions()
   },
+  onUnload() { this.cleanupGst() },
+  onHide() { this.cleanupGst() },
   methods: {
     /**
      * 建 cvplayer 后端.
@@ -238,15 +240,6 @@ export default {
      */
     initCVPlayer() {
       if (this.cv) return
-      // ★ 默认关闭: cvplayer 接入尚未调通 (静默失败, 无 onError), 默认走已验证的 <video>.
-      //   想要联调就打开设置里的"使用官方 cvplayer 后端".
-      // ★★ 优先 gst 后端 (纯 JS 驱动系统 gst-play-1.0, 合并解码, 无需任何 .so)
-      if (getCfg('useGstPlayer') !== false) {
-        this.gstMode = true
-        log('播放', '启用 gst 后端 (gst-play-1.0 合并解码)')
-        try { gst.refreshBtAudioMs() } catch (e) {}
-        return
-      }
       if (getCfg('useCVPlayer') !== true) { log('播放', 'cvplayer 后端未启用 (设置里可开), 用 <video>'); return }
       if (!cvAvailable()) { log('播放', 'cvplayer 不可用, 用 <video> 元素'); return }
       const self = this
@@ -310,6 +303,22 @@ export default {
       log('cvplayer', 'setVideoSurface(' + Math.round(r.x) + ',' + Math.round(r.y) + ',' + Math.round(r.h) + ') -> ' + JSON.stringify(rs))
     },
 
+    /**
+     * ★★ 兜底清理: 杀掉所有 gst 播放进程.
+     * 为什么必须有: 之前用 gst-play-1.0 起**独立进程**播放, 它创建的 wl_subsurface
+     * **不受小程序页面管理** —— 页面退出后画面还压在屏幕上, 用户无法退出也无法操作.
+     * 事故: 2026-11-14 PID 1898 孤儿进程持续持有 subsurface, killall 按名字也没杀到.
+     * 所以页面隐藏/卸载时必须主动扫一遍, 不能只依赖 pid 文件.
+     */
+    cleanupGst() {
+      try {
+        if (this.gstTimer) { clearInterval(this.gstTimer); this.gstTimer = null }
+        if (this.gstMode && gst && gst.stop) gst.stop()
+      } catch (e) {}
+      this.gstMode = false
+      this.playing = false
+    },
+
     onShow() {
       this.U = ui()
       // ★ 兜底: 真机上 mounted 不保证触发 (框架只稳定转发 onShow),
@@ -368,7 +377,6 @@ export default {
      */
     elem(name) {
       const args = Array.prototype.slice.call(arguments, 1)
-      if (this.gstMode) return this.gstCall(name, args)
       if (this.cv) return this.cvCall(name, args)
       const v = this.$refs.vv
       if (!v) return undefined
@@ -757,14 +765,6 @@ export default {
       this._applied = false
       this._lastUrl = url
       const self = this
-      if (this.gstMode) {
-        // ★ gst 后端: 独立进程, 没有 :src 绑定这回事.
-        //   直接交给 gstPlayAt 起播; **必须 return**, 否则会继续走到 <video> 分支
-        //   变成两个后端同时起播 (真机实证: 日志里"起播(gst)"和"起播"同时出现).
-        this.elem('play', 0)
-        screenon.screenOnStart()
-        return
-      }
       if (this.cv) {
         // ★ cvplayer 后端: 没有 :src 绑定这回事, 必须显式 setVideoSurface + setDataSource.
         //   顺序要紧: 先给矩形再给数据源, 免得管线先建在默认位置上又挪一次.

@@ -46,7 +46,7 @@ const SPEC = {
   //   它内部是 playbin -> uridecodebin, 一个 bin 同时出音视频 = **合并解码**,
   //   与官方 cvplayer 同形态; 且 alsasink 的 ts-offset 能做蓝牙音画补偿.
   //   默认**开** —— 这是目前唯一同时满足"合并解码 + 蓝牙补偿 + 可维护"的方案.
-  useGstPlayer: [true, 'bool'],
+  useGstPlayer: [false, 'bool'],
   autoQuality: [false, 'bool'],
   resumePlay: [true, 'bool'],
   skipIntroSec: [0, 'int', [0, 300]],

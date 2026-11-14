@@ -159,9 +159,15 @@ export function resume() { signal('CONT'); log('播放器', '恢复 SIGCONT') }
 /** 停止 */
 export async function stop() {
   signal('TERM')
+  // ★★ 必须 pkill 兜底, 不能只杀 pid 文件里那个.
+  //   事故 2026-11-14: 我们的脚本里是 `gst-play ... &` 然后 `wait`,
+  //   pid 文件记的是**子进程**; 但父 shell 被杀后子进程可能残留, 反过来也一样.
+  //   孤儿 gst-play 会持续持有 wl_subsurface -> 画面压在屏幕上, 用户退不出去.
+  //   pkill -f 按完整命令行匹配 (killall 按进程名会匹配不上, 已实证).
   runScript('killplayer.sh', ['#!/bin/sh',
     'P=$(cat ' + PID_FILE + ' 2>/dev/null)',
     'if [ -n "$P" ]; then kill -9 "$P" 2>/dev/null; fi',
+    'pkill -9 -f "gst-play-1.0" 2>/dev/null',
     'rm -f ' + PID_FILE, 'echo KILLOK'])
 }
 
