@@ -87,7 +87,12 @@ function buildScript(o) {
   //   "视频只显示在上半个屏幕, 下半个不显示" (用户 2026-11-14 反馈).
   //   旧 .so 的管线里本来就有 videoconvert/videoscale, playbin 不保证插.
   //   gst-play 的 --videosink 接受**bin 描述**, 所以直接串起来即可.
-  L.push('VS="videoconvert ! videoscale ! waylandsink render-rectangle=' + rect + '"')
+  // ★ fullscreen=true 必须有: waylandsink 默认建的是 **toplevel 窗口**, 会被 Weston
+  //   桌面 shell 摆放; 若窗口不是全屏, render-rectangle 就是相对窗口而不是相对屏幕,
+  //   于是逻辑矩形 <244,0,473,266> 落在小窗口里 —— 真机表现就是
+  //   "视频只显示在上半个屏幕" (用户 2026-11-14 两次反馈).
+  //   全屏后 render-rectangle 才真正相对整个屏幕.
+  L.push('VS="videoconvert ! videoscale ! waylandsink fullscreen=true render-rectangle=' + rect + '"')
   let as = 'alsasink'
   if (o.audioDevice) as += ' device=' + o.audioDevice
   if (o.btOn) {
