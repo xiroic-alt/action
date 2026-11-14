@@ -411,6 +411,7 @@ export default {
      *   x' = y + 107 , y' = 959 - x - w , w' = h , h' = w
      * 代入 (244,0,473,266) -> (107,242,266,473), 在 480x960 内完全放得下.
      */
+    /** @deprecated 已证伪: 见 gstPlayAt 里的说明. 保留备查. */
     toPhys(r) {
       return {
         x: Math.round(r.y) + 107,
@@ -421,7 +422,13 @@ export default {
     },
     gstPlayAt(at) {
       const lr = this.vrect
-      const r = this.toPhys(lr)
+      // ★★ 回退: **不要**做物理坐标变换.
+      //   2026-11-14 我按触摸公式推导了"逻辑->物理"变换并下发 (107,242,266,473),
+      //   结果用户报"画面直接没了" —— 说明 waylandsink 的 render-rectangle
+      //   就是按**逻辑空间 960x266** 解释的 (物理 y=242 在逻辑空间里已接近出屏,
+      //   再加 473 高完全跑出可视区).
+      //   教训: 触摸坐标空间 ≠ Wayland surface 坐标空间, 不能直接套用.
+      const r = lr
       const bt = this.audioMode === 'bluetooth'
       const dev = bt && this.btDevices.length ? (this.btDevices[0].pcm || ('bluealsa:DEV=' + this.btDevices[0].mac + ',PROFILE=a2dp')) : ''
       this.gstPos = at
