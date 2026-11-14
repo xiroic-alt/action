@@ -75,10 +75,13 @@ function buildScript(o) {
   L.push('. /etc/profile.d/gst.sh 2>/dev/null')
   L.push('')
   const rect = '<' + o.x + ',' + o.y + ',' + o.w + ',' + o.h + '>'
-  // ★ layer=bottom 必须有: waylandsink 默认 layer=normal(1), 会盖在 Falcon UI **之上**,
-  //   表现为"一开始画面压在页面上, 点一下才沉下去"(点击触发合成重排).
-  //   枚举: (0)top (1)normal (2)bottom —— 我们要 bottom.
-  L.push('VS="waylandsink render-rectangle=' + rect + ' layer=bottom sync=false"')
+  // ★★ 绝对**不要**加 layer= 属性 —— 真机必崩.
+  //   git 历史 bfa4471 已经踩过: "修播放崩溃 (layer 属性在 toplevel 窗口上必崩)".
+  //   我 2026-11-14 又踩了一次 (加 layer=bottom 后用户报"播放出现闪退").
+  //   图层问题的正确解法见 WAYLANDSINK_PLACE_ABOVE / 合成时序, 不要碰 layer.
+  //   sync 也保持默认: 1946faa 那条 "sync=false 修首帧停住" 是配合 layer=bottom 用的,
+  //   单独加没有收益且有风险.
+  L.push('VS="waylandsink render-rectangle=' + rect + '"')
   let as = 'alsasink'
   if (o.audioDevice) as += ' device=' + o.audioDevice
   if (o.btOn) {
