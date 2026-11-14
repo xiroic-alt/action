@@ -397,15 +397,38 @@ export default {
       log('播放', 'gst 后端无此方法: ' + name)
     },
     /** 起播 (at=起播位置秒) */
+    /**
+     * 逻辑矩形 -> waylandsink 的物理坐标.
+     * ★ 为什么需要: 真机现象是"视频只显示在上半个屏幕".
+     *   物理面板 (DRM 输出) 是 **480x960 竖屏**, 而逻辑 UI 是 960x266 横屏,
+     *   Weston 把逻辑画面旋转+平移后合成上去. waylandsink 的 render-rectangle
+     *   是在**物理输出空间**里解释的, 直接传逻辑矩形 -> 473 宽几乎占满 480,
+     *   266 高只占 960 的 28% -> 表现为"只有上半屏".
+     * 变换来自已验证的触摸注入公式 (touchX = displayY + 107, touchY = 959 - displayX):
+     *   物理 -> 逻辑: lx = 959 - py , ly = px - 107
+     *   逻辑 -> 物理: px = ly + 107 , py = 959 - lx
+     * 于是逻辑矩形 (x,y,w,h) 对应物理矩形:
+     *   x' = y + 107 , y' = 959 - x - w , w' = h , h' = w
+     * 代入 (244,0,473,266) -> (107,242,266,473), 在 480x960 内完全放得下.
+     */
+    toPhys(r) {
+      return {
+        x: Math.round(r.y) + 107,
+        y: 959 - Math.round(r.x) - Math.round(r.w),
+        w: Math.round(r.h),
+        h: Math.round(r.w)
+      }
+    },
     gstPlayAt(at) {
-      const r = this.vrect
+      const lr = this.vrect
+      const r = this.toPhys(lr)
       const bt = this.audioMode === 'bluetooth'
       const dev = bt && this.btDevices.length ? (this.btDevices[0].pcm || ('bluealsa:DEV=' + this.btDevices[0].mac + ',PROFILE=a2dp')) : ''
       this.gstPos = at
       this.gstAt = Date.now()
       gst.start({
         url: this._lastUrl,
-        x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.w), h: Math.round(r.h),
+        x: r.x, y: r.y, w: r.w, h: r.h,
         startSec: at, audioDevice: dev, btOn: bt, btMs: gst.currentBtMs()
       })
       this.gstStartClock()
@@ -413,7 +436,7 @@ export default {
       this.statusText = ''
       this.playing = true
       this.started = true
-      log('播放', '起播(gst) ' + this.bvid)
+      log('播放', '起播(gst) ' + this.bvid + ' 逻辑=' + lr.x + ',' + lr.y + ',' + lr.w + ',' + lr.h + ' 物理=' + r.x + ',' + r.y + ',' + r.w + ',' + r.h)
     },
     /** 跳转: gst-play 用 -s 重启 */
     gstSeek(sec) {
