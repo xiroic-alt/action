@@ -427,17 +427,31 @@ export default {
       this.gstAt = Date.now()
       this.gstTimer = setInterval(function () {
         if (!self.playing) return
-        const ms = self.gstPos * 1000 + (Date.now() - self.gstAt)
+        let ms = self.gstPos * 1000 + (Date.now() - self.gstAt)
+        // ★ 必须 clamp 到总时长: 否则续播位置 + 累加时间会越过 durMs,
+        //   真机截图实证过 "1:09 / 1:08" 这种越界显示.
+        if (self.durMs > 0 && ms > self.durMs) ms = self.durMs
         self.posMs = ms
         self.curMs = ms
-        // 自然结束: 进程没了就算播完
+        // ★ 结束判据用**位置到顶**, 不用进程存活 ——
+        //   gst-play 播完会停在最后一帧**不退出**, isAlive() 永远为真, 判不到结束.
+        if (self.durMs > 0 && ms >= self.durMs) {
+          self.playing = false
+          self.statusText = '播放结束'
+          self.stopPoll()
+          self.gstStopClock()
+          gst.stop()
+          log('播放', 'gst 播放到结尾')
+          return
+        }
+        // 进程真的没了 (被外部杀掉) 也要收尾
         gst.isAlive().then(function (alive) {
           if (!alive && self.playing) {
             self.playing = false
             self.statusText = '播放结束'
             self.stopPoll()
             self.gstStopClock()
-            log('播放', 'gst 进程结束')
+            log('播放', 'gst 进程退出')
           }
         })
       }, 1000)
